@@ -1,0 +1,198 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户表
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  avatar    String?
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // 关系
+  watchlist     Watchlist[]
+  familyMembers FamilyMember[]
+  annotations   Annotation[]
+
+  @@map("users")
+}
+
+// 家庭组表
+model Family {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  inviteCode  String   @unique @map("invite_code")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // 关系
+  members   FamilyMember[]
+  watchlist FamilyWatchlist[]
+
+  @@map("families")
+}
+
+// 家庭成员关联表
+model FamilyMember {
+  id        String         @id @default(uuid())
+  userId    String         @map("user_id")
+  familyId  String         @map("family_id")
+  role      FamilyRole     @default(MEMBER)
+  status    MemberStatus   @default(ACTIVE)
+  joinedAt  DateTime       @default(now()) @map("joined_at")
+
+  // 关系
+  user   User   @relation(fields: [userId], references: [id])
+  family Family @relation(fields: [familyId], references: [id])
+
+  @@unique([userId, familyId])
+  @@map("family_members")
+}
+
+// 股票基础信息表
+model Stock {
+  id          String   @id @default(uuid())
+  symbol      String   @unique // 股票代码，如 000001.SZ
+  name        String   // 股票名称
+  exchange    String   // 交易所 SSE/SZSE
+  industry    String?  // 行业
+  sector      String?  // 板块
+  marketCap   Decimal? @map("market_cap") // 市值
+  pe          Decimal? // 市盈率
+  pb          Decimal? // 市净率
+  roe         Decimal? // 净资产收益率
+  dividend    Decimal? // 股息率
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // 关系
+  watchlist     Watchlist[]
+  familyWatchlist FamilyWatchlist[]
+  annotations   Annotation[]
+  priceAlerts   PriceAlert[]
+
+  @@map("stocks")
+}
+
+// 个人自选股表
+model Watchlist {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  stockId   String   @map("stock_id")
+  group     String   @default("default") // 分组
+  note      String?  // 备注
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // 关系
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stockId])
+  @@map("watchlists")
+}
+
+// 家庭共享自选股表
+model FamilyWatchlist {
+  id        String   @id @default(uuid())
+  familyId  String   @map("family_id")
+  stockId   String   @map("stock_id")
+  addedBy   String   @map("added_by") // 谁添加的
+  note      String?  // 共享备注
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // 关系
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  stock  Stock  @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([familyId, stockId])
+  @@map("family_watchlists")
+}
+
+// 个股观点标注
+model Annotation {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  stockId   String   @map("stock_id")
+  content   String   // 标注内容
+  sentiment Sentiment? // 情绪倾向
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // 关系
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@map("annotations")
+}
+
+// 价格预警表
+model PriceAlert {
+  id        String      @id @default(uuid())
+  userId    String      @map("user_id")
+  stockId   String      @map("stock_id")
+  type      AlertType   // 预警类型
+  condition Condition   // 条件：above/below
+  price     Decimal     // 目标价格
+  status    AlertStatus @default(ACTIVE)
+  triggeredAt DateTime? @map("triggered_at")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  // 关系
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@map("price_alerts")
+}
+
+// 枚举类型
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum FamilyRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MemberStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
+enum Sentiment {
+  BULLISH
+  BEARISH
+  NEUTRAL
+}
+
+enum AlertType {
+  PRICE      // 价格预警
+  VOLUME     // 成交量预警
+  CHANGE     // 涨跌幅预警
+}
+
+enum Condition {
+  ABOVE // 高于
+  BELOW // 低于
+}
+
+enum AlertStatus {
+  ACTIVE
+  TRIGGERED
+  DISABLED
+}

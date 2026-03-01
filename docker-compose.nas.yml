@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:16-alpine
+    container_name: familystock-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-familystock}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-familystock}
+    volumes:
+      - /volume1/docker/familystock/data/postgres:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - familystock-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-familystock} -d ${DB_NAME:-familystock}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: familystock-redis
+    restart: unless-stopped
+    volumes:
+      - /volume1/docker/familystock/data/redis:/data
+    networks:
+      - familystock-network
+    command: redis-server --appendonly yes
+
+  # 后端API服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: familystock-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-familystock}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_NAME: ${DB_NAME:-familystock}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY}
+      TUSHARE_TOKEN: ${TUSHARE_TOKEN}
+    volumes:
+      - /volume1/docker/familystock/data/uploads:/app/uploads
+    ports:
+      - "5000:5000"
+    networks:
+      - familystock-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 前端应用（生产构建版）
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: familystock-frontend
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=/api
+    ports:
+      - "3000:80"
+    networks:
+      - familystock-network
+    depends_on:
+      - backend
+
+networks:
+  familystock-network:
+    driver: bridge
