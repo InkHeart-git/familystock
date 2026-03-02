@@ -145,6 +145,15 @@
             width: 100%;
             height: 100%;
         }
+        
+        /* 手机端固定地球位置 */
+        @media (max-width: 768px) {
+            .globe-section {
+                position: sticky;
+                top: 40px;
+                z-index: 100;
+            }
+        }
 
         .globe-overlay {
             position: absolute;
