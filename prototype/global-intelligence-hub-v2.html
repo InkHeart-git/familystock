@@ -22,6 +22,7 @@
             background: #050508;
             color: #e2e8f0;
             overflow-x: hidden;
+            touch-action: pan-y;  /* 只允许垂直滚动 */
         }
 
         /* Glass Panel */
@@ -139,6 +140,7 @@
             position: relative;
             background: radial-gradient(ellipse at center, #0a0e27 0%, #000000 100%);
             min-height: 500px;
+            overflow: hidden;
         }
 
         #globe-container {
