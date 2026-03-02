@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球智能投资中心 - Global Intelligence & Trading Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #050508;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        /* Glass Panel */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* News Ticker */
+        .news-ticker-container {
+            background: linear-gradient(90deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%);
+            border-bottom: 2px solid #e94560;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            height: 40px;
+            display: flex;
+            align-items: center;
+        }
+
+        .news-label {
+            background: #e94560;
+            color: white;
+            padding: 0 20px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            font-weight: 700;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            white-space: nowrap;
+        }
+
+        .news-ticker {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            height: 100%;
+        }
+
+        .news-track {
+            display: flex;
+            animation: scroll 60s linear infinite;
+            white-space: nowrap;
+            padding: 8px 0;
+        }
+
+        @keyframes scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .news-item {
+            display: inline-flex;
+            align-items: center;
+            padding: 0 30px;
+            font-size: 13px;
+            color: #cbd5e1;
+        }
+
+        .news-item::before {
+            content: "▸";
+            color: #e94560;
+            margin-right: 8px;
+        }
+
+        .news-time {
+            color: #64748b;
+            margin-right: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+        }
+
+        .news-category {
+            background: rgba(233, 69, 96, 0.2);
+            color: #e94560;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-right: 10px;
+            text-transform: uppercase;
+        }
+
+        /* Main Layout */
+        .main-container {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: 1fr 380px 320px;
+            height: calc(100vh - 40px);
+        }
+
+        @media (max-width: 1400px) {
+            .main-container {
+                grid-template-columns: 1fr 350px;
+            }
+            .right-panel {
+                display: none;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 50vh auto auto;
+                overflow-y: auto;
+            }
+        }
+
+        /* Globe Section */
+        .globe-section {
+            position: relative;
+            background: radial-gradient(ellipse at center, #0a0e27 0%, #000000 100%);
+            min-height: 500px;
+        }
+
+        #globe-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .globe-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+        }
+
+        .globe-title {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa 0%, #e94560 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .conflict-legend {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+
+        .legend-dot.active { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+        .legend-dot.tension { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
+        .legend-dot.stable { background: #10b981; }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        /* Conflict Panel */
+        .conflict-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(233, 69, 96, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            z-index: 100;
+        }
+
+        .conflict-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .conflict-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e94560;
+        }
+
+        .conflict-count {
+            background: #ef4444;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .conflict-list {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+
+        .conflict-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 200px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .conflict-card:hover {
+            background: rgba(233, 69, 96, 0.1);
+            border-color: rgba(233, 69, 96, 0.5);
+        }
+
+        .conflict-name {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .conflict-location {
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .conflict-intensity {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .intensity-bar {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .intensity-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s;
+        }
+
+        /* Sidebar */
+        .sidebar, .right-panel {
+            background: #0f0f1a;
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #64748b;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sidebar-title i {
+            color: #60a5fa;
+        }
+
+        /* Futures Cards */
+        .futures-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .future-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            transition: all 0.3s;
+        }
+
+        .future-card:hover {
+            border-color: rgba(96, 165, 250, 0.5);
+            transform: translateX(5px);
+        }
+
+        .future-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .future-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .future-symbol {
+            font-size: 10px;
+            color: #64748b;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .future-price {
+            font-size: 20px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 5px;
+        }
+
+        .future-change {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
+
+        .trend-up { color: #10b981; }
+        .trend-down { color: #ef4444; }
+
+        /* Market Summary */
+        .market-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .summary-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .summary-label {
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .summary-value {
+            font-size: 16px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Alert Box */
+        .alert-box {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(185, 28, 28, 0.1) 100%);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .alert-title {
+            color: #ef4444;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .alert-title::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .alert-text {
+            font-size: 12px;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+
+        /* Stock Section */
+        .stock-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .stock-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .stock-card:hover {
+            border-color: rgba(96, 165, 250, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .stock-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .stock-symbol {
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .stock-sector {
+            font-size: 10px;
+            padding: 2px 6px;
+            background: rgba(96, 165, 250, 0.2);
+            color: #60a5fa;
+            border-radius: 4px;
+        }
+
+        .stock-price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .stock-price {
+            font-size: 18px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stock-change {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .stock-score {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .score-bar {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .score-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, #60a5fa 0%, #a78bfa 100%);
+        }
+
+        .score-value {
+            font-size: 11px;
+            font-weight: 700;
+            color: #a78bfa;
+            min-width: 35px;
+        }
+
+        /* Influencer Section - 移到了右侧 */
+        .influencer-section {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .influencer-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.2) 0%, transparent 100%);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .influencer-label {
+            color: #3b82f6;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .influencer-label i {
+            animation: pulse-blue 2s infinite;
+        }
+
+        @keyframes pulse-blue {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .influencer-list {
+            padding: 15px;
+        }
+
+        .influencer-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+        }
+
+        .influencer-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .influencer-header-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .influencer-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+            flex-shrink: 0;
+            border: 2px solid;
+        }
+
+        .influencer-avatar.trump {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border-color: #fca5a5;
+            color: white;
+        }
+
+        .influencer-avatar.canchan {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: #6ee7b7;
+            color: white;
+        }
+
+        .influencer-avatar.jiege {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            border-color: #fcd34d;
+            color: white;
+        }
+
+        .influencer-avatar.dufu {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            border-color: #c4b5fd;
+            color: white;
+        }
+
+        .influencer-meta {
+            flex: 1;
+        }
+
+        .influencer-name-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 2px;
+        }
+
+        .influencer-name {
+            font-weight: 700;
+            font-size: 13px;
+            color: #fbbf24;
+        }
+
+        .influencer-platform {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .influencer-platform.weibo { color: #e6162d; background: rgba(230, 22, 45, 0.1); }
+        .influencer-platform.bilibili { color: #00a1d6; background: rgba(0, 161, 214, 0.1); }
+        .influencer-platform.youtube { color: #ff0000; background: rgba(255, 0, 0, 0.1); }
+        .influencer-platform.douyin { color: #000000; background: rgba(255, 255, 255, 0.1); }
+        .influencer-platform.x { color: #1da1f2; background: rgba(29, 161, 242, 0.1); }
+
+        .influencer-time {
+            font-size: 10px;
+            color: #64748b;
+        }
+
+        .influencer-opinion {
+            font-size: 12px;
+            color: #cbd5e1;
+            line-height: 1.6;
+            padding-left: 48px;
+            border-left: 2px solid rgba(59, 130, 246, 0.3);
+        }
+
+        /* Loading Screen */
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+
+        .loading-globe {
+            width: 100px;
+            height: 100px;
+            border: 3px solid rgba(96, 165, 250, 0.3);
+            border-top-color: #60a5fa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #64748b;
+            font-size: 14px;
+            letter-spacing: 3px;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(233, 69, 96, 0.5);
+            border-radius: 8px;
+            padding: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+            max-width: 250px;
+        }
+
+        .tooltip.show {
+            opacity: 1;
+        }
+
+        .tooltip-title {
+            color: #e94560;
+            font-weight: 700;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .tooltip-content {
+            font-size: 12px;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .tab-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+        }
+
+        .tab-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            border-color: transparent;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Filter Controls */
+        .filter-row {
+            display: flex;
+            gap: 10px;
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .filter-select {
+            flex: 1;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #e2e8f0;
+            font-size: 12px;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .ai-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 20px;
+            font-size: 10px;
+            color: #c084fc;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="loading-globe"></div>
+        <div class="loading-text">INITIALIZING GLOBAL INTELLIGENCE...</div>
+    </div>
+
+    <!-- News Ticker -->
+    <div class="news-ticker-container">
+        <div class="news-label">
+            <i class="fas fa-broadcast-tower mr-2"></i>
+            BREAKING
+        </div>
+        <div class="news-ticker">
+            <div class="news-track" id="news-track"></div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Globe Section -->
+        <div class="globe-section">
+            <div id="globe-container"></div>
+            
+            <!-- Globe Overlay -->
+            <div class="globe-overlay">
+                <div class="globe-title">
+                    <i class="fas fa-globe-americas mr-2"></i>
+                    全球冲突态势
+                </div>
+                <div class="conflict-legend">
+                    <div class="legend-item">
+                        <div class="legend-dot active"></div>
+                        <span>活跃冲突 (Active Conflict)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot tension"></div>
+                        <span>高度紧张 (High Tension)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot stable"></div>
+                        <span>相对稳定 (Stable)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conflict Panel -->
+            <div class="conflict-panel">
+                <div class="conflict-header">
+                    <div class="conflict-title">
+                        <i class="fas fa-fire-alt mr-2"></i>
+                        当前活跃冲突地区
+                    </div>
+                    <div class="conflict-count">8 个地区</div>
+                </div>
+                <div class="conflict-list" id="conflict-list"></div>
+            </div>
+        </div>
+
+        <!-- Middle Sidebar - Markets & AI Stocks -->
+        <div class="sidebar">
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <div class="tab-btn active" onclick="switchTab('futures')">
+                    <i class="fas fa-chart-line mr-1"></i>期货
+                </div>
+                <div class="tab-btn" onclick="switchTab('stocks')">
+                    <i class="fas fa-robot mr-1"></i>AI选股
+                </div>
+                <div class="tab-btn" onclick="switchTab('calendar')">
+                    <i class="fas fa-calendar mr-1"></i>日历
+                </div>
+            </div>
+
+            <!-- Futures Tab -->
+            <div id="tab-futures" class="tab-content active">
+                <div class="sidebar-section">
+                    <div class="market-summary">
+                        <div class="summary-item">
+                            <div class="summary-label">VIX 恐慌指数</div>
+                            <div class="summary-value" style="color: #f59e0b;">18.45</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">美元指数</div>
+                            <div class="summary-value" style="color: #10b981;">103.82</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">黄金/美元</div>
+                            <div class="summary-value" style="color: #fbbf24;">2,845</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">原油波动率</div>
+                            <div class="summary-value" style="color: #ef4444;">32.1%</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">
+                        <i class="fas fa-oil-can"></i>
+                        大宗商品期货
+                    </div>
+                    <div class="futures-grid" id="futures-grid"></div>
+                </div>
+            </div>
+
+            <!-- Stocks Tab -->
+            <div id="tab-stocks" class="tab-content">
+                <div class="sidebar-section">
+                    <div class="filter-row">
+                        <select class="filter-select" id="stock-sector" onchange="filterStocks()">
+                            <option value="all">全部板块</option>
+                            <option value="tech">科技</option>
+                            <option value="finance">金融</option>
+                            <option value="healthcare">医疗</option>
+                            <option value="energy">能源</option>
+                            <option value="consumer">消费</option>
+                        </select>
+                        <select class="filter-select" id="stock-sort" onchange="filterStocks()">
+                            <option value="score">AI评分</option>
+                            <option value="change">涨跌幅</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">
+                        <i class="fas fa-brain"></i>
+                        AI智能选股 <span class="ai-badge"><i class="fas fa-sparkles"></i>实时</span>
+                    </div>
+                    <div class="stock-grid" id="stock-grid"></div>
+                </div>
+            </div>
+
+            <!-- Calendar Tab -->
+            <div id="tab-calendar" class="tab-content">
+                <div class="sidebar-section">
+                    <div class="alert-box">
+                        <div class="alert-title">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            地缘政治风险预警
+                        </div>
+                        <div class="alert-text">
+                            中东地区紧张局势升级，霍尔木兹海峡航运风险上升，建议关注原油、黄金及相关军工板块波动。
+                        </div>
+                    </div>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">
+                        <i class="fas fa-calendar-alt"></i>
+                        财经日历
+                    </div>
+                    <div id="economic-calendar" style="font-size: 12px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Influencer Opinions (MOVED UP) -->
+        <div class="right-panel">
+            <div class="influencer-header">
+                <div class="influencer-label">
+                    <i class="fas fa-users"></i>
+                    大V观点实时追踪
+                </div>
+            </div>
+            <div class="influencer-list" id="influencer-list"></div>
+        </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip">
+        <div class="tooltip-title" id="tooltip-title"></div>
+        <div class="tooltip-content" id="tooltip-content"></div>
+    </div>
+
+    <script>
+        // ==================== DATA ====================
+        const API_BASE_URL = 'http://localhost:3001';
+        
+        // Conflict Zones with more detailed coordinates
+        const conflictZones = [
+            {
+                name: "俄乌冲突",
+                location: "Ukraine",
+                lat: 49.0,
+                lon: 31.0,
+                intensity: 95,
+                status: "active",
+                description: "持续军事冲突，北约与俄罗斯紧张对峙",
+                casualties: "50万+",
+                started: "2022-02-24"
+            },
+            {
+                name: "巴以冲突",
+                location: "Gaza Strip",
+                lat: 31.5,
+                lon: 34.4,
+                intensity: 90,
+                status: "active",
+                description: "加沙地带持续战事，人道主义危机",
+                casualties: "3万+",
+                started: "2023-10-07"
+            },
+            {
+                name: "红海危机",
+                location: "Yemen / Red Sea",
+                lat: 15.0,
+                lon: 45.0,
+                intensity: 75,
+                status: "active",
+                description: "胡塞武装袭击商船，国际航运受阻",
+                impact: "全球供应链",
+                started: "2023-11"
+            },
+            {
+                name: "台海局势",
+                location: "Taiwan Strait",
+                lat: 24.0,
+                lon: 121.0,
+                intensity: 70,
+                status: "tension",
+                description: "军事演习频繁，地缘政治风险上升",
+                impact: "芯片供应链",
+                started: "持续紧张"
+            },
+            {
+                name: "朝鲜半岛",
+                location: "Korean Peninsula",
+                lat: 38.0,
+                lon: 127.0,
+                intensity: 65,
+                status: "tension",
+                description: "导弹试射频繁，美韩联军演习",
+                impact: "东北亚安全",
+                started: "持续紧张"
+            },
+            {
+                name: "缅甸内战",
+                location: "Myanmar",
+                lat: 21.0,
+                lon: 96.0,
+                intensity: 80,
+                status: "active",
+                description: "军政府与民地武持续冲突",
+                casualties: "数万",
+                started: "2021-02"
+            },
+            {
+                name: "萨赫勒地区",
+                location: "Sahel, Africa",
+                lat: 17.0,
+                lon: 0.0,
+                intensity: 85,
+                status: "active",
+                description: "极端组织活跃，多国军事干预",
+                impact: "移民与资源",
+                started: "2012"
+            },
+            {
+                name: "印巴边境",
+                location: "Kashmir",
+                lat: 34.0,
+                lon: 76.0,
+                intensity: 60,
+                status: "tension",
+                description: "克什米尔争议地区，零星交火",
+                impact: "南亚稳定",
+                started: "持续紧张"
+            }
+        ];
+
+        // News Data
+        const newsData = [
+            { time: "23:42", category: "冲突", text: "美军空袭也门胡塞武装目标，红海局势升级" },
+            { time: "23:38", category: "市场", text: "布伦特原油突破85美元，地缘风险溢价上升" },
+            { time: "23:25", category: "政治", text: "欧盟通过对俄第14轮制裁方案" },
+            { time: "23:15", category: "冲突", text: "以军空袭加沙南部，哈马斯称将扩大反击" },
+            { time: "23:08", category: "市场", text: "现货黄金创历史新高，避险需求激增" },
+            { time: "22:55", category: "政治", text: "北约秘书长：将增加对乌克兰军事援助" },
+            { time: "22:42", category: "冲突", text: "俄军对基辅发动大规模无人机袭击" },
+            { time: "22:30", category: "市场", text: "美元指数下跌，美联储降息预期升温" },
+            { time: "22:15", category: "政治", text: "中国外交部呼吁各方保持克制，政治解决争端" },
+            { time: "22:08", category: "冲突", text: "朝鲜发射巡航导弹，韩军提升警戒等级" },
+            { time: "21:55", category: "市场", text: "铜价上涨，智利矿山供应担忧加剧" },
+            { time: "21:42", category: "政治", text: "伊朗警告：若以色列攻击核设施将报复" }
+        ];
+
+        // Futures Data
+        const futuresData = [
+            { name: "WTI原油", symbol: "CL", price: 81.25, change: 2.35, changePercent: 2.98, trend: "up" },
+            { name: "布伦特原油", symbol: "BZ", price: 85.67, change: 2.48, changePercent: 2.98, trend: "up" },
+            { name: "黄金", symbol: "GC", price: 2845.30, change: 28.50, changePercent: 1.01, trend: "up" },
+            { name: "天然气", symbol: "NG", price: 2.85, change: -0.12, changePercent: -4.04, trend: "down" },
+            { name: "铜", symbol: "HG", price: 4.25, change: 0.08, changePercent: 1.92, trend: "up" },
+            { name: "小麦", symbol: "ZW", price: 585.25, change: -8.50, changePercent: -1.43, trend: "down" }
+        ];
+
+        // Stock Data
+        const stockData = [
+            { symbol: "600519", name: "贵州茅台", sector: "consumer", sectorName: "消费", price: 1688.88, change: 1.24, aiScore: 92, momentum: 88, value: 75 },
+            { symbol: "000858", name: "五粮液", sector: "consumer", sectorName: "消费", price: 145.32, change: 0.89, aiScore: 88, momentum: 85, value: 78 },
+            { symbol: "002594", name: "比亚迪", sector: "consumer", sectorName: "消费", price: 268.50, change: 2.15, aiScore: 95, momentum: 92, value: 70 },
+            { symbol: "300750", name: "宁德时代", sector: "energy", sectorName: "能源", price: 198.20, change: -0.56, aiScore: 85, momentum: 78, value: 82 },
+            { symbol: "601012", name: "隆基绿能", sector: "energy", sectorName: "能源", price: 22.35, change: 1.88, aiScore: 78, momentum: 82, value: 88 },
+            { symbol: "600036", name: "招商银行", sector: "finance", sectorName: "金融", price: 35.60, change: 0.45, aiScore: 82, momentum: 75, value: 90 },
+            { symbol: "000001", name: "平安银行", sector: "finance", sectorName: "金融", price: 11.25, change: 0.32, aiScore: 75, momentum: 72, value: 85 },
+            { symbol: "600276", name: "恒瑞医药", sector: "healthcare", sectorName: "医疗", price: 48.90, change: -1.25, aiScore: 80, momentum: 70, value: 88 },
+            { symbol: "300760", name: "迈瑞医疗", sector: "healthcare", sectorName: "医疗", price: 298.50, change: 0.95, aiScore: 88, momentum: 85, value: 72 },
+            { symbol: "002415", name: "海康威视", sector: "tech", sectorName: "科技", price: 32.80, change: 1.56, aiScore: 86, momentum: 88, value: 80 }
+        ];
+
+        // Calendar Data
+        const calendarData = [
+            { time: "21:30", event: "美国非农就业数据", importance: "high", forecast: "18.5万", previous: "21.6万" },
+            { time: "22:45", event: "欧元区PMI制造业", importance: "medium", forecast: "44.2", previous: "44.4" },
+            { time: "次日 02:00", event: "美联储利率决议", importance: "high", forecast: "5.25-5.50%", previous: "5.25-5.50%" },
+            { time: "次日 02:30", event: "鲍威尔新闻发布会", importance: "high", forecast: "-", previous: "-" },
+            { time: "次日 09:30", event: "中国CPI月率", importance: "medium", forecast: "0.3%", previous: "0.2%" }
+        ];
+
+        // Influencer Data
+        const influencerData = [
+            {
+                name: "特朗普",
+                avatar: "T",
+                class: "trump",
+                platform: "Truth Social",
+                platformClass: "x",
+                time: "5分钟前",
+                opinion: "如果我还在白宫，这场战争永远不会发生。拜登的软弱让全世界陷入混乱，美国需要强有力的领导！"
+            },
+            {
+                name: "听风的蚕",
+                avatar: "蚕",
+                class: "canchan",
+                platform: "B站",
+                platformClass: "bilibili",
+                time: "12分钟前",
+                opinion: "从军事角度分析，红海局势的升级实际上反映了各方在地区的战略博弈，胡塞武装的无人机战术值得深入研究。"
+            },
+            {
+                name: "捷哥霸得蛮",
+                avatar: "捷",
+                class: "jiege",
+                platform: "微博",
+                platformClass: "weibo",
+                time: "18分钟前",
+                opinion: "当前全球供应链面临巨大挑战，能源价格波动将直接影响通胀预期，各国央行的货币政策选择愈发困难。"
+            },
+            {
+                name: "独夫之心前进四",
+                avatar: "独",
+                class: "dufu",
+                platform: "B站",
+                platformClass: "bilibili",
+                time: "25分钟前",
+                opinion: "从历史维度看，当前的国际秩序正在经历深刻变革，多极化趋势不可逆转，但过程必然伴随阵痛与冲突。"
+            },
+            {
+                name: "特朗普",
+                avatar: "T",
+                class: "trump",
+                platform: "X / Twitter",
+                platformClass: "x",
+                time: "32分钟前",
+                opinion: "MAGA！美国经济正在崩溃边缘，只有特朗普能让美国再次伟大。民调显示我领先所有对手！"
+            },
+            {
+                name: "听风的蚕",
+                avatar: "蚕",
+                class: "canchan",
+                platform: "YouTube",
+                platformClass: "youtube",
+                time: "45分钟前",
+                opinion: "俄乌战场最新态势分析：北约援助的F-16战机即将形成战斗力，但飞行员培训仍是瓶颈，短期内难以改变战局。"
+            },
+            {
+                name: "捷哥霸得蛮",
+                avatar: "捷",
+                class: "jiege",
+                platform: "抖音",
+                platformClass: "douyin",
+                time: "52分钟前",
+                opinion: "黄金突破历史新高不是偶然，全球避险情绪的升温说明投资者对地缘政治风险有着清醒认识。"
+            },
+            {
+                name: "独夫之心前进四",
+                avatar: "独",
+                class: "dufu",
+                platform: "微博",
+                platformClass: "weibo",
+                time: "1小时前",
+                opinion: "台海局势的演变需要冷静观察，军事准备与外交斡旋并行不悖，和平统一仍是最佳选项但需底线思维。"
+            }
+        ];
+
+        // ==================== THREE.JS GLOBE WITH WORLD MAP ====================
+        let scene, camera, renderer, globe, markers = [];
+
+        function initGlobe() {
+            const container = document.getElementById('globe-container');
+            
+            // Scene
+            scene = new THREE.Scene();
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.z = 2.5;
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            // Globe Group
+            globe = new THREE.Group();
+            scene.add(globe);
+
+            // Earth Sphere with Real World Map Texture
+            const geometry = new THREE.SphereGeometry(1, 128, 128);
+            
+            // Load real earth texture from NASA/Natural Earth
+            const textureLoader = new THREE.TextureLoader();
+            const earthTexture = textureLoader.load(
+                'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+                function(texture) {
+                    console.log('Earth texture loaded successfully');
+                },
+                undefined,
+                function(err) {
+                    console.log('Failed to load earth texture, using fallback');
+                }
+            );
+            
+            // Also load bump map for terrain detail
+            const bumpTexture = textureLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png');
+            
+            const material = new THREE.MeshPhongMaterial({
+                map: earthTexture,
+                bumpMap: bumpTexture,
+                bumpScale: 0.05,
+                emissive: 0x001133,
+                emissiveIntensity: 0.1,
+                shininess: 25
+            });
+            
+            const earth = new THREE.Mesh(geometry, material);
+            globe.add(earth);
+
+            // Atmosphere glow
+            const glowGeometry = new THREE.SphereGeometry(1.08, 64, 64);
+            const glowMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    c: { type: "f", value: 0.5 },
+                    p: { type: "f", value: 4.0 },
+                    glowColor: { type: "c", value: new THREE.Color(0x3b82f6) },
+                    viewVector: { type: "v3", value: camera.position }
+                },
+                vertexShader: `
+                    uniform vec3 viewVector;
+                    varying float intensity;
+                    void main() {
+                        vec3 vNormal = normalize(normalMatrix * normal);
+                        vec3 vNormel = normalize(normalMatrix * viewVector);
+                        intensity = pow(0.55 - dot(vNormal, vNormel), 4.0);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 glowColor;
+                    varying float intensity;
+                    void main() {
+                        vec3 glow = glowColor * intensity;
+                        gl_FragColor = vec4(glow, 1.0);
+                    }
+                `,
+                side: THREE.FrontSide,
+                blending: THREE.AdditiveBlending,
+                transparent: true
+            });
+            const atmosphere = new THREE.Mesh(glowGeometry, glowMaterial);
+            globe.add(atmosphere);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x333333, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 3, 5);
+            scene.add(directionalLight);
+            
+            // Add a blue point light for tech effect
+            const pointLight = new THREE.PointLight(0x3b82f6, 0.5, 10);
+            pointLight.position.set(-5, 0, 5);
+            scene.add(pointLight);
+
+            // Add markers for conflict zones
+            addConflictMarkers();
+
+            // Animation
+            animate();
+
+            // Handle resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            
+            return new THREE.Vector3(x, y, z);
+        }
+
+        function addConflictMarkers() {
+            conflictZones.forEach(zone => {
+                const position = latLonToVector3(zone.lat, zone.lon, 1.02);
+                
+                // Marker dot - larger and more visible
+                const dotGeometry = new THREE.SphereGeometry(0.035, 32, 32);
+                const dotColor = zone.status === 'active' ? 0xef4444 : 0xf59e0b;
+                const dotMaterial = new THREE.MeshBasicMaterial({ 
+                    color: dotColor,
+                    emissive: dotColor,
+                    emissiveIntensity: 0.8
+                });
+                const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+                dot.position.copy(position);
+                dot.userData = zone;
+                globe.add(dot);
+                
+                // Pulse ring - larger
+                const ringGeometry = new THREE.RingGeometry(0.04, 0.055, 64);
+                const ringMaterial = new THREE.MeshBasicMaterial({
+                    color: dotColor,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                ring.position.copy(position.clone().multiplyScalar(1.015));
+                ring.lookAt(new THREE.Vector3(0, 0, 0));
+                globe.add(ring);
+                
+                // Label connector line
+                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    position.clone().multiplyScalar(1.02),
+                    position.clone().multiplyScalar(1.15)
+                ]);
+                const lineMaterial = new THREE.LineBasicMaterial({ 
+                    color: dotColor, 
+                    transparent: true, 
+                    opacity: 0.5 
+                });
+                const line = new THREE.Line(lineGeometry, lineMaterial);
+                globe.add(line);
+                
+                // Store for animation
+                markers.push({ dot, ring, line, zone, scale: 1, baseScale: 1 + Math.random() * 0.3 });
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Rotate globe
+            globe.rotation.y += 0.0005;
+            
+            // Animate markers
+            const time = Date.now() * 0.002;
+            markers.forEach((marker, i) => {
+                const offset = i * 0.7;
+                marker.scale = marker.baseScale + Math.sin(time + offset) * 0.15;
+                marker.ring.scale.set(marker.scale, marker.scale, marker.scale);
+                marker.ring.material.opacity = 0.7 - (marker.scale - marker.baseScale) * 0.3;
+                marker.dot.material.emissiveIntensity = 0.5 + Math.sin(time * 2 + offset) * 0.3;
+            });
+            
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('globe-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // ==================== UI FUNCTIONS ====================
+
+        function renderNews() {
+            const track = document.getElementById('news-track');
+            const items = [...newsData, ...newsData];
+            
+            track.innerHTML = items.map(news => `
+                <div class="news-item">
+                    <span class="news-time">${news.time}</span>
+                    <span class="news-category">${news.category}</span>
+                    ${news.text}
+                </div>
+            `).join('');
+        }
+
+        function renderConflicts() {
+            const container = document.getElementById('conflict-list');
+            
+            container.innerHTML = conflictZones.map(zone => `
+                <div class="conflict-card" onclick="focusOnZone('${zone.name}')">
+                    <div class="conflict-name">
+                        <i class="fas fa-map-marker-alt mr-2" style="color: ${zone.status === 'active' ? '#ef4444' : '#f59e0b'}"></i>
+                        ${zone.name}
+                    </div>
+                    <div class="conflict-location">
+                        <i class="fas fa-globe-asia mr-1"></i> ${zone.location}
+                    </div>
+                    <div class="conflict-intensity">
+                        <span style="font-size: 10px; color: #64748b;">强度</span>
+                        <div class="intensity-bar">
+                            <div class="intensity-fill" style="width: ${zone.intensity}%; background: ${zone.status === 'active' ? '#ef4444' : '#f59e0b'}"></div>
+                        </div>
+                        <span style="font-size: 10px; font-family: monospace;">${zone.intensity}%</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderFutures() {
+            const container = document.getElementById('futures-grid');
+            
+            container.innerHTML = futuresData.map(future => `
+                <div class="future-card">
+                    <div class="future-header">
+                        <div class="future-name">${future.name}</div>
+                        <div class="future-symbol">${future.symbol}</div>
+                    </div>
+                    <div class="future-price">${future.price.toFixed(2)}</div>
+                    <div class="future-change ${future.trend === 'up' ? 'trend-up' : 'trend-down'}">
+                        <i class="fas fa-caret-${future.trend === 'up' ? 'up' : 'down'}"></i>
+                        ${future.change > 0 ? '+' : ''}${future.change.toFixed(2)} (${future.changePercent > 0 ? '+' : ''}${future.changePercent.toFixed(2)}%)
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderStocks() {
+            const container = document.getElementById('stock-grid');
+            
+            container.innerHTML = stockData.map(stock => `
+                <div class="stock-card" onclick="showStockDetail('${stock.symbol}')">
+                    <div class="stock-header">
+                        <div class="stock-symbol">${stock.symbol}</div>
+                        <div class="stock-sector">${stock.sectorName}</div>
+                    </div>
+                    <div class="stock-price-row">
+                        <div class="stock-price">¥${stock.price.toFixed(2)}</div>
+                        <div class="stock-change ${stock.change >= 0 ? 'trend-up' : 'trend-down'}">
+                            ${stock.change >= 0 ? '+' : ''}${stock.change}%
+                        </div>
+                    </div>
+                    <div class="stock-score">
+                        <div class="score-bar">
+                            <div class="score-fill" style="width: ${stock.aiScore}%"></div>
+                        </div>
+                        <div class="score-value">AI ${stock.aiScore}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderCalendar() {
+            const container = document.getElementById('economic-calendar');
+            
+            container.innerHTML = calendarData.map(item => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div>
+                        <div style="font-weight: 600; margin-bottom: 2px;">${item.event}</div>
+                        <div style="font-size: 10px; color: #64748b;">
+                            <i class="far fa-clock mr-1"></i>${item.time}
+                            <span style="margin-left: 10px; color: ${item.importance === 'high' ? '#ef4444' : '#f59e0b'};">
+                                ${item.importance === 'high' ? '● 高' : '● 中'}
+                            </span>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-family: monospace; color: #10b981;">${item.forecast}</div>
+                        <div style="font-size: 10px; color: #64748b;">前: ${item.previous}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderInfluencers() {
+            const container = document.getElementById('influencer-list');
+            
+            container.innerHTML = influencerData.map(influencer => `
+                <div class="influencer-card">
+                    <div class="influencer-header-row">
+                        <div class="influencer-avatar ${influencer.class}">
+                            ${influencer.avatar}
+                        </div>
+                        <div class="influencer-meta">
+                            <div class="influencer-name-row">
+                                <span class="influencer-name">${influencer.name}</span>
+                                <span class="influencer-platform ${influencer.platformClass}">${influencer.platform}</span>
+                            </div>
+                            <div class="influencer-time"><i class="far fa-clock mr-1"></i>${influencer.time}</div>
+                        </div>
+                    </div>
+                    <div class="influencer-opinion">${influencer.opinion}</div>
+                </div>
+            `).join('');
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        function filterStocks() {
+            renderStocks();
+        }
+
+        function focusOnZone(zoneName) {
+            const zone = conflictZones.find(z => z.name === zoneName);
+            if (!zone) return;
+            
+            // Show tooltip with zone info
+            showTooltip(zone);
+            
+            // Rotate globe to show zone
+            const targetRotation = -(zone.lon + 180) * (Math.PI / 180) + Math.PI / 2;
+            const startRotation = globe.rotation.y;
+            const diff = targetRotation - startRotation;
+            let progress = 0;
+            
+            const animateRotation = () => {
+                progress += 0.03;
+                if (progress >= 1) progress = 1;
+                
+                globe.rotation.y = startRotation + diff * progress;
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateRotation);
+                }
+            };
+            animateRotation();
+        }
+
+        function showTooltip(zone) {
+            const tooltip = document.getElementById('tooltip');
+            document.getElementById('tooltip-title').textContent = zone.name;
+            document.getElementById('tooltip-content').innerHTML = `
+                <div style="margin-bottom: 5px;"><strong>地点:</strong> ${zone.location}</div>
+                <div style="margin-bottom: 5px;"><strong>状态:</strong> ${zone.status === 'active' ? '⚠️ 活跃冲突' : '⚡ 高度紧张'}</div>
+                <div style="margin-bottom: 5px;"><strong>强度:</strong> ${zone.intensity}%</div>
+                <div style="margin-bottom: 5px;"><strong>描述:</strong> ${zone.description}</div>
+                ${zone.casualties ? `<div style="margin-bottom: 5px;"><strong>伤亡:</strong> ${zone.casualties}</div>` : ''}
+                <div><strong>开始:</strong> ${zone.started}</div>
+            `;
+            
+            tooltip.classList.add('show');
+            
+            const rect = document.getElementById('globe-container').getBoundingClientRect();
+            tooltip.style.left = (rect.width / 2 - 125) + 'px';
+            tooltip.style.top = (rect.height / 2) + 'px';
+            
+            setTimeout(() => tooltip.classList.remove('show'), 5000);
+        }
+
+        function showStockDetail(symbol) {
+            const stock = stockData.find(s => s.symbol === symbol);
+            if (!stock) return;
+            
+            alert(`股票详情: ${stock.name} (${stock.symbol})\n当前价格: ¥${stock.price}\nAI评分: ${stock.aiScore}\n动量: ${stock.momentum}\n估值: ${stock.value}`);
+        }
+
+        // ==================== INITIALIZATION ====================
+
+        window.addEventListener('DOMContentLoaded', () => {
+            // Hide loading after 2 seconds
+            setTimeout(() => {
+                document.getElementById('loading').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                }, 500);
+            }, 2000);
+            
+            // Initialize all components
+            initGlobe();
+            renderNews();
+            renderConflicts();
+            renderFutures();
+            renderStocks();
+            renderCalendar();
+            renderInfluencers();
+            
+            // Auto refresh
+            setInterval(() => {
+                renderNews();
+                renderInfluencers();
+            }, 60000);
+        });
+    </script>
+</body>
+</html>
