@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FamilyStock - 家庭投资智能中心</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #fff; overflow-x: hidden; margin: 0; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(20,20,30,0.95); backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.1); z-index: 1000; display: flex; justify-content: space-around; padding: 8px 0; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 16px; color: rgba(255,255,255,0.5); cursor: pointer; transition: all 0.3s; border: none; background: none; font-size: 12px; }
+        .nav-item.active { color: #3b82f6; }
+        .nav-item i { font-size: 20px; transition: transform 0.3s; }
+        .nav-item.active i { transform: scale(1.2); }
+        .page { display: none; min-height: 100vh; padding-bottom: 100px; }
+        .page.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        #earth-container { position: relative; height: 45vh; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0a 100%); overflow: hidden; }
+        #earth-canvas { width: 100%; height: 100%; display: block; }
+        .earth-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,0.5); background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 12px; pointer-events: none; }
+        .index-bar { background: linear-gradient(90deg, rgba(59,130,246,0.1), rgba(147,51,234,0.1)); border-bottom: 1px solid rgba(255,255,255,0.05); overflow-x: auto; }
+        .index-content { display: flex; padding: 12px 16px; gap: 24px; }
+        .index-item { text-align: center; min-width: 80px; }
+        .up { color: #ef4444; }
+        .down { color: #22c55e; }
+        .conflict-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 8px 16px 16px; }
+        .conflict-card { flex-shrink: 0; width: 140px; background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); border: 1px solid rgba(239,68,68,0.3); border-radius: 12px; padding: 14px; cursor: pointer; }
+        .futures-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 8px 16px 16px; }
+        .future-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 8px; text-align: center; cursor: pointer; }
+        .ai-entry { margin: 16px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 16px; padding: 24px; text-align: center; cursor: pointer; }
+        .stock-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 16px; }
+        .stock-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; cursor: pointer; }
+        .score-badge { background: linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .drawer { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a2e; border-radius: 24px 24px 0 0; max-height: 85vh; transform: translateY(100%); transition: transform 0.3s ease; z-index: 2001; }
+        .drawer.active { transform: translateY(0); }
+        .filter-btn { padding: 8px 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; font-size: 13px; color: rgba(255,255,255,0.7); cursor: pointer; }
+        .filter-btn.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    </style>
+</head>
+<body>
+    <div id="page-home" class="page active">
+        <div class="index-bar">
+            <div class="index-content">
+                <div class="index-item">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);">上证指数</div>
+                    <div style="font-size:15px;font-weight:600;">3,247.12</div>
+                    <div class="up" style="font-size:11px;">+0.85%</div>
+                </div>
+                <div class="index-item">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);">深证成指</div>
+                    <div style="font-size:15px;font-weight:600;">10,856.32</div>
+                    <div class="down" style="font-size:11px;">-0.32%</div>
+                </div>
+                <div class="index-item">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);">创业板指</div>
+                    <div style="font-size:15px;font-weight:600;">2,156.78</div>
+                    <div class="up" style="font-size:11px;">+1.24%</div>
+                </div>
+            </div>
+        </div>
+        <div id="earth-container">
+            <canvas id="earth-canvas"></canvas>
+            <div class="earth-hint">👆 拖动旋转 · 双指缩放</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;">
+            <h3 style="margin:0;font-size:16px;font-weight:600;">🔥 全球冲突热点</h3>
+            <span style="font-size:11px;color:rgba(255,255,255,0.4);">实时监测</span>
+        </div>
+        <div class="conflict-scroll">
+            <div class="conflict-card" onclick="showConflict('ukraine')">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;"></span>
+                    <span style="font-size:14px;font-weight:600;">俄乌冲突</span>
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);">强度: 95/100</div>
+                <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.2);color:#ef4444;">🔴 高度活跃</span>
+            </div>
+            <div class="conflict-card" onclick="showConflict('israel')">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;"></span>
+                    <span style="font-size:14px;font-weight:600;">巴以冲突</span>
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);">强度: 90/100</div>
+                <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.2);color:#ef4444;">🔴 高度活跃</span>
+            </div>
+            <div class="conflict-card" onclick="showConflict('redsea')" style="background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(245,158,11,0.05));border-color:rgba(245,158,11,0.3);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;"></span>
+                    <span style="font-size:14px;font-weight:600;">红海危机</span>
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);">强度: 75/100</div>
+                <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.2);color:#f59e0b;">🟡 持续紧张</span>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;">
+            <h3 style="margin:0;font-size:16px;font-weight:600;">📈 大宗商品期货</h3>
+            <span style="font-size:11px;color:rgba(255,255,255,0.4);">实时行情</span>
+        </div>
+        <div class="futures-grid">
+            <div class="future-item" onclick="showFuture('oil')">
+                <div style="font-size:22px;margin-bottom:6px;">🛢️</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.6);">WTI原油</div>
+                <div style="font-size:14px;font-weight:600;">$81.25</div>
+                <div class="up" style="font-size:11px;margin-top:2px;">+2.35%</div>
+            </div>
+            <div class="future-item" onclick="showFuture('gold')">
+                <div style="font-size:22px;margin-bottom:6px;">🥇</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.6);">黄金</div>
+                <div style="font-size:14px;font-weight:600;">$2,845</div>
+                <div class="up" style="font-size:11px;margin-top:2px;">+1.02%</div>
+            </div>
+            <div class="future-item" onclick="showFuture('gas')">
+                <div style="font-size:22px;margin-bottom:6px;">🔥</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.6);">天然气</div>
+                <div style="font-size:14px;font-weight:600;">$2.85</div>
+                <div class="down" style="font-size:11px;margin-top:2px;">-0.42%</div>
+            </div>
+        </div>
+        <div class="ai-entry" onclick="switchTab('stock')">
+            <div style="font-size:36px;margin-bottom:12px;">🤖</div>
+            <div style="font-size:18px;font-weight:700;margin-bottom:6px;">AI智能选股</div>
+            <div style="font-size:13px;opacity:0.85;">多因子分析 · 实时评分 · 智能推荐</div>
+        </div>
+    </div>
+
+    <div id="page-stock" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">🤖 AI智能选股</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">基于多因子模型的智能股票筛选系统</p>
+        </div>
+        <div style="display:flex;gap:8px;padding:12px 16px;overflow-x:auto;background:rgba(255,255,255,0.02);">
+            <button class="filter-btn active" onclick="filterStocks('all')">全部</button>
+            <button class="filter-btn" onclick="filterStocks('tech')">科技</button>
+            <button class="filter-btn" onclick="filterStocks('finance')">金融</button>
+            <button class="filter-btn" onclick="filterStocks('consumer')">消费</button>
+        </div>
+        <div id="stock-grid" class="stock-grid"></div>
+    </div>
+
+    <div id="page-calendar" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">📅 财经日历</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">全球重要财经事件与数据发布</p>
+        </div>
+        <div style="padding:40px;text-align:center;color:rgba(255,255,255,0.5);">
+            <i class="fas fa-calendar-alt" style="font-size:48px;margin-bottom:16px;display:block;"></i>
+            <p>财经日历功能开发中...</p>
+        </div>
+    </div>
+
+    <div id="page-opinion" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">💬 大V观点</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">追踪投资大V的实时观点</p>
+        </div>
+        <div style="padding:40px;text-align:center;color:rgba(255,255,255,0.5);">
+            <i class="fas fa-comments" style="font-size:48px;margin-bottom:16px;display:block;"></i>
+            <p>大V观点功能开发中...</p>
+        </div>
+    </div>
+
+    <div id="page-settings" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">⚙️ 设置</h2>
+        </div>
+        <div style="padding:16px;">
+            <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>🌙 暗黑模式</span>
+                    <span style="color:#3b82f6;">已开启</span>
+                </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>🔔 推送通知</span>
+                    <span style="color:#22c55e;">已开启</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active" onclick="switchTab('home')">
+            <i class="fas fa-home"></i>
+            <span>首页</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('stock')">
+            <i class="fas fa-chart-line"></i>
+            <span>选股</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('calendar')">
+            <i class="fas fa-calendar"></i>
+            <span>日历</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('opinion')">
+            <i class="fas fa-comments"></i>
+            <span>观点</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('settings')">
+            <i class="fas fa-cog"></i>
+            <span>设置</span>
+        </button>
+    </nav>
+
+    <div id="stock-drawer" class="drawer">
+        <div style="width:40px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;margin:12px auto;"></div>
+        <div id="drawer-content" style="padding:0 20px 20px;"></div>
+    </div>
+
+    <script>
+        const stockData = [
+            { symbol: '600519', name: '贵州茅台', sector: 'consumer', price: 1688.88, change: 1.24, aiScore: 92 },
+            { symbol: '300750', name: '宁德时代', sector: 'tech', price: 198.50, change: -0.85, aiScore: 88 },
+            { symbol: '002594', name: '比亚迪', sector: 'tech', price: 268.20, change: 2.15, aiScore: 85 },
+            { symbol: '600036', name: '招商银行', sector: 'finance', price: 32.15, change: 0.56, aiScore: 82 },
+            { symbol: '000858', name: '五粮液', sector: 'consumer', price: 145.30, change: -1.20, aiScore: 80 },
+            { symbol: '601318', name: '中国平安', sector: 'finance', price: 48.90, change: 0.32, aiScore: 78 }
+        ];
+
+        function switchTab(tab) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('page-' + tab).classList.add('active');
+            event.target.closest('.nav-item').classList.add('active');
+            if (tab === 'stock') renderStocks('all');
+        }
+
+        function renderStocks(filter) {
+            const grid = document.getElementById('stock-grid');
+            let filtered = filter === 'all' ? stockData : stockData.filter(s => s.sector === filter);
+            grid.innerHTML = filtered.map(stock => `
+                <div class="stock-card" onclick="showStockDetail('${stock.symbol}')">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:15px;font-weight:600;">${stock.name}</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.4);">${stock.symbol}</span>
+                    </div>
+                    <div style="font-size:18px;font-weight:700;margin-bottom:4px;">¥${stock.price.toFixed(2)}</div>
+                    <div style="font-size:13px;margin-bottom:12px;color:${stock.change >= 0 ? '#ef4444' : '#22c55e'};">${stock.change >= 0 ? '+' : ''}${stock.change}%</div>
+                    <div style="display:flex;align-items:center;gap:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);">
+                        <span class="score-badge">${stock.aiScore}分</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.5);">AI评分</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterStocks(sector) {
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            renderStocks(sector);
+        }
+
+        function showStockDetail(symbol) {
+            const stock = stockData.find(s => s.symbol === symbol);
+            if (!stock) return;
+            document.getElementById('drawer-content').innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <div>
+                        <div style="font-size:20px;font-weight:700;">${stock.name}</div>
+                        <div style="font-size:13px;color:rgba(255,255,255,0.5);">${stock.symbol}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:24px;font-weight:700;">¥${stock.price.toFixed(2)}</div>
+                        <div style="color:${stock.change >= 0 ? '#ef4444' : '#22c55e'};">${stock.change >= 0 ? '+' : ''}${stock.change}%</div>
+                    </div>
+                </div>
+                <div style="height:200px;background:rgba(255,255,255,0.03);border-radius:12px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;">
+                    <span style="color:rgba(255,255,255,0.3);">📈 走势图区域</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <div style="font-size:16px;font-weight:600;margin-bottom:12px;">🤖 AI分析</div>
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                        <span class="score-badge">${stock.aiScore}分</span>
+                        <span style="color:${stock.aiScore >= 80 ? '#22c55e' : '#f59e0b'};">${stock.aiScore >= 80 ? '强烈买入' : '谨慎关注'}</span>
+                    </div>
+                    <div style="font-size:13px;color:rgba(255,255,255,0.6);line-height:1.6;">
+                        基于技术面、基本面和情绪面综合分析，该股票当前${stock.aiScore >= 80 ? '表现优异' : '表现一般'}，建议${stock.aiScore >= 80 ? '积极关注' : '观望等待'}。
+                    </div>
+                </div>
+                <div style="display:flex;gap:12px;">
+                    <button style="flex:1;background:#3b82f6;border:none;border-radius:12px;padding:14px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;">加入自选</button>
+                    <button style="flex:1;background:rgba(255,255,255,0.1);border:none;border-radius:12px;padding:14px;color:#fff;font-size:15px;cursor:pointer;">分享</button>
+                </div>
+            `;
+            document.getElementById('stock-drawer').classList.add('active');
+        }
+
+        function showConflict(id) { alert('冲突详情: ' + id); }
+        function showFuture(id) { alert('期货详情: ' + id); }
+
+        function initEarth() {
+            const container = document.getElementById('earth-container');
+            const canvas = document.getElementById('earth-canvas');
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.z = 3;
+            const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshPhongMaterial({ color: 0x1a4d7a, emissive: 0x0a1a2e, specular: 0x111111, shininess: 10 });
+            const earth = new THREE.Mesh(geometry, material);
+            scene.add(earth);
+            const atmosphereGeo = new THREE.SphereGeometry(1.05, 32, 32);
+            const atmosphereMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.1, side: THREE.BackSide });
+            const atmosphere = new THREE.Mesh(atmosphereGeo, atmosphereMat);
+            scene.add(atmosphere);
+            const ambientLight = new THREE.AmbientLight(0x333333);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 3, 5);
+            scene.add(directionalLight);
+            const conflictZones = [
+                { name: '俄乌冲突', lat: 49, lon: 31, color: 0xef4444 },
+                { name: '巴以冲突', lat: 31.5, lon: 34.4, color: 0xef4444 },
+                { name: '红海危机', lat: 15, lon: 45, color: 0xf59e0b },
+                { name: '台海局势', lat: 24, lon: 121, color: 0xf59e0b }
+            ];
+            conflictZones.forEach(zone => {
+                const phi = (90 - zone.lat) * Math.PI / 180;
+                const theta = (zone.lon + 180) * Math.PI / 180;
+                const x = -1.02 * Math.sin(phi) * Math.cos(theta);
+                const y = 1.02 * Math.cos(phi);
+                const z = 1.02 * Math.sin(phi) * Math.sin(theta);
+                const markerGeo = new THREE.SphereGeometry(0.03, 8, 8);
+                const markerMat = new THREE.MeshBasicMaterial({ color: zone.color });
+                const marker = new THREE.Mesh(markerGeo, markerMat);
+                marker.position.set(x, y, z);
+                earth.add(marker);
+            });
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            canvas.addEventListener('mousedown', (e) => { isDragging = true; previousMousePosition = { x: e.clientX, y: e.clientY }; });
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                earth.rotation.y += deltaX * 0.005;
+                earth.rotation.x += deltaY * 0.005;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            canvas.addEventListener('mouseup', () => isDragging = false);
+            canvas.addEventListener('mouseleave', () => isDragging = false);
+            canvas.addEventListener('touchstart', (e) => { isDragging = true; previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY }; });
+            canvas.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const deltaX = e.touches[0].clientX - previousMousePosition.x;
+                const deltaY = e.touches[0].clientY - previousMousePosition.y;
+                earth.rotation.y += deltaX * 0.008;
+                earth.rotation.x += deltaY * 0.008;
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            });
+            canvas.addEventListener('touchend', () => isDragging = false);
+            function animate() {
+                requestAnimationFrame(animate);
+                if (!isDragging) earth.rotation.y += 0.001;
+                renderer.render(scene, camera);
+            }
+            animate();
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initEarth(); });
+    </script>
+</body>
+</html>
