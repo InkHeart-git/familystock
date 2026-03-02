@@ -802,6 +802,100 @@
             font-size: 10px;
             color: #c084fc;
         }
+    
+        /* 优化响应式布局 */
+        .main-container {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: 1fr 380px 320px;
+            height: calc(100vh - 40px);
+            overflow: hidden;
+        }
+
+        /* 平板端 */
+        @media (max-width: 1400px) {
+            .main-container {
+                grid-template-columns: 1fr 350px;
+            }
+            .right-panel {
+                display: none;
+            }
+        }
+
+        /* 手机端优化 */
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto auto;
+                height: auto;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+            
+            .globe-section {
+                min-height: 300px;
+                height: 40vh;
+            }
+            
+            #globe-container {
+                height: 100%;
+            }
+            
+            .center-panel, .right-panel {
+                display: block;
+                width: 100%;
+                height: auto;
+                max-height: none;
+                overflow: visible;
+            }
+            
+            .panel-content {
+                max-height: none;
+                overflow: visible;
+            }
+            
+            .conflict-panel {
+                position: relative;
+                top: auto;
+                left: auto;
+                margin: 10px;
+            }
+            
+            .globe-overlay {
+                position: relative;
+                top: auto;
+                left: auto;
+                margin: 10px;
+            }
+            
+            .globe-title {
+                font-size: 18px;
+            }
+            
+            .news-ticker-container {
+                position: relative;
+                height: auto;
+                min-height: 40px;
+            }
+            
+            .main-container {
+                margin-top: 0;
+            }
+        }
+
+        /* 确保内容可见 */
+        .panel-content {
+            overflow-y: auto;
+            max-height: calc(100vh - 100px);
+        }
+
+        @media (max-width: 768px) {
+            .panel-content {
+                max-height: none;
+                overflow: visible;
+            }
+        }
+
     </style>
 </head>
 <body>
