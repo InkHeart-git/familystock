@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>全球智能投资中心 - Global Intelligence & Trading Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -22,7 +22,6 @@
             background: #050508;
             color: #e2e8f0;
             overflow-x: hidden;
-            touch-action: pan-y;  /* 只允许垂直滚动 */
         }
 
         /* Glass Panel */
@@ -69,7 +68,7 @@
 
         .news-track {
             display: flex;
-            animation: scroll 30s linear infinite;
+            animation: scroll 60s linear infinite;
             white-space: nowrap;
             padding: 8px 0;
         }
@@ -140,26 +139,11 @@
             position: relative;
             background: radial-gradient(ellipse at center, #0a0e27 0%, #000000 100%);
             min-height: 500px;
-            overflow: hidden;
         }
 
         #globe-container {
             width: 100%;
             height: 100%;
-        }
-        
-        /* 手机端固定地球位置 */
-        @media (max-width: 768px) {
-            .globe-section {
-                position: relative;
-                height: 40vh;
-                min-height: 300px;
-            }
-            
-            #globe-container {
-                position: relative;
-                height: 100%;
-            }
         }
 
         .globe-overlay {
@@ -969,9 +953,7 @@
                     </div>
                     <div class="conflict-count">8 个地区</div>
                 </div>
-                <div class="conflict-list" id="conflict-list">
-                    <!-- 冲突地区将在这里动态生成 -->
-                </div>
+                <div class="conflict-list" id="conflict-list"></div>
             </div>
         </div>
 
@@ -1091,7 +1073,65 @@
 
     <script>
         // ==================== DATA ====================
-        const API_BASE_URL = 'http://localhost:3001';
+        const API_BASE_URL = 'http://101.126.54.134:3001';
+        
+        // 实时数据缓存
+        let realtimeData = {
+            indices: [],
+            futures: [],
+            news: []
+        };
+        
+        // 获取实时数据
+        async function fetchRealtimeData() {
+            try {
+                // 获取指数数据
+                const indicesRes = await fetch(`${API_BASE_URL}/api/indices`);
+                if (indicesRes.ok) {
+                    const indicesData = await indicesRes.json();
+                    realtimeData.indices = indicesData.data || [];
+                }
+                
+                // 获取期货数据
+                const futuresRes = await fetch(`${API_BASE_URL}/api/futures`);
+                if (futuresRes.ok) {
+                    const futuresData = await futuresRes.json();
+                    realtimeData.futures = futuresData.data || [];
+                }
+                
+                // 获取新闻数据
+                const newsRes = await fetch(`${API_BASE_URL}/api/news`);
+                if (newsRes.ok) {
+                    const newsData = await newsRes.json();
+                    realtimeData.news = newsData.data || [];
+                }
+                
+                // 更新显示
+                updateDisplay();
+            } catch (error) {
+                console.error('获取数据失败:', error);
+            }
+        }
+        
+        // 更新显示
+        function updateDisplay() {
+            // 更新指数显示
+            if (realtimeData.indices.length > 0) {
+                updateIndicesDisplay();
+            }
+            // 可以在这里添加其他更新逻辑
+        }
+        
+        // 更新指数显示
+        function updateIndicesDisplay() {
+            // 这里可以根据实际DOM结构更新指数显示
+            console.log('指数数据:', realtimeData.indices);
+        }
+        
+        // 初始化时获取数据
+        fetchRealtimeData();
+        // 每分钟刷新
+        setInterval(fetchRealtimeData, 60000);
         
         // Conflict Zones with more detailed coordinates
         const conflictZones = [
@@ -1492,8 +1532,8 @@
                 const offset = i * 0.7;
                 marker.scale = marker.baseScale + Math.sin(time + offset) * 0.15;
                 marker.ring.scale.set(marker.scale, marker.scale, marker.scale);
-                marker.ring.material.opacity = 0.9 - (marker.scale - marker.baseScale) * 0.2;
-                marker.dot.material.emissiveIntensity = 0.8 + Math.sin(time * 2 + offset) * 0.4;
+                marker.ring.material.opacity = 0.7 - (marker.scale - marker.baseScale) * 0.3;
+                marker.dot.material.emissiveIntensity = 0.5 + Math.sin(time * 2 + offset) * 0.3;
             });
             
             renderer.render(scene, camera);
