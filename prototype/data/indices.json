@@ -3,24 +3,24 @@
     "name": "上证指数",
     "code": "sh000001",
     "price": 4182.59,
-    "change": 4151.8,
-    "changePercent": 4151.8,
-    "timestamp": "2026-03-03T08:22:37.600441"
+    "change": 19.71,
+    "changePercent": 0.47,
+    "timestamp": "2026-03-03T09:02:10.732650"
   },
   {
     "name": "深证成指",
     "code": "sz399001",
     "price": 14465.79,
-    "change": 14327.65,
-    "changePercent": 14327.65,
-    "timestamp": "2026-03-03T08:22:37.600461"
+    "change": -29.3,
+    "changePercent": -0.2,
+    "timestamp": "2026-03-03T09:02:10.732670"
   },
   {
     "name": "创业板指",
     "code": "sz399006",
     "price": 3294.16,
-    "change": 3257.05,
-    "changePercent": 3257.05,
-    "timestamp": "2026-03-03T08:22:37.600467"
+    "change": -16.14,
+    "changePercent": -0.49,
+    "timestamp": "2026-03-03T09:02:10.732677"
   }
 ]
