@@ -1,0 +1,111 @@
+{
+  "indices": [
+    {
+      "name": "上证指数",
+      "code": "sh000001",
+      "price": 4182.59,
+      "change": 4151.8,
+      "changePercent": 4151.8,
+      "timestamp": "2026-03-03T08:22:37.600441"
+    },
+    {
+      "name": "深证成指",
+      "code": "sz399001",
+      "price": 14465.79,
+      "change": 14327.65,
+      "changePercent": 14327.65,
+      "timestamp": "2026-03-03T08:22:37.600461"
+    },
+    {
+      "name": "创业板指",
+      "code": "sz399006",
+      "price": 3294.16,
+      "change": 3257.05,
+      "changePercent": 3257.05,
+      "timestamp": "2026-03-03T08:22:37.600467"
+    }
+  ],
+  "futures": [
+    {
+      "name": "原油",
+      "symbol": "CL",
+      "price": 78.5,
+      "change": 1.2
+    },
+    {
+      "name": "黄金",
+      "symbol": "GC",
+      "price": 2345.6,
+      "change": -0.8
+    },
+    {
+      "name": "铜",
+      "symbol": "HG",
+      "price": 4.52,
+      "change": 0.5
+    },
+    {
+      "name": "天然气",
+      "symbol": "NG",
+      "price": 2.89,
+      "change": -1.2
+    },
+    {
+      "name": "大豆",
+      "symbol": "ZS",
+      "price": 1185.5,
+      "change": 0.3
+    },
+    {
+      "name": "小麦",
+      "symbol": "ZW",
+      "price": 625.3,
+      "change": -0.5
+    }
+  ],
+  "stocks": [
+    {
+      "name": "贵州茅台",
+      "code": "600519",
+      "price": 1688.88,
+      "change": 2.5,
+      "marketCap": "2.1万亿"
+    },
+    {
+      "name": "宁德时代",
+      "code": "300750",
+      "price": 185.32,
+      "change": -1.2,
+      "marketCap": "8100亿"
+    },
+    {
+      "name": "比亚迪",
+      "code": "002594",
+      "price": 245.67,
+      "change": 3.8,
+      "marketCap": "7100亿"
+    },
+    {
+      "name": "中芯国际",
+      "code": "688981",
+      "price": 52.35,
+      "change": 1.5,
+      "marketCap": "4100亿"
+    },
+    {
+      "name": "隆基绿能",
+      "code": "601012",
+      "price": 18.92,
+      "change": -2.1,
+      "marketCap": "1430亿"
+    },
+    {
+      "name": "五粮液",
+      "code": "000858",
+      "price": 142.58,
+      "change": 0.8,
+      "marketCap": "5530亿"
+    }
+  ],
+  "lastUpdated": "2026-03-03T08:22:37.601143"
+}
