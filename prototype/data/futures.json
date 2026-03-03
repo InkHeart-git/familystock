@@ -1,0 +1,38 @@
+[
+  {
+    "name": "原油",
+    "symbol": "CL",
+    "price": 78.5,
+    "change": 1.2
+  },
+  {
+    "name": "黄金",
+    "symbol": "GC",
+    "price": 2345.6,
+    "change": -0.8
+  },
+  {
+    "name": "铜",
+    "symbol": "HG",
+    "price": 4.52,
+    "change": 0.5
+  },
+  {
+    "name": "天然气",
+    "symbol": "NG",
+    "price": 2.89,
+    "change": -1.2
+  },
+  {
+    "name": "大豆",
+    "symbol": "ZS",
+    "price": 1185.5,
+    "change": 0.3
+  },
+  {
+    "name": "小麦",
+    "symbol": "ZW",
+    "price": 625.3,
+    "change": -0.5
+  }
+]
