@@ -1,0 +1,44 @@
+[
+  {
+    "name": "贵州茅台",
+    "code": "600519",
+    "price": 1688.88,
+    "change": 2.5,
+    "marketCap": "2.1万亿"
+  },
+  {
+    "name": "宁德时代",
+    "code": "300750",
+    "price": 185.32,
+    "change": -1.2,
+    "marketCap": "8100亿"
+  },
+  {
+    "name": "比亚迪",
+    "code": "002594",
+    "price": 245.67,
+    "change": 3.8,
+    "marketCap": "7100亿"
+  },
+  {
+    "name": "中芯国际",
+    "code": "688981",
+    "price": 52.35,
+    "change": 1.5,
+    "marketCap": "4100亿"
+  },
+  {
+    "name": "隆基绿能",
+    "code": "601012",
+    "price": 18.92,
+    "change": -2.1,
+    "marketCap": "1430亿"
+  },
+  {
+    "name": "五粮液",
+    "code": "000858",
+    "price": 142.58,
+    "change": 0.8,
+    "marketCap": "5530亿"
+  }
+]
