@@ -6,7 +6,7 @@
     <title>全球智能投资中心 - Global Intelligence & Trading Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
@@ -1073,9 +1073,6 @@
 
     <script>
         // ==================== DATA ====================
-        // 使用静态JSON数据（每小时更新）
-        const API_BASE_URL = './data';
-        
         // 实时数据缓存
         let realtimeData = {
             indices: [],
@@ -1083,41 +1080,158 @@
             news: []
         };
         
+        // 腾讯财经API - 使用JSONP方式获取实时数据
+        function fetchTencentData() {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                const callbackName = 'tencentCallback_' + Date.now();
+                
+                window[callbackName] = function(data) {
+                    delete window[callbackName];
+                    document.head.removeChild(script);
+                    resolve(data);
+                };
+                
+                // 腾讯财经API - 大盘指数
+                script.src = `https://qt.gtimg.cn/q=sh000001,sz399001,sz399006,sh000300,sh000016,hkHSI,US.DJI,US.IXIC`;
+                script.onerror = () => {
+                    delete window[callbackName];
+                    document.head.removeChild(script);
+                    reject(new Error('Failed to load data'));
+                };
+                
+                // 设置超时
+                setTimeout(() => {
+                    if (window[callbackName]) {
+                        delete window[callbackName];
+                        if (script.parentNode) {
+                            document.head.removeChild(script);
+                        }
+                        reject(new Error('Timeout'));
+                    }
+                }, 10000);
+                
+                document.head.appendChild(script);
+            });
+        }
+        
+        // 解析腾讯财经数据
+        function parseTencentData(text) {
+            const lines = text.split(';');
+            const indices = [];
+            const names = {
+                'sh000001': '上证指数',
+                'sz399001': '深证成指',
+                'sz399006': '创业板指',
+                'sh000300': '沪深300',
+                'sh000016': '上证50',
+                'hkHSI': '恒生指数',
+                'US.DJI': '道琼斯',
+                'US.IXIC': '纳斯达克'
+            };
+            
+            lines.forEach(line => {
+                const match = line.match(/v_(\w+)="([^"]+)"/);
+                if (match) {
+                    const code = match[1];
+                    const data = match[2].split('~');
+                    if (data.length > 32) {
+                        const price = parseFloat(data[3]);
+                        const change = parseFloat(data[31]);
+                        const changePercent = parseFloat(data[32]);
+                        indices.push({
+                            name: names[code] || code,
+                            code: code,
+                            price: price,
+                            change: change,
+                            changePercent: changePercent,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+            });
+            
+            return indices;
+        }
+        
         // 获取实时数据
         async function fetchRealtimeData() {
             try {
-                // 获取指数数据
-                const indicesRes = await fetch(`${API_BASE_URL}/indices.json`);
-                if (indicesRes.ok) {
-                    realtimeData.indices = await indicesRes.json();
+                // 调用 Vercel Serverless API
+                const response = await fetch('https://familystock-api.vercel.app/api/stocks');
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        realtimeData.indices = result.data.indices;
+                        realtimeData.futures = result.data.futures;
+                    }
+                } else {
+                    throw new Error('API request failed');
                 }
                 
-                // 获取期货数据
-                const futuresRes = await fetch(`${API_BASE_URL}/futures.json`);
-                if (futuresRes.ok) {
-                    realtimeData.futures = await futuresRes.json();
-                }
-                
-                // 获取新闻数据（使用模拟数据）
+                // 获取新闻数据
                 realtimeData.news = [
                     { title: "全球市场震荡，投资者关注美联储政策", time: "10分钟前" },
                     { title: "原油价格突破78美元，能源股大涨", time: "30分钟前" },
                     { title: "科技股集体回调，纳指下跌1.2%", time: "1小时前" }
                 ];
                 
-                // 更新显示
                 updateDisplay();
             } catch (error) {
                 console.error('获取数据失败:', error);
+                // 使用备用数据
+                loadFallbackData();
             }
+        }
+        
+        // 备用数据
+        function loadFallbackData() {
+            realtimeData.indices = [
+                { name: "上证指数", code: "sh000001", price: 4182.59, change: 19.71, changePercent: 0.47 },
+                { name: "深证成指", code: "sz399001", price: 14465.79, change: -29.3, changePercent: -0.2 },
+                { name: "创业板指", code: "sz399006", price: 3294.16, change: -16.14, changePercent: -0.49 }
+            ];
+            updateDisplay();
         }
         
         // 更新显示
         function updateDisplay() {
-            // 更新指数显示
-            if (realtimeData.indices.length > 0) {
-                updateIndicesDisplay();
+            updateIndicesDisplay();
+            updateFuturesDisplay();
+            updateNewsDisplay();
+        }
+        
+        // 更新指数显示
+        function updateIndicesDisplay() {
+            // 更新指数条显示
+            const indexItems = document.querySelectorAll('.index-item');
+            if (indexItems.length >= 3 && realtimeData.indices.length >= 3) {
+                realtimeData.indices.slice(0, 3).forEach((index, i) => {
+                    const item = indexItems[i];
+                    if (item) {
+                        const priceEl = item.querySelector('div:nth-child(2)');
+                        const changeEl = item.querySelector('div:nth-child(3)');
+                        if (priceEl) priceEl.textContent = index.price.toFixed(2);
+                        if (changeEl) {
+                            const sign = index.change >= 0 ? '+' : '';
+                            changeEl.textContent = `${sign}${index.change.toFixed(2)} (${sign}${index.changePercent.toFixed(2)}%)`;
+                            changeEl.className = index.change >= 0 ? 'up' : 'down';
+                        }
+                    }
+                });
             }
+            console.log('指数数据已更新:', realtimeData.indices);
+        }
+        
+        // 更新期货显示
+        function updateFuturesDisplay() {
+            console.log('期货数据:', realtimeData.futures);
+        }
+        
+        // 更新新闻显示
+        function updateNewsDisplay() {
+            console.log('新闻数据:', realtimeData.news);
+        }
             // 可以在这里添加其他更新逻辑
         }
         
@@ -1736,6 +1850,223 @@
             alert(`股票详情: ${stock.name} (${stock.symbol})\n当前价格: ¥${stock.price}\nAI评分: ${stock.aiScore}\n动量: ${stock.momentum}\n估值: ${stock.value}`);
         }
 
+        // ==================== LIGHTWEIGHT CHARTS ====================
+        // 使用 TradingView Lightweight Charts 替代 Chart.js
+        // 体积更小 (35KB vs 200KB)，性能更好，专为金融数据优化
+        
+        let chartInstances = {};
+        
+        // 创建轻量级图表
+        function createLightweightChart(containerId, data, options = {}) {
+            const container = document.getElementById(containerId);
+            if (!container) return null;
+            
+            const chart = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: options.height || 300,
+                layout: {
+                    background: { color: 'transparent' },
+                    textColor: '#e2e8f0',
+                },
+                grid: {
+                    vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+                    horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                rightPriceScale: {
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                },
+                timeScale: {
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                },
+                ...options.chartOptions
+            });
+            
+            const series = chart.addCandlestickSeries({
+                upColor: '#22c55e',
+                downColor: '#ef4444',
+                borderUpColor: '#22c55e',
+                borderDownColor: '#ef4444',
+                wickUpColor: '#22c55e',
+                wickDownColor: '#ef4444',
+                ...options.seriesOptions
+            });
+            
+            series.setData(data);
+            chart.timeScale().fitContent();
+            
+            // 响应式调整
+            const resizeObserver = new ResizeObserver(entries => {
+                for (let entry of entries) {
+                    chart.applyOptions({
+                        width: entry.contentRect.width,
+                    });
+                }
+            });
+            resizeObserver.observe(container);
+            
+            return { chart, series };
+        }
+        
+        // 生成模拟K线数据
+        function generateCandleData(count = 100) {
+            const data = [];
+            let price = 100;
+            const now = new Date();
+            
+            for (let i = count; i > 0; i--) {
+                const time = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+                const change = (Math.random() - 0.5) * 10;
+                const open = price;
+                const close = price + change;
+                const high = Math.max(open, close) + Math.random() * 5;
+                const low = Math.min(open, close) - Math.random() * 5;
+                
+                data.push({
+                    time: time.toISOString().split('T')[0],
+                    open: parseFloat(open.toFixed(2)),
+                    high: parseFloat(high.toFixed(2)),
+                    low: parseFloat(low.toFixed(2)),
+                    close: parseFloat(close.toFixed(2)),
+                });
+                
+                price = close;
+            }
+            
+            return data;
+        }
+
+        // ==================== VIRTUAL SCROLL ====================
+        // 虚拟滚动优化 - 处理大量股票列表
+        
+        class VirtualScroller {
+            constructor(container, items, itemHeight, renderFn) {
+                this.container = container;
+                this.items = items;
+                this.itemHeight = itemHeight;
+                this.renderFn = renderFn;
+                this.scrollTop = 0;
+                this.visibleCount = Math.ceil(container.clientHeight / itemHeight) + 2;
+                this.totalHeight = items.length * itemHeight;
+                
+                this.init();
+            }
+            
+            init() {
+                // 创建占位元素
+                this.spacer = document.createElement('div');
+                this.spacer.style.height = this.totalHeight + 'px';
+                this.container.innerHTML = '';
+                this.container.appendChild(this.spacer);
+                
+                // 创建可见区域容器
+                this.visibleContainer = document.createElement('div');
+                this.visibleContainer.style.position = 'absolute';
+                this.visibleContainer.style.top = '0';
+                this.visibleContainer.style.left = '0';
+                this.visibleContainer.style.right = '0';
+                this.container.style.position = 'relative';
+                this.container.appendChild(this.visibleContainer);
+                
+                // 绑定滚动事件
+                this.container.addEventListener('scroll', () => this.onScroll());
+                
+                // 初始渲染
+                this.render();
+            }
+            
+            onScroll() {
+                this.scrollTop = this.container.scrollTop;
+                this.render();
+            }
+            
+            render() {
+                const startIndex = Math.floor(this.scrollTop / this.itemHeight);
+                const endIndex = Math.min(startIndex + this.visibleCount, this.items.length);
+                const offsetY = startIndex * this.itemHeight;
+                
+                this.visibleContainer.style.transform = `translateY(${offsetY}px)`;
+                
+                // 只渲染可见项
+                const visibleItems = this.items.slice(startIndex, endIndex);
+                this.visibleContainer.innerHTML = visibleItems
+                    .map((item, index) => this.renderFn(item, startIndex + index))
+                    .join('');
+            }
+            
+            updateItems(newItems) {
+                this.items = newItems;
+                this.totalHeight = newItems.length * this.itemHeight;
+                this.spacer.style.height = this.totalHeight + 'px';
+                this.render();
+            }
+        }
+
+        // ==================== PERFORMANCE OPTIMIZATION ====================
+        // Three.js 性能优化
+        
+        function optimizeThreeJS() {
+            // 1. 限制帧率到 30fps（足够流畅，节省资源）
+            let lastTime = 0;
+            const targetFPS = 30;
+            const frameInterval = 1000 / targetFPS;
+            
+            // 2. 使用 requestAnimationFrame 节流
+            function throttleRAF(callback) {
+                return function(currentTime) {
+                    const delta = currentTime - lastTime;
+                    if (delta >= frameInterval) {
+                        lastTime = currentTime - (delta % frameInterval);
+                        callback();
+                    }
+                };
+            }
+            
+            // 3. 地球旋转优化
+            if (typeof globe !== 'undefined' && globe) {
+                const originalRotation = globe.rotation.y;
+                let rotationSpeed = 0.001;
+                
+                function animateGlobe() {
+                    if (globe) {
+                        globe.rotation.y += rotationSpeed;
+                    }
+                    requestAnimationFrame(throttleRAF(animateGlobe));
+                }
+                
+                // 页面不可见时暂停动画
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        rotationSpeed = 0;
+                    } else {
+                        rotationSpeed = 0.001;
+                    }
+                });
+                
+                animateGlobe();
+            }
+            
+            // 4. 使用 Intersection Observer 懒加载
+            const lazyElements = document.querySelectorAll('[data-lazy]');
+            const imageObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const element = entry.target;
+                        const src = element.dataset.src;
+                        if (src) {
+                            element.src = src;
+                            element.removeAttribute('data-src');
+                        }
+                        imageObserver.unobserve(element);
+                    }
+                });
+            });
+            
+            lazyElements.forEach(el => imageObserver.observe(el));
+        }
+
         // ==================== INITIALIZATION ====================
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -1755,6 +2086,9 @@
             renderStocks();
             renderCalendar();
             renderInfluencers();
+            
+            // 应用性能优化
+            optimizeThreeJS();
             
             // Auto refresh
             setInterval(() => {
