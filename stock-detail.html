@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamilyStock - 股票详情</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .loading {
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .stock-up { color: #ef4444; }
+        .stock-down { color: #22c55e; }
+        .stock-flat { color: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">🏠 FamilyStock</h1>
+            <p class="text-gray-600">家庭股票投资管理工具</p>
+        </header>
+
+        <!-- Search Section -->
+        <section class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">🔍 股票搜索</h2>
+            <div class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="输入股票代码或名称（如：000001 或 平安银行）"
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                <button 
+                    onclick="searchStock()"
+                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    搜索
+                </button>
+            </div>
+            <!-- Search Results -->
+            <div id="searchResults" class="mt-4 hidden">
+                <div class="border-t pt-4">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">搜索结果</h3>
+                    <div id="searchResultsList" class="space-y-2"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stock Detail Section -->
+        <section id="stockDetail" class="hidden">
+            <!-- Basic Info Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-3 mb-2">
+                            <h2 id="stockName" class="text-2xl font-bold text-gray-800">--</h2>
+                            <span id="stockCode" class="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded">--</span>
+                            <span id="stockMarket" class="px-2 py-1 bg-blue-100 text-blue-600 text-sm rounded">--</span>
+                        </div>
+                        <p id="stockIndustry" class="text-gray-600 mb-2">--</p>
+                        <p id="stockConcept" class="text-sm text-gray-500">--</p>
+                    </div>
+                    <div class="text-right">
+                        <div id="currentPrice" class="text-4xl font-bold text-gray-800">--</div>
+                        <div class="flex items-center justify-end gap-2 mt-1">
+                            <span id="priceChange" class="text-lg font-medium">--</span>
+                            <span id="priceChangePercent" class="text-lg font-medium">--</span>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1">更新时间: <span id="updateTime">--</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Business & Revenue -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Main Business -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">🏢 主营业务</h3>
+                    <p id="mainBusiness" class="text-gray-600 leading-relaxed">--</p>
+                    
+                    <div class="mt-6">
+                        <h4 class="text-sm font-medium text-gray-500 mb-3">公司简介</h4>
+                        <p id="companyProfile" class="text-sm text-gray-600 leading-relaxed">--</p>
+                    </div>
+                </div>
+
+                <!-- Revenue Composition -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">💰 收入构成</h3>
+                    <div class="mb-4">
+                        <canvas id="revenueChart" height="200"></canvas>
+                    </div>
+                    <div id="revenueTable" class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b">
+                                    <th class="text-left py-2 text-gray-600">业务板块</th>
+                                    <th class="text-right py-2 text-gray-600">收入(亿元)</th>
+                                    <th class="text-right py-2 text-gray-600">占比</th>
+                                </tr>
+                            </thead>
+                            <tbody id="revenueTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financial Metrics -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">📊 财务指标</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">总市值</p>
+                        <p id="marketCap" class="text-lg font-semibold text-gray-800">--</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">市盈率(TTM)</p>
+                        <p id="peRatio" class="text-lg font-semibold text-gray-800">--</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">市净率</p>
+                        <p id="pbRatio" class="text-lg font-semibold text-gray-800">--</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">换手率</p>
+                        <p id="turnoverRate" class="text-lg font-semibold text-gray-800">--</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">成交量</p>
+                        <p id="volume" class="text-lg font-semibold text-gray-800">--</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">成交额</p>
+                        <p id="turnover" class="text-lg font-semibold text-gray-800">--</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">最高价</p>
+                        <p id="highPrice" class="text-lg font-semibold text-gray-800">--</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">最低价</p>
+                        <p id="lowPrice" class="text-lg font-semibold text-gray-800">--</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Price Chart -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">📈 近期走势</h3>
+                <div class="h-64">
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="hidden text-center py-12">
+            <div class="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p class="mt-4 text-gray-600">加载中...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p id="errorMessage" class="text-red-600"></p>
+        </div>
+    </div>
+
+    <script src="stock-data.js"></script>
+</body>
+</html>

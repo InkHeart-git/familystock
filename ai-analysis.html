@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamilyStock - AI 智能分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .nav a {
+            color: #a0a0a0;
+            text-decoration: none;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+
+        .nav a:hover, .nav a.active {
+            color: #00d4ff;
+        }
+
+        /* Stock Selector */
+        .stock-selector {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .stock-selector h2 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #00d4ff;
+        }
+
+        .stock-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .stock-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .stock-card:hover, .stock-card.active {
+            background: rgba(0,212,255,0.1);
+            border-color: #00d4ff;
+            transform: translateY(-2px);
+        }
+
+        .stock-card .symbol {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .stock-card .name {
+            font-size: 12px;
+            color: #888;
+        }
+
+        /* Analysis Dashboard */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .panel h3 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel h3 .icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        /* AI Prediction Panel */
+        .prediction-panel h3 .icon {
+            background: linear-gradient(135deg, #7b2cbf, #00d4ff);
+        }
+
+        .prediction-result {
+            text-align: center;
+            padding: 30px;
+        }
+
+        .recommendation {
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 0 0 30px currentColor;
+        }
+
+        .recommendation.buy {
+            color: #00ff88;
+        }
+
+        .recommendation.hold {
+            color: #ffd700;
+        }
+
+        .recommendation.sell {
+            color: #ff4757;
+        }
+
+        .confidence {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+
+        .prediction-range {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .range-item {
+            text-align: center;
+        }
+
+        .range-item .label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .range-item .value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .range-item .value.positive {
+            color: #00ff88;
+        }
+
+        .range-item .value.negative {
+            color: #ff4757;
+        }
+
+        /* Hotspot Panel */
+        .hotspot-panel h3 .icon {
+            background: linear-gradient(135deg, #ff4757, #ff6b6b);
+        }
+
+        .hotspot-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .hotspot-item {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 15px;
+            border-left: 4px solid;
+            transition: all 0.3s;
+        }
+
+        .hotspot-item:hover {
+            background: rgba(255,255,255,0.08);
+            transform: translateX(5px);
+        }
+
+        .hotspot-item.high {
+            border-left-color: #ff4757;
+        }
+
+        .hotspot-item.medium {
+            border-left-color: #ffd700;
+        }
+
+        .hotspot-item.low {
+            border-left-color: #00ff88;
+        }
+
+        .hotspot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .hotspot-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .hotspot-impact {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .hotspot-impact.high {
+            background: rgba(255,71,87,0.2);
+            color: #ff4757;
+        }
+
+        .hotspot-impact.medium {
+            background: rgba(255,215,0,0.2);
+            color: #ffd700;
+        }
+
+        .hotspot-impact.low {
+            background: rgba(0,255,136,0.2);
+            color: #00ff88;
+        }
+
+        .hotspot-desc {
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.5;
+        }
+
+        .correlation-score {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+        .correlation-bar {
+            flex: 1;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .correlation-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        /* Charts Section */
+        .charts-section {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .chart-container h3 {
+            font-size: 16px;
+            margin-bottom: 20px;
+            color: #00d4ff;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+
+        /* News Section */
+        .news-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .news-section h3 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .news-section h3::before {
+            content: '📰';
+        }
+
+        .news-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .news-item {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 15px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .news-item:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .news-time {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .news-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .news-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .news-tag {
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: rgba(0,212,255,0.1);
+            color: #00d4ff;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Analysis Factors */
+        .factors-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .factor-item {
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .factor-item .label {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .factor-item .score {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .factor-item .score.positive {
+            color: #00ff88;
+        }
+
+        .factor-item .score.negative {
+            color: #ff4757;
+        }
+
+        .factor-item .score.neutral {
+            color: #ffd700;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin-top: 30px;
+        }
+
+        .footer .disclaimer {
+            margin-top: 10px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">FamilyStock AI</div>
+            <nav class="nav">
+                <a href="index.html">首页</a>
+                <a href="global.html">全球投资</a>
+                <a href="ai-stock.html">AI选股</a>
+                <a href="portfolio.html">投资组合</a>
+                <a href="ai-analysis.html" class="active">AI分析</a>
+                <a href="alert-system.html">预警系统</a>
+            </nav>
+        </header>
+
+        <!-- Stock Selector -->
+        <div class="stock-selector">
+            <h2>📊 选择分析股票</h2>
+            <div class="stock-grid" id="stockGrid">
+                <!-- Generated by JS -->
+            </div>
+        </div>
+
+        <!-- Analysis Dashboard -->
+        <div class="dashboard">
+            <!-- AI Prediction Panel -->
+            <div class="panel prediction-panel">
+                <h3><span class="icon">🤖</span> AI 趋势预测</h3>
+                <div class="prediction-result" id="predictionResult">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+                <div class="factors-grid" id="factorsGrid">
+                    <!-- Generated by JS -->
+                </div>
+            </div>
+
+            <!-- Hotspot Analysis Panel -->
+            <div class="panel hotspot-panel">
+                <h3><span class="icon">🔥</span> 热点关联分析</h3>
+                <div class="hotspot-list" id="hotspotList">
+                    <!-- Generated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section">
+            <div class="chart-container">
+                <h3>📈 价格趋势与预测</h3>
+                <div class="chart-wrapper">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>🎯 多维度评分</h3>
+                <div class="chart-wrapper">
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- News Section -->
+        <div class="news-section">
+            <h3>相关新闻动态</h3>
+            <div class="news-list" id="newsList">
+                <!-- Generated by JS -->
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>FamilyStock AI 分析系统 | 数据仅供参考，不构成投资建议</p>
+            <p class="disclaimer">⚠️ 股市有风险，投资需谨慎。AI 预测基于历史数据和算法模型，不保证未来收益。</p>
+        </footer>
+    </div>
+
+    <script>
+        // ==================== 数据层 ====================
+        
+        // 股票数据
+        const stocksData = {
+            'AAPL': {
+                name: '苹果公司',
+                sector: '科技',
+                price: 178.35,
+                change: 2.15,
+                history: generateHistoryData(170, 185, 30),
+                factors: {
+                    technical: 75,
+                    fundamental: 82,
+                    sentiment: 68,
+                    risk: 45
+                }
+            },
+            'NVDA': {
+                name: '英伟达',
+                sector: '半导体',
+                price: 875.28,
+                change: 5.42,
+                history: generateHistoryData(800, 920, 30),
+                factors: {
+                    technical: 88,
+                    fundamental: 92,
+                    sentiment: 85,
+                    risk: 60
+                }
+            },
+            'TSLA': {
+                name: '特斯拉',
+                sector: '汽车',
+                price: 202.64,
+                change: -1.23,
+                history: generateHistoryData(180, 220, 30),
+                factors: {
+                    technical: 55,
+                    fundamental: 65,
+                    sentiment: 72,
+                    risk: 85
+                }
+            },
+            'BABA': {
+                name: '阿里巴巴',
+                sector: '电商',
+                price: 78.42,
+                change: 0.85,
+                history: generateHistoryData(70, 85, 30),
+                factors: {
+                    technical: 45,
+                    fundamental: 70,
+                    sentiment: 40,
+                    risk: 75
+                }
+            },
+            'TCEHY': {
+                name: '腾讯控股',
+                sector: '科技',
+                price: 42.15,
+                change: 1.12,
+                history: generateHistoryData(38, 46, 30),
+                factors: {
+                    technical: 62,
+                    fundamental: 78,
+                    sentiment: 55,
+                    risk: 50
+                }
+            },
+            'COIN': {
+                name: 'Coinbase',
+                sector: '加密货币',
+                price: 215.38,
+                change: 8.45,
+                history: generateHistoryData(180, 240, 30),
+                factors: {
+                    technical: 70,
+                    fundamental: 55,
+                    sentiment: 80,
+                    risk: 95
+                }
+            }
+        };
+
+        // 全球冲突热点数据
+        const globalHotspots = [
+            {
+                id: 1,
+                title: '中东局势紧张',
+                description: '地区冲突升级可能影响全球能源供应和航运路线',
+                impact: 'high',
+                sectors: ['能源', '航运', '金融'],
+                correlation: {
+                    'AAPL': 0.2,
+                    'NVDA': 0.15,
+                    'TSLA': 0.35,
+                    'BABA': 0.25,
+                    'TCEHY': 0.2,
+                    'COIN': 0.4
+                }
+            },
+            {
+                id: 2,
+                title: 'AI 芯片出口管制',
+                description: '美国对中国 AI 芯片出口限制加码，影响半导体供应链',
+                impact: 'high',
+                sectors: ['半导体', '科技'],
+                correlation: {
+                    'AAPL': 0.45,
+                    'NVDA': 0.85,
+                    'TSLA': 0.3,
+                    'BABA': 0.6,
+                    'TCEHY': 0.55,
+                    'COIN': 0.1
+                }
+            },
+            {
+                id: 3,
+                title: '美联储利率政策',
+                description: '市场预期美联储将维持高利率更长时间',
+                impact: 'medium',
+                sectors: ['金融', '科技', '房地产'],
+                correlation: {
+                    'AAPL': 0.5,
+                    'NVDA': 0.55,
+                    'TSLA': 0.6,
+                    'BABA': 0.4,
+                    'TCEHY': 0.35,
+                    'COIN': 0.7
+                }
+            },
+            {
+                id: 4,
+                title: '加密货币监管',
+                description: '全球加密货币监管框架逐步明确，机构 adoption 增加',
+                impact: 'medium',
+                sectors: ['加密货币', '金融科技'],
+                correlation: {
+                    'AAPL': 0.1,
+                    'NVDA': 0.25,
+                    'TSLA': 0.2,
+                    'BABA': 0.05,
+                    'TCEHY': 0.1,
+                    'COIN': 0.95
+                }
+            },
+            {
+                id: 5,
+                title: '电动汽车补贴退坡',
+                description: '多国调整新能源汽车补贴政策，影响行业竞争格局',
+                impact: 'medium',
+                sectors: ['汽车', '新能源'],
+                correlation: {
+                    'AAPL': 0.15,
+                    'NVDA': 0.2,
+                    'TSLA': 0.8,
+                    'BABA': 0.1,
+                    'TCEHY': 0.1,
+                    'COIN': 0.05
+                }
+            }
+        ];
+
+        // 新闻数据
+        const newsData = [
+            {
+                time: '2小时前',
+                title: '英伟达发布新一代 AI 芯片，性能提升 4 倍',
+                tags: ['NVDA', 'AI', '芯片'],
+                sentiment: 'positive'
+            },
+            {
+                time: '4小时前',
+                title: '特斯拉宣布在中国新建超级工厂计划',
+                tags: ['TSLA', '中国', '扩张'],
+                sentiment: 'positive'
+            },
+            {
+                time: '6小时前',
+                title: '美联储官员暗示可能推迟降息时间',
+                tags: ['宏观', '美联储', '利率'],
+                sentiment: 'negative'
+            },
+            {
+                time: '8小时前',
+                title: '比特币突破 6 万美元，加密货币板块大涨',
+                tags: ['COIN', 'BTC', '加密货币'],
+                sentiment: 'positive'
+            },
+            {
+                time: '12小时前',
+                title: '苹果 Vision Pro 销量超预期，MR 市场前景看好',
+                tags: ['AAPL', 'VR/AR', '新产品'],
+                sentiment: 'positive'
+            }
+        ];
+
+        let currentStock = 'NVDA';
+        let trendChart = null;
+        let radarChart = null;
+
+        // ==================== 工具函数 ====================
+
+        // 生成历史数据
+        function generateHistoryData(min, max, days) {
+            const data = [];
+            let price = (min + max) / 2;
+            const now = new Date();
+            
+            for (let i = days; i >= 0; i--) {
+                const date = new Date(now);
+                date.setDate(date.getDate() - i);
+                
+                const change = (Math.random() - 0.48) * (max - min) * 0.05;
+                price = Math.max(min, Math.min(max, price + change));
+                
+                data.push({
+                    date: date.toISOString().split('T')[0],
+                    price: parseFloat(price.toFixed(2))
+                });
+            }
+            return data;
+        }
+
+        // ==================== 热点关联算法 ====================
+
+        class HotspotAnalyzer {
+            constructor() {
+                this.hotspots = globalHotspots;
+            }
+
+            // 计算股票与热点的关联度
+            calculateCorrelation(stockSymbol, hotspot) {
+                const baseCorrelation = hotspot.correlation[stockSymbol] || 0.1;
+                const stock = stocksData[stockSymbol];
+                
+                // 根据行业匹配度调整
+                let sectorMultiplier = 1;
+                if (hotspot.sectors.some(s => stock.sector.includes(s))) {
+                    sectorMultiplier = 1.5;
+                }
+                
+                // 根据热点影响级别调整
+                let impactMultiplier = hotspot.impact === 'high' ? 1.3 : 
+                                      hotspot.impact === 'medium' ? 1.0 : 0.7;
+                
+                return Math.min(1, baseCorrelation * sectorMultiplier * impactMultiplier);
+            }
+
+            // 获取股票相关的热点列表
+            getRelevantHotspots(stockSymbol) {
+                return this.hotspots
+                    .map(hotspot => ({
+                        ...hotspot,
+                        correlationScore: this.calculateCorrelation(stockSymbol, hotspot)
+                    }))
+                    .filter(h => h.correlationScore > 0.15)
+                    .sort((a, b) => b.correlationScore - a.correlationScore)
+                    .slice(0, 4);
+            }
+
+            // 计算整体风险评分
+            calculateRiskScore(stockSymbol) {
+                const relevant = this.getRelevantHotspots(stockSymbol);
+                if (relevant.length === 0) return 30;
+                
+                const weightedRisk = relevant.reduce((sum, h) => {
+                    const impactWeight = h.impact === 'high' ? 1 : h.impact === 'medium' ? 0.6 : 0.3;
+                    return sum + (h.correlationScore * impactWeight * 100);
+                }, 0);
+                
+                return Math.min(100, Math.round(weightedRisk / relevant.length));
+            }
+        }
+
+        // ==================== AI 预测模型 ====================
+
+        class AIPredictionModel {
+            constructor() {
+                this.hotspotAnalyzer = new HotspotAnalyzer();
+            }
+
+            // 技术分析评分
+            calculateTechnicalScore(stock) {
+                const history = stock.history;
+                const prices = history.map(h => h.price);
+                const current = prices[prices.length - 1];
+                const avg20 = prices.slice(-20).reduce((a, b) => a + b, 0) / 20;
+                const avg5 = prices.slice(-5).reduce((a, b) => a + b, 0) / 5;
+                
+                // 趋势方向
+                const trend = avg5 > avg20 ? 1 : -1;
+                const trendStrength = Math.abs(avg5 - avg20) / avg20;
+                
+                // 波动性
+                const volatility = this.calculateVolatility(prices);
+                
+                // 综合评分 (0-100)
+                let score = 50 + (trend * trendStrength * 1000);
+                score -= volatility * 20; // 高波动扣分
+                
+                return Math.max(0, Math.min(100, score));
+            }
+
+            // 计算波动率
+            calculateVolatility(prices) {
+                const returns = [];
+                for (let i = 1; i < prices.length; i++) {
+                    returns.push((prices[i] - prices[i-1]) / prices[i-1]);
+                }
+                const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+                const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
+                return Math.sqrt(variance);
+            }
+
+            // 基本面评分
+            calculateFundamentalScore(stock) {
+                // 模拟基本面分析
+                const sectorMultiplier = {
+                    '科技': 1.1,
+                    '半导体': 1.2,
+                    '汽车': 0.9,
+                    '电商': 0.85,
+                    '加密货币': 0.7
+                };
+                
+                const baseScore = 70;
+                const multiplier = sectorMultiplier[stock.sector] || 1;
+                return Math.min(100, baseScore * multiplier);
+            }
+
+            // 情绪分析评分
+            calculateSentimentScore(stock) {
+                // 基于新闻和热点计算市场情绪
+                const relevantNews = newsData.filter(n => 
+                    n.tags.some(t => t === Object.keys(stocksData).find(k => stocksData[k] === stock))
+                );
+                
+                if (relevantNews.length === 0) return 50;
+                
+                const positiveCount = relevantNews.filter(n => n.sentiment === 'positive').length;
+                return (positiveCount / relevantNews.length) * 100;
+            }
+
+            // 综合预测
+            predict(stockSymbol) {
+                const stock = stocksData[stockSymbol];
+                
+                // 各维度评分
+                const technical = this.calculateTechnicalScore(stock);
+                const fundamental = this.calculateFundamentalScore(stock);
+                const sentiment = this.calculateSentimentScore(stock);
+                const risk = this.hotspotAnalyzer.calculateRiskScore(stockSymbol);
+                
+                // 加权综合评分
+                const weights = {
+                    technical: 0.3,
+                    fundamental: 0.25,
+                    sentiment: 0.2,
+                    risk: -0.25 // 风险是负向指标
+                };
+                
+                const compositeScore = 
+                    technical * weights.technical +
+                    fundamental * weights.fundamental +
+                    sentiment * weights.sentiment +
+                    (100 - risk) * Math.abs(weights.risk);
+                
+                // 生成预测
+                let recommendation, confidence, predictedRange;
+                
+                if (compositeScore >= 70) {
+                    recommendation = 'buy';
+                    confidence = Math.min(95, compositeScore);
+                    predictedRange = { min: 5, max: 15 };
+                } else if (compositeScore >= 45) {
+                    recommendation = 'hold';
+                    confidence = 50 + Math.abs(compositeScore - 57.5);
+                    predictedRange = { min: -3, max: 8 };
+                } else {
+                    recommendation = 'sell';
+                    confidence = Math.min(95, 100 - compositeScore);
+                    predictedRange = { min: -15, max: -2 };
+                }
+                
+                // 根据波动率调整预测区间
+                const volatility = this.calculateVolatility(stock.history.map(h => h.price));
+                const volatilityFactor = 1 + volatility * 10;
+                predictedRange.min = parseFloat((predictedRange.min * volatilityFactor).toFixed(1));
+                predictedRange.max = parseFloat((predictedRange.max * volatilityFactor).toFixed(1));
+                
+                return {
+                    recommendation,
+                    confidence: Math.round(confidence),
+                    predictedRange,
+                    scores: {
+                        technical: Math.round(technical),
+                        fundamental: Math.round(fundamental),
+                        sentiment: Math.round(sentiment),
+                        risk: Math.round(risk),
+                        composite: Math.round(compositeScore)
+                    }
+                };
+            }
+
+            // 生成未来预测价格
+            generateFuturePrediction(stockSymbol, days = 7) {
+                const stock = stocksData[stockSymbol];
+                const prediction = this.predict(stockSymbol);
+                const lastPrice = stock.history[stock.history.length - 1].price;
+                
+                const futureData = [];
+                const now = new Date();
+                
+                // 基于预测区间生成价格路径
+                const avgChange = (prediction.predictedRange.min + prediction.predictedRange.max) / 2 / 100;
+                const dailyChange = avgChange / days;
+                
+                let predictedPrice = lastPrice;
+                
+                for (let i = 1; i <= days; i++) {
+                    const date = new Date(now);
+                    date.setDate(date.getDate() + i);
+                    
+                    // 添加随机波动
+                    const randomFactor = (Math.random() - 0.5) * 0.02;
+                    predictedPrice = predictedPrice * (1 + dailyChange + randomFactor);
+                    
+                    futureData.push({
+                        date: date.toISOString().split('T')[0],
+                        price: parseFloat(predictedPrice.toFixed(2)),
+                        isPrediction: true
+                    });
+                }
+                
+                return futureData;
+            }
+        }
+
+        // ==================== UI 渲染 ====================
+
+        const aiModel = new AIPredictionModel();
+        const hotspotAnalyzer = new HotspotAnalyzer();
+
+        // 渲染股票选择器
+        function renderStockSelector() {
+            const grid = document.getElementById('stockGrid');
+            grid.innerHTML = Object.entries(stocksData).map(([symbol, data]) => `
+                <div class="stock-card ${symbol === currentStock ? 'active' : ''}" onclick="selectStock('${symbol}')">
+                    <div class="symbol">${symbol}</div>
+                    <div class="name">${data.name}</div>
+                </div>
+            `).join('');
+        }
+
+        // 选择股票
+        function selectStock(symbol) {
+            currentStock = symbol;
+            renderStockSelector();
+            updateAnalysis();
+        }
+
+        // 更新分析结果
+        function updateAnalysis() {
+            renderPrediction();
+            renderHotspots();
+            renderNews();
+            updateCharts();
+        }
+
+        // 渲染 AI 预测
+        function renderPrediction() {
+            const result = aiModel.predict(currentStock);
+            const container = document.getElementById('predictionResult');
+            
+            const recommendationText = {
+                'buy': '买入',
+                'hold': '观望',
+                'sell': '卖出'
+            };
+            
+            container.innerHTML = `
+                <div class="recommendation ${result.recommendation}">
+                    ${recommendationText[result.recommendation]}
+                </div>
+                <div class="confidence">AI 置信度: ${result.confidence}%</div>
+                <div class="prediction-range">
+                    <div class="range-item">
+                        <div class="label">预测涨幅区间</div>
+                        <div class="value ${result.predictedRange.min >= 0 ? 'positive' : 'negative'}">
+                            ${result.predictedRange.min > 0 ? '+' : ''}${result.predictedRange.min}%
+                        </div>
+                    </div>
+                    <div class="range-item">
+                        <div class="label">至</div>
+                        <div class="value ${result.predictedRange.max >= 0 ? 'positive' : 'negative'}">
+                            ${result.predictedRange.max > 0 ? '+' : ''}${result.predictedRange.max}%
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 渲染因子评分
+            const factorsGrid = document.getElementById('factorsGrid');
+            factorsGrid.innerHTML = `
+                <div class="factor-item">
+                    <div class="label">技术面</div>
+                    <div class="score ${result.scores.technical >= 60 ? 'positive' : result.scores.technical >= 40 ? 'neutral' : 'negative'}">${result.scores.technical}</div>
+                </div>
+                <div class="factor-item">
+                    <div class="label">基本面</div>
+                    <div class="score ${result.scores.fundamental >= 60 ? 'positive' : result.scores.fundamental >= 40 ? 'neutral' : 'negative'}">${result.scores.fundamental}</div>
+                </div>
+                <div class="factor-item">
+                    <div class="label">情绪面</div>
+                    <div class="score ${result.scores.sentiment >= 60 ? 'positive' : result.scores.sentiment >= 40 ? 'neutral' : 'negative'}">${result.scores.sentiment}</div>
+                </div>
+            `;
+        }
+
+        // 渲染热点关联
+        function renderHotspots() {
+            const hotspots = hotspotAnalyzer.getRelevantHotspots(currentStock);
+            const container = document.getElementById('hotspotList');
+            
+            container.innerHTML = hotspots.map(h => `
+                <div class="hotspot-item ${h.impact}">
+                    <div class="hotspot-header">
+                        <span class="hotspot-title">${h.title}</span>
+                        <span class="hotspot-impact ${h.impact}">
+                            ${h.impact === 'high' ? '高影响' : h.impact === 'medium' ? '中影响' : '低影响'}
+                        </span>
+                    </div>
+                    <div class="hotspot-desc">${h.description}</div>
+                    <div class="correlation-score">
+                        <span>关联度</span>
+                        <div class="correlation-bar">
+                            <div class="correlation-fill" style="width: ${h.correlationScore * 100}%; background: ${h.correlationScore > 0.6 ? '#ff4757' : h.correlationScore > 0.3 ? '#ffd700' : '#00ff88'}"></div>
+                        </div>
+                        <span>${Math.round(h.correlationScore * 100)}%</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 渲染新闻
+        function renderNews() {
+            const container = document.getElementById('newsList');
+            container.innerHTML = newsData.map(news => `
+                <div class="news-item">
+                    <div class="news-time">${news.time}</div>
+                    <div class="news-title">${news.title}</div>
+                    <div class="news-tags">
+                        ${news.tags.map(tag => `<span class="news-tag">${tag}</span>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 更新图表
+        function updateCharts() {
+            updateTrendChart();
+            updateRadarChart();
+        }
+
+        // 更新趋势图
+        function updateTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            const stock = stocksData[currentStock];
+            const futureData = aiModel.generateFuturePrediction(currentStock);
+            
+            const historyData = stock.history.map(h => ({ x: h.date, y: h.price }));
+            const predictionData = futureData.map(h => ({ x: h.date, y: h.price }));
+            
+            // 连接历史最后一个点和预测第一个点
+            const lastHistory = historyData[historyData.length - 1];
+            predictionData.unshift(lastHistory);
+            
+            if (trendChart) {
+                trendChart.destroy();
+            }
+            
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: '历史价格',
+                            data: historyData,
+                            borderColor: '#00d4ff',
+                            backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 6
+                        },
+                        {
+                            label: 'AI 预测',
+                            data: predictionData,
+                            borderColor: '#7b2cbf',
+                            backgroundColor: 'rgba(123, 44, 191, 0.1)',
+                            borderDash: [5, 5],
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#fff' }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'MM-dd'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255,255,255,0.05)'
+                            },
+                            ticks: {
+                                color: '#888'
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: 'rgba(255,255,255,0.05)'
+                            },
+                            ticks: {
+                                color: '#888'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 更新雷达图
+        function updateRadarChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            const prediction = aiModel.predict(currentStock);
+            const scores = prediction.scores;
+            
+            if (radarChart) {
+                radarChart.destroy();
+            }
+            
+            radarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['技术面', '基本面', '情绪面', '风险控制', '综合评分'],
+                    datasets: [{
+                        label: '评分维度',
+                        data: [
+                            scores.technical,
+                            scores.fundamental,
+                            scores.sentiment,
+                            100 - scores.risk,
+                            scores.composite
+                        ],
+                        backgroundColor: 'rgba(0, 212, 255, 0.2)',
+                        borderColor: '#00d4ff',
+                        pointBackgroundColor: '#00d4ff',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#00d4ff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: {
+                                color: 'rgba(255,255,255,0.1)'
+                            },
+                            pointLabels: {
+                                color: '#fff',
+                                font: {
+                                    size: 12
+                                }
+                            },
+                            ticks: {
+                                display: false,
+                                stepSize: 20
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==================== 初始化 ====================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderStockSelector();
+            updateAnalysis();
+        });
+    </script>
+</body>
+</html>

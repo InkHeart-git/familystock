@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FamilyStock - 家庭投资智能中心</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #fff; overflow-x: hidden; margin: 0; }
+        
+        /* News Ticker - 新增顶部新闻滚动条 */
+        .news-ticker-container {
+            background: linear-gradient(90deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%);
+            border-bottom: 2px solid #e94560;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1001;
+            height: 40px;
+            display: flex;
+            align-items: center;
+        }
+        .news-label {
+            background: #e94560;
+            color: white;
+            padding: 0 15px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            white-space: nowrap;
+        }
+        .news-ticker {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            height: 100%;
+        }
+        .news-track {
+            display: flex;
+            animation: scroll 40s linear infinite;
+            white-space: nowrap;
+            padding: 10px 0;
+        }
+        @keyframes scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .news-item {
+            display: inline-flex;
+            align-items: center;
+            padding: 0 25px;
+            font-size: 12px;
+            color: #cbd5e1;
+        }
+        .news-item::before {
+            content: "▸";
+            color: #e94560;
+            margin-right: 6px;
+        }
+        .news-time {
+            color: #64748b;
+            margin-right: 6px;
+            font-size: 10px;
+        }
+        .news-category {
+            background: rgba(233, 69, 96, 0.2);
+            color: #e94560;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            margin-right: 8px;
+            text-transform: uppercase;
+        }
+        
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(20,20,30,0.95); backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.1); z-index: 1000; display: flex; justify-content: space-around; padding: 8px 0; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 16px; color: rgba(255,255,255,0.5); cursor: pointer; transition: all 0.3s; border: none; background: none; font-size: 12px; }
+        .nav-item.active { color: #3b82f6; }
+        .nav-item i { font-size: 20px; transition: transform 0.3s; }
+        .nav-item.active i { transform: scale(1.2); }
+        .page { display: none; min-height: 100vh; padding: 40px 0 100px 0; }
+        .page.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        #earth-container { position: relative; height: 45vh; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0a 100%); overflow: hidden; }
+        #earth-canvas { width: 100%; height: 100%; display: block; }
+        .earth-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,0.5); background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 12px; pointer-events: none; }
+        .index-bar { background: linear-gradient(90deg, rgba(59,130,246,0.1), rgba(147,51,234,0.1)); border-bottom: 1px solid rgba(255,255,255,0.05); overflow-x: auto; }
+        .index-content { display: flex; padding: 12px 16px; gap: 24px; }
+        .index-item { text-align: center; min-width: 80px; }
+        .up { color: #ef4444; }
+        .down { color: #22c55e; }
+        .conflict-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 8px 16px 16px; }
+        .conflict-card { flex-shrink: 0; width: 140px; background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); border: 1px solid rgba(239,68,68,0.3); border-radius: 12px; padding: 14px; cursor: pointer; transition: transform 0.2s; }
+        .conflict-card:hover { transform: scale(1.02); }
+        .conflict-card.tension {
+            background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05));
+            border-color: rgba(245,158,11,0.3);
+        }
+        .futures-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 8px 16px 16px; }
+        .future-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 8px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .future-item:hover { border-color: rgba(59,130,246,0.5); }
+        .ai-entry { margin: 16px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 16px; padding: 24px; text-align: center; cursor: pointer; }
+        .stock-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 16px; }
+        .stock-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; cursor: pointer; }
+        .score-badge { background: linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .drawer { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a2e; border-radius: 24px 24px 0 0; max-height: 85vh; transform: translateY(100%); transition: transform 0.3s ease; z-index: 2001; }
+        .drawer.active { transform: translateY(0); }
+        .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; display: none; }
+        .drawer-overlay.active { display: block; }
+        .filter-btn { padding: 8px 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; font-size: 13px; color: rgba(255,255,255,0.7); cursor: pointer; white-space: nowrap; }
+        .filter-btn.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+        
+        /* 新增：搜索框样式 */
+        .search-box {
+            display: flex;
+            gap: 10px;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.02);
+        }
+        .search-input {
+            flex: 1;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+        }
+        .search-input:focus { border-color: #3b82f6; }
+        .search-btn {
+            background: #3b82f6;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        /* 新增：大V观点卡片样式 */
+        .influencer-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .influencer-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .influencer-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            flex-shrink: 0;
+            border: 2px solid;
+        }
+        .influencer-avatar.finance { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border-color: #60a5fa; }
+        .influencer-avatar.military { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-color: #fca5a5; }
+        .influencer-avatar.politics { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-color: #c4b5fd; }
+        .influencer-type {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+        .influencer-type.finance { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .influencer-type.military { background: rgba(239,68,68,0.2); color: #ef4444; }
+        .influencer-type.politics { background: rgba(139,92,246,0.2); color: #a78bfa; }
+        
+        /* 新增：财经日历样式 */
+        .calendar-item {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 3px solid;
+        }
+        .calendar-item.high { border-left-color: #ef4444; }
+        .calendar-item.medium { border-left-color: #f59e0b; }
+        .calendar-item.low { border-left-color: #22c55e; }
+        
+        /* 新增：加载动画 */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+        .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(59,130,246,0.3);
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div style="margin-top: 16px; color: rgba(255,255,255,0.5); font-size: 14px;">加载中...</div>
+    </div>
+
+    <!-- News Ticker - 顶部新闻滚动条 -->
+    <div class="news-ticker-container">
+        <div class="news-label">
+            <i class="fas fa-broadcast-tower mr-1"></i>
+            实时
+        </div>
+        <div class="news-ticker">
+            <div class="news-track" id="news-track"></div>
+        </div>
+    </div>
+
+    <!-- Home Page -->
+    <div id="page-home" class="page active">
+        <div class="index-bar">
+            <div class="index-content" id="index-content">
+                <div class="index-item" id="index-sh">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);">上证指数</div>
+                    <div style="font-size:15px;font-weight:600;" class="index-price">--</div>
+                    <div style="font-size:11px;" class="index-change">--</div>
+                </div>
+                <div class="index-item" id="index-sz">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);">深证成指</div>
+                    <div style="font-size:15px;font-weight:600;" class="index-price">--</div>
+                    <div style="font-size:11px;" class="index-change">--</div>
+                </div>
+                <div class="index-item" id="index-cy">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);">创业板指</div>
+                    <div style="font-size:15px;font-weight:600;" class="index-price">--</div>
+                    <div style="font-size:11px;" class="index-change">--</div>
+                </div>
+                <!-- 新增：恒生指数 -->
+                <div class="index-item" id="index-hs">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);">恒生指数</div>
+                    <div style="font-size:15px;font-weight:600;" class="index-price">--</div>
+                    <div style="font-size:11px;" class="index-change">--</div>
+                </div>
+                <!-- 新增：道琼斯 -->
+                <div class="index-item" id="index-dj">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);">道琼斯</div>
+                    <div style="font-size:15px;font-weight:600;" class="index-price">--</div>
+                    <div style="font-size:11px;" class="index-change">--</div>
+                </div>
+                <!-- 新增：纳斯达克 -->
+                <div class="index-item" id="index-nq">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);">纳斯达克</div>
+                    <div style="font-size:15px;font-weight:600;" class="index-price">--</div>
+                    <div style="font-size:11px;" class="index-change">--</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="earth-container">
+            <canvas id="earth-canvas"></canvas>
+            <div class="earth-hint">👆 拖动旋转 · 双指缩放</div>
+        </div>
+        
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;">
+            <h3 style="margin:0;font-size:16px;font-weight:600;">🔥 全球冲突热点</h3>
+            <span style="font-size:11px;color:rgba(255,255,255,0.4);">实时监测</span>
+        </div>
+        
+        <div class="conflict-scroll" id="conflict-scroll"></div>
+        
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;">
+            <h3 style="margin:0;font-size:16px;font-weight:600;">📈 大宗商品期货</h3>
+            <span style="font-size:11px;color:rgba(255,255,255,0.4);">实时行情</span>
+        </div>
+        
+        <div class="futures-grid" id="futures-grid"></div>
+        
+        <div class="ai-entry" onclick="switchTab('stock', null)">
+            <div style="font-size:36px;margin-bottom:12px;">🤖</div>
+            <div style="font-size:18px;font-weight:700;margin-bottom:6px;">AI智能选股</div>
+            <div style="font-size:13px;opacity:0.85;">多因子分析 · 实时评分 · 智能推荐</div>
+        </div>
+    </div>
+
+    <!-- Stock Page -->
+    <div id="page-stock" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">🤖 AI智能选股</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">基于多因子模型的智能股票筛选系统</p>
+        </div>
+        
+        <!-- 新增：股票搜索功能 -->
+        <div class="search-box">
+            <input type="text" class="search-input" id="stock-search-input" placeholder="输入股票代码或名称 (如: 600519 或 茅台)" onkeypress="if(event.key==='Enter')searchStock()">
+            <button class="search-btn" onclick="searchStock()">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+        
+        <div id="search-result" style="padding: 0 16px; display: none;"></div>
+        
+        <div style="display:flex;gap:8px;padding:12px 16px;overflow-x:auto;background:rgba(255,255,255,0.02);">
+            <button class="filter-btn active" onclick="filterStocks('all', this)">全部</button>
+            <button class="filter-btn" onclick="filterStocks('tech', this)">科技</button>
+            <button class="filter-btn" onclick="filterStocks('finance', this)">金融</button>
+            <button class="filter-btn" onclick="filterStocks('consumer', this)">消费</button>
+            <button class="filter-btn" onclick="filterStocks('healthcare', this)">医疗</button>
+            <button class="filter-btn" onclick="filterStocks('energy', this)">能源</button>
+        </div>
+        <div id="stock-grid" class="stock-grid"></div>
+    </div>
+
+    <!-- Calendar Page -->
+    <div id="page-calendar" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">📅 财经日历</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">全球重要财经事件与数据发布</p>
+        </div>
+        <div style="padding:16px;">
+            <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;">
+                <button class="filter-btn active" onclick="filterCalendar('all', this)">全部</button>
+                <button class="filter-btn" onclick="filterCalendar('economic', this)">经济数据</button>
+                <button class="filter-btn" onclick="filterCalendar('earnings', this)">财报</button>
+                <button class="filter-btn" onclick="filterCalendar('policy', this)">政策</button>
+            </div>
+            <div id="calendar-list"></div>
+        </div>
+    </div>
+
+    <!-- Opinion Page -->
+    <div id="page-opinion" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">💬 大V观点</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">追踪财经/军事/时政大V的实时观点</p>
+        </div>
+        <div style="padding:16px;">
+            <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;">
+                <button class="filter-btn active" onclick="filterOpinions('all', this)">全部</button>
+                <button class="filter-btn" onclick="filterOpinions('finance', this)">财经</button>
+                <button class="filter-btn" onclick="filterOpinions('military', this)">军事</button>
+                <button class="filter-btn" onclick="filterOpinions('politics', this)">时政</button>
+            </div>
+            <div id="opinion-list"></div>
+        </div>
+    </div>
+
+    <!-- Settings Page -->
+    <div id="page-settings" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">⚙️ 设置</h2>
+        </div>
+        <div style="padding:16px;">
+            <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:12px;cursor:pointer;" onclick="toggleSetting('darkMode')">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>🌙 暗黑模式</span>
+                    <span id="setting-darkMode" style="color:#3b82f6;">已开启</span>
+                </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:12px;cursor:pointer;" onclick="toggleSetting('notification')">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>🔔 推送通知</span>
+                    <span id="setting-notification" style="color:#22c55e;">已开启</span>
+                </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:12px;cursor:pointer;" onclick="toggleSetting('autoRefresh')">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>🔄 自动刷新</span>
+                    <span id="setting-autoRefresh" style="color:#22c55e;">已开启</span>
+                </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>📊 数据版本</span>
+                    <span style="color:rgba(255,255,255,0.5);">V2.0.1</span>
+                </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;cursor:pointer;" onclick="clearCache()">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>🗑️ 清除缓存</span>
+                    <i class="fas fa-chevron-right" style="color:rgba(255,255,255,0.3);"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" onclick="switchTab('home', this)">
+            <i class="fas fa-home"></i>
+            <span>首页</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('stock', this)">
+            <i class="fas fa-chart-line"></i>
+            <span>选股</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('calendar', this)">
+            <i class="fas fa-calendar"></i>
+            <span>日历</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('opinion', this)">
+            <i class="fas fa-comments"></i>
+            <span>观点</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('settings', this)">
+            <i class="fas fa-cog"></i>
+            <span>设置</span>
+        </button>
+    </nav>
+
+    <!-- Drawer -->
+    <div id="drawer-overlay" class="drawer-overlay" onclick="closeDrawer()"></div>
+    <div id="stock-drawer" class="drawer">
+        <div style="width:40px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;margin:12px auto;"></div>
+        <div id="drawer-content" style="padding:0 20px 20px;"></div>
+    </div>
+
+    <script>
+        // ==================== DATA ====================
+        
+        // 实时新闻数据
+        const newsData = [
+            { time: "10:30", category: "冲突", text: "美军空袭也门胡塞武装目标，红海局势升级" },
+            { time: "10:25", category: "市场", text: "布伦特原油突破85美元，地缘风险溢价上升" },
+            { time: "10:15", category: "政治", text: "欧盟通过对俄第14轮制裁方案" },
+            { time: "10:10", category: "冲突", text: "以军空袭加沙南部，哈马斯称将扩大反击" },
+            { time: "10:05", category: "市场", text: "现货黄金创历史新高，避险需求激增" },
+            { time: "09:55", category: "政治", text: "北约秘书长：将增加对乌克兰军事援助" },
+            { time: "09:45", category: "冲突", text: "俄军对基辅发动大规模无人机袭击" },
+            { time: "09:30", category: "市场", text: "美元指数下跌，美联储降息预期升温" },
+            { time: "09:20", category: "政治", text: "中国外交部呼吁各方保持克制，政治解决争端" },
+            { time: "09:10", category: "冲突", text: "朝鲜发射巡航导弹，韩军提升警戒等级" },
+            { time: "09:00", category: "市场", text: "铜价上涨，智利矿山供应担忧加剧" },
+            { time: "08:50", category: "政治", text: "伊朗警告：若以色列攻击核设施将报复" }
+        ];
+
+        // 冲突热点数据 - 更新为美以、伊朗等最新热点
+        const conflictZones = [
+            {
+                name: "美以-伊朗",
+                location: "Middle East",
+                lat: 32.0,
+                lon: 53.0,
+                intensity: 95,
+                status: "active",
+                description: "美以与伊朗紧张关系升级，核设施威胁",
+                impact: "全球能源安全"
+            },
+            {
+                name: "巴以冲突",
+                location: "Gaza Strip",
+                lat: 31.5,
+                lon: 34.4,
+                intensity: 90,
+                status: "active",
+                description: "加沙地带持续战事，人道主义危机",
+                casualties: "3万+"
+            },
+            {
+                name: "红海危机",
+                location: "Yemen / Red Sea",
+                lat: 15.0,
+                lon: 45.0,
+                intensity: 80,
+                status: "active",
+                description: "胡塞武装袭击商船，国际航运受阻",
+                impact: "全球供应链"
+            },
+            {
+                name: "俄乌冲突",
+                location: "Ukraine",
+                lat: 49.0,
+                lon: 31.0,
+                intensity: 85,
+                status: "active",
+                description: "持续军事冲突，北约与俄罗斯对峙",
+                casualties: "50万+"
+            },
+            {
+                name: "台海局势",
+                location: "Taiwan Strait",
+                lat: 24.0,
+                lon: 121.0,
+                intensity: 70,
+                status: "tension",
+                description: "军事演习频繁，地缘政治风险上升",
+                impact: "芯片供应链"
+            },
+            {
+                name: "朝鲜半岛",
+                location: "Korean Peninsula",
+                lat: 38.0,
+                lon: 127.0,
+                intensity: 65,
+                status: "tension",
+                description: "导弹试射频繁，美韩联军演习",
+                impact: "东北亚安全"
+            }
+        ];
+
+        // 期货数据
+        const futuresData = [
+            { name: "WTI原油", symbol: "CL", price: 81.25, change: 2.35, changePercent: 2.98, trend: "up", icon: "🛢️" },
+            { name: "布伦特原油", symbol: "BZ", price: 85.67, change: 2.48, changePercent: 2.98, trend: "up", icon: "🛢️" },
+            { name: "黄金", symbol: "GC", price: 2845.30, change: 28.50, changePercent: 1.01, trend: "up", icon: "🥇" },
+            { name: "天然气", symbol: "NG", price: 2.85, change: -0.12, changePercent: -4.04, trend: "down", icon: "🔥" },
+            { name: "铜", symbol: "HG", price: 4.25, change: 0.08, changePercent: 1.92, trend: "up", icon: "🔶" },
+            { name: "小麦", symbol: "ZW", price: 585.25, change: -8.50, changePercent: -1.43, trend: "down", icon: "🌾" }
+        ];
+
+        // 股票数据
+        const stockData = [
+            { symbol: '600519', name: '贵州茅台', sector: 'consumer', sectorName: '消费', price: 1688.88, change: 1.24, aiScore: 92 },
+            { symbol: '000858', name: '五粮液', sector: 'consumer', sectorName: '消费', price: 145.32, change: 0.89, aiScore: 88 },
+            { symbol: '002594', name: '比亚迪', sector: 'tech', sectorName: '科技', price: 268.50, change: 2.15, aiScore: 95 },
+            { symbol: '300750', name: '宁德时代', sector: 'energy', sectorName: '能源', price: 198.20, change: -0.56, aiScore: 85 },
+            { symbol: '601012', name: '隆基绿能', sector: 'energy', sectorName: '能源', price: 22.35, change: 1.88, aiScore: 78 },
+            { symbol: '600036', name: '招商银行', sector: 'finance', sectorName: '金融', price: 35.60, change: 0.45, aiScore: 82 },
+            { symbol: '000001', name: '平安银行', sector: 'finance', sectorName: '金融', price: 11.25, change: 0.32, aiScore: 75 },
+            { symbol: '600276', name: '恒瑞医药', sector: 'healthcare', sectorName: '医疗', price: 48.90, change: -1.25, aiScore: 80 },
+            { symbol: '300760', name: '迈瑞医疗', sector: 'healthcare', sectorName: '医疗', price: 298.50, change: 0.95, aiScore: 88 },
+            { symbol: '002415', name: '海康威视', sector: 'tech', sectorName: '科技', price: 32.80, change: 1.56, aiScore: 86 }
+        ];
+
+        // 财经日历数据
+        const calendarData = [
+            { time: '09:30', title: '中国CPI数据发布', type: 'economic', importance: 'high', country: '🇨🇳', forecast: '0.3%', previous: '0.2%' },
+            { time: '20:30', title: '美国非农就业数据', type: 'economic', importance: 'high', country: '🇺🇸', forecast: '18.5万', previous: '21.6万' },
+            { time: '14:00', title: '苹果公司财报', type: 'earnings', importance: 'high', country: '🇺🇸', forecast: '-', previous: '-' },
+            { time: '10:00', title: '央行利率决议', type: 'policy', importance: 'high', country: '🇨🇳', forecast: '3.45%', previous: '3.45%' },
+            { time: '16:00', title: '欧元区GDP数据', type: 'economic', importance: 'medium', country: '🇪🇺', forecast: '0.2%', previous: '0.1%' },
+            { time: '21:00', title: '特斯拉财报', type: 'earnings', importance: 'high', country: '🇺🇸', forecast: '-', previous: '-' },
+            { time: '08:30', title: '日本央行政策会议', type: 'policy', importance: 'medium', country: '🇯🇵', forecast: '-0.1%', previous: '-0.1%' },
+            { time: '22:30', title: '原油库存数据', type: 'economic', importance: 'medium', country: '🇺🇸', forecast: '-150万', previous: '-200万' }
+        ];
+
+        // 大V观点数据 - 分类为财经/军事/时政
+        const influencerData = [
+            // 财经大V
+            { name: '巴菲特', avatar: '🧓', type: 'finance', typeName: '财经', platform: 'CNBC', time: '2小时前', content: '当前市场估值合理，长期投资者应保持耐心。' },
+            { name: '达里奥', avatar: '👔', type: 'finance', typeName: '财经', platform: 'Bloomberg', time: '3小时前', content: '分散投资是应对不确定性的最佳策略。' },
+            { name: '但斌', avatar: '🕴️', type: 'finance', typeName: '财经', platform: '微博', time: '5小时前', content: '白酒板块长期逻辑未变，短期波动不改长期价值。' },
+            { name: '林园', avatar: '👨‍💼', type: 'finance', typeName: '财经', platform: '雪球', time: '6小时前', content: '医药股是未来十年的黄金赛道。' },
+            { name: '张坤', avatar: '🤵', type: 'finance', typeName: '财经', platform: '基金报告', time: '8小时前', content: '优质企业的护城河在熊市中会更加明显。' },
+            // 军事大V
+            { name: '听风的蚕', avatar: '蚕', type: 'military', typeName: '军事', platform: 'B站', time: '15分钟前', content: '从军事角度分析，红海局势的升级实际上反映了各方在地区的战略博弈，胡塞武装的无人机战术值得深入研究。' },
+            { name: '独夫之心', avatar: '独', type: 'military', typeName: '军事', platform: 'B站', time: '1小时前', content: '俄乌战场最新态势分析：北约援助的F-16战机即将形成战斗力，但飞行员培训仍是瓶颈。' },
+            { name: '金灿荣', avatar: '金', type: 'military', typeName: '军事', platform: '微博', time: '3小时前', content: '台海局势的演变需要冷静观察，军事准备与外交斡旋并行不悖。' },
+            // 时政大V
+            { name: '特朗普', avatar: 'T', type: 'politics', typeName: '时政', platform: 'Truth Social', time: '5分钟前', content: '如果我还在白宫，这场战争永远不会发生。拜登的软弱让全世界陷入混乱！' },
+            { name: '胡锡进', avatar: '胡', type: 'politics', typeName: '时政', platform: '微博', time: '30分钟前', content: '国际局势复杂多变，中国需要保持战略定力，同时做好各种应对准备。' },
+            { name: '沈逸', avatar: '沈', type: 'politics', typeName: '时政', platform: 'B站', time: '2小时前', content: '美国大选年的对外政策往往更加激进，需要关注其对华政策走向。' }
+        ];
+
+        // 设置
+        const settings = { darkMode: true, notification: true, autoRefresh: true };
+
+        // ==================== FUNCTIONS ====================
+
+        function switchTab(tab, clickedNav = null) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('page-' + tab).classList.add('active');
+            
+            if (clickedNav) {
+                clickedNav.classList.add('active');
+            } else {
+                const navItems = document.querySelectorAll('.nav-item');
+                const tabMap = { 'home': 0, 'stock': 1, 'calendar': 2, 'opinion': 3, 'settings': 4 };
+                if (navItems[tabMap[tab]]) navItems[tabMap[tab]].classList.add('active');
+            }
+            
+            if (tab === 'stock') renderStocks('all');
+            if (tab === 'calendar') renderCalendar('all');
+            if (tab === 'opinion') renderOpinions('all');
+        }
+
+        // 渲染新闻滚动条
+        function renderNews() {
+            const track = document.getElementById('news-track');
+            const items = [...newsData, ...newsData]; // 复制一份用于无缝滚动
+            
+            track.innerHTML = items.map(news => `
+                <div class="news-item">
+                    <span class="news-time">${news.time}</span>
+                    <span class="news-category">${news.category}</span>
+                    ${news.text}
+                </div>
+            `).join('');
+        }
+
+        // 渲染冲突热点
+        function renderConflicts() {
+            const container = document.getElementById('conflict-scroll');
+            
+            container.innerHTML = conflictZones.map(zone => `
+                <div class="conflict-card ${zone.status === 'tension' ? 'tension' : ''}" onclick="showConflictDetail('${zone.name}')">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <span style="width:8px;height:8px;border-radius:50%;background:${zone.status === 'active' ? '#ef4444' : '#f59e0b'};"></span>
+                        <span style="font-size:14px;font-weight:600;">${zone.name}</span>
+                    </div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:6px;">强度: ${zone.intensity}/100</div>
+                    <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${zone.status === 'active' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'};color:${zone.status === 'active' ? '#ef4444' : '#f59e0b'};">
+                        ${zone.status === 'active' ? '🔴 高度活跃' : '🟡 持续紧张'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // 渲染期货数据
+        function renderFutures() {
+            const container = document.getElementById('futures-grid');
+            
+            container.innerHTML = futuresData.map(future => `
+                <div class="future-item" onclick="showFutureDetail('${future.symbol}')">
+                    <div style="font-size:22px;margin-bottom:6px;">${future.icon}</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.6);">${future.name}</div>
+                    <div style="font-size:14px;font-weight:600;">$${future.price.toFixed(2)}</div>
+                    <div class="${future.trend === 'up' ? 'up' : 'down'}" style="font-size:11px;margin-top:2px;">
+                        ${future.change > 0 ? '+' : ''}${future.changePercent.toFixed(2)}%
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 渲染股票列表
+        function renderStocks(filter) {
+            const grid = document.getElementById('stock-grid');
+            let filtered = filter === 'all' ? stockData : stockData.filter(s => s.sector === filter);
+            
+            grid.innerHTML = filtered.map(stock => `
+                <div class="stock-card" onclick="showStockDetail('${stock.symbol}')">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:15px;font-weight:600;">${stock.name}</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.4);">${stock.symbol}</span>
+                    </div>
+                    <div style="font-size:18px;font-weight:700;margin-bottom:4px;">¥${stock.price.toFixed(2)}</div>
+                    <div style="font-size:13px;margin-bottom:12px;color:${stock.change >= 0 ? '#ef4444' : '#22c55e'};">
+                        ${stock.change >= 0 ? '+' : ''}${stock.change}%
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);">
+                        <span class="score-badge">${stock.aiScore}分</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.5);">AI评分</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterStocks(sector, clickedBtn = null) {
+            document.querySelectorAll('#page-stock .filter-btn').forEach(btn => btn.classList.remove('active'));
+            if (clickedBtn) clickedBtn.classList.add('active');
+            renderStocks(sector);
+        }
+
+        // 股票搜索功能
+        function searchStock() {
+            const input = document.getElementById('stock-search-input');
+            const query = input.value.trim();
+            const resultDiv = document.getElementById('search-result');
+            
+            if (!query) {
+                resultDiv.style.display = 'none';
+                return;
+            }
+            
+            // 搜索匹配的股票
+            const matched = stockData.filter(s => 
+                s.symbol.includes(query) || 
+                s.name.includes(query)
+            );
+            
+            if (matched.length > 0) {
+                const stock = matched[0];
+                resultDiv.innerHTML = `
+                    <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:16px;margin-bottom:16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                            <div>
+                                <div style="font-size:18px;font-weight:700;">${stock.name}</div>
+                                <div style="font-size:13px;color:rgba(255,255,255,0.5);">${stock.symbol} · ${stock.sectorName}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:22px;font-weight:700;">¥${stock.price.toFixed(2)}</div>
+                                <div style="color:${stock.change >= 0 ? '#ef4444' : '#22c55e'};">
+                                    ${stock.change >= 0 ? '+' : ''}${stock.change}%
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);">
+                            <span class="score-badge">${stock.aiScore}分</span>
+                            <span style="font-size:13px;color:rgba(255,255,255,0.7);">
+                                ${stock.aiScore >= 80 ? '强烈买入' : stock.aiScore >= 60 ? '谨慎关注' : '观望'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+                resultDiv.style.display = 'block';
+            } else {
+                resultDiv.innerHTML = `
+                    <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:16px;margin-bottom:16px;text-align:center;">
+                        <div style="font-size:14px;color:rgba(255,255,255,0.7);">未找到匹配的股票</div>
+                        <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px;">请尝试其他代码或名称</div>
+                    </div>
+                `;
+                resultDiv.style.display = 'block';
+            }
+        }
+
+        // 显示股票详情
+        function showStockDetail(symbol) {
+            const stock = stockData.find(s => s.symbol === symbol);
+            if (!stock) return;
+            
+            document.getElementById('drawer-content').innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <div>
+                        <div style="font-size:20px;font-weight:700;">${stock.name}</div>
+                        <div style="font-size:13px;color:rgba(255,255,255,0.5);">${stock.symbol} · ${stock.sectorName}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:24px;font-weight:700;">¥${stock.price.toFixed(2)}</div>
+                        <div style="color:${stock.change >= 0 ? '#ef4444' : '#22c55e'};">
+                            ${stock.change >= 0 ? '+' : ''}${stock.change}%
+                        </div>
+                    </div>
+                </div>
+                <div style="height:200px;background:rgba(255,255,255,0.03);border-radius:12px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;">
+                    <span style="color:rgba(255,255,255,0.3);">📈 走势图区域</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <div style="font-size:16px;font-weight:600;margin-bottom:12px;">🤖 AI分析</div>
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                        <span class="score-badge">${stock.aiScore}分</span>
+                        <span style="color:${stock.aiScore >= 80 ? '#22c55e' : '#f59e0b'};">
+                            ${stock.aiScore >= 80 ? '强烈买入' : '谨慎关注'}
+                        </span>
+                    </div>
+                    <div style="font-size:13px;color:rgba(255,255,255,0.6);line-height:1.6;">
+                        基于技术面、基本面和情绪面综合分析，该股票当前${stock.aiScore >= 80 ? '表现优异' : '表现一般'}，建议${stock.aiScore >= 80 ? '积极关注' : '观望等待'}。
+                    </div>
+                </div>
+                <div style="display:flex;gap:12px;">
+                    <button style="flex:1;background:#3b82f6;border:none;border-radius:12px;padding:14px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;">加入自选</button>
+                    <button style="flex:1;background:rgba(255,255,255,0.1);border:none;border-radius:12px;padding:14px;color:#fff;font-size:15px;cursor:pointer;" onclick="closeDrawer()">关闭</button>
+                </div>
+            `;
+            
+            document.getElementById('stock-drawer').classList.add('active');
+            document.getElementById('drawer-overlay').classList.add('active');
+        }
+
+        function closeDrawer() {
+            document.getElementById('stock-drawer').classList.remove('active');
+            document.getElementById('drawer-overlay').classList.remove('active');
+        }
+
+        function showConflictDetail(name) {
+            const zone = conflictZones.find(z => z.name === name);
+            if (!zone) return;
+            alert(`${zone.name}\n\n${zone.description}\n\n影响: ${zone.impact || zone.casualties || '持续监测中'}`);
+        }
+
+        function showFutureDetail(symbol) {
+            const future = futuresData.find(f => f.symbol === symbol);
+            if (!future) return;
+            alert(`${future.name} (${future.symbol})\n价格: $${future.price.toFixed(2)}\n涨跌: ${future.change > 0 ? '+' : ''}${future.changePercent.toFixed(2)}%`);
+        }
+
+        // 渲染财经日历
+        function renderCalendar(filter = 'all') {
+            const list = document.getElementById('calendar-list');
+            let filtered = filter === 'all' ? calendarData : calendarData.filter(c => c.type === filter);
+            
+            list.innerHTML = filtered.map(item => {
+                const importanceColor = item.importance === 'high' ? '#ef4444' : '#f59e0b';
+                const importanceText = item.importance === 'high' ? '高' : '中';
+                const typeText = { 'economic': '经济数据', 'earnings': '财报', 'policy': '政策' }[item.type];
+                
+                return `
+                    <div class="calendar-item ${item.importance}">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <span style="font-size:18px;">${item.country}</span>
+                            <span style="font-size:12px;padding:2px 8px;border-radius:10px;background:${importanceColor}20;color:${importanceColor};">${importanceText}重要性</span>
+                        </div>
+                        <div style="font-size:15px;font-weight:600;margin-bottom:4px;">${item.title}</div>
+                        <div style="display:flex;gap:12px;font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:8px;">
+                            <span>🕐 ${item.time}</span>
+                            <span>📋 ${typeText}</span>
+                        </div>
+                        <div style="display:flex;gap:16px;font-size:12px;">
+                            <span style="color:#22c55e;">预测: ${item.forecast}</span>
+                            <span style="color:rgba(255,255,255,0.5);">前值: ${item.previous}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterCalendar(type, btn) {
+            document.querySelectorAll('#page-calendar .filter-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderCalendar(type);
+        }
+
+        // 渲染大V观点
+        function renderOpinions(filter = 'all') {
+            const list = document.getElementById('opinion-list');
+            let filtered = filter === 'all' ? influencerData : influencerData.filter(o => o.type === filter);
+            
+            list.innerHTML = filtered.map(op => `
+                <div class="influencer-card">
+                    <div class="influencer-header">
+                        <div class="influencer-avatar ${op.type}">${op.avatar}</div>
+                        <div style="flex:1;">
+                            <div style="display:flex;align-items:center;">
+                                <span style="font-size:15px;font-weight:600;">${op.name}</span>
+                                <span class="influencer-type ${op.type}">${op.typeName}</span>
+                            </div>
+                            <div style="font-size:12px;color:rgba(255,255,255,0.5);">
+                                ${op.platform} · ${op.time}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="font-size:14px;line-height:1.6;color:rgba(255,255,255,0.8);">${op.content}</div>
+                </div>
+            `).join('');
+        }
+
+        function filterOpinions(type, btn) {
+            document.querySelectorAll('#page-opinion .filter-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderOpinions(type);
+        }
+
+        // 设置功能
+        function toggleSetting(key) {
+            settings[key] = !settings[key];
+            const el = document.getElementById(`setting-${key}`);
+            if (el) {
+                el.textContent = settings[key] ? '已开启' : '已关闭';
+                el.style.color = settings[key] ? '#22c55e' : '#ef4444';
+            }
+        }
+
+        function clearCache() {
+            if (confirm('确定要清除缓存吗？')) {
+                alert('缓存已清除');
+            }
+        }
+
+        // ==================== THREE.JS EARTH WITH NASA TEXTURE ====================
+        let scene, camera, renderer, globe, markers = [];
+
+        function initEarth() {
+            const container = document.getElementById('earth-container');
+            const canvas = document.getElementById('earth-canvas');
+            
+            // Scene
+            scene = new THREE.Scene();
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.z = 2.5;
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // Globe Group
+            globe = new THREE.Group();
+            scene.add(globe);
+
+            // Earth Sphere with NASA Blue Marble Texture
+            const geometry = new THREE.SphereGeometry(1, 64, 64);
+            
+            // Load NASA Blue Marble texture
+            const textureLoader = new THREE.TextureLoader();
+            const earthTexture = textureLoader.load(
+                'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+                function(texture) {
+                    console.log('NASA Earth texture loaded successfully');
+                },
+                undefined,
+                function(err) {
+                    console.log('Using fallback earth texture');
+                }
+            );
+            
+            // Bump map for terrain detail
+            const bumpTexture = textureLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png');
+            
+            const material = new THREE.MeshPhongMaterial({
+                map: earthTexture,
+                bumpMap: bumpTexture,
+                bumpScale: 0.05,
+                emissive: 0x001133,
+                emissiveIntensity: 0.1,
+                shininess: 25
+            });
+            
+            const earth = new THREE.Mesh(geometry, material);
+            globe.add(earth);
+
+            // Atmosphere glow
+            const glowGeometry = new THREE.SphereGeometry(1.08, 32, 32);
+            const glowMaterial = new THREE.MeshPhongMaterial({
+                color: 0x3b82f6,
+                transparent: true,
+                opacity: 0.1,
+                side: THREE.BackSide
+            });
+            const atmosphere = new THREE.Mesh(glowGeometry, glowMaterial);
+            globe.add(atmosphere);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x333333, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 3, 5);
+            scene.add(directionalLight);
+            
+            // Add conflict markers
+            addConflictMarkers();
+
+            // Mouse/Touch controls
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            
+            canvas.addEventListener('mousedown', (e) => { 
+                isDragging = true; 
+                previousMousePosition = { x: e.clientX, y: e.clientY }; 
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                globe.rotation.y += deltaX * 0.005;
+                globe.rotation.x += deltaY * 0.005;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            canvas.addEventListener('mouseup', () => isDragging = false);
+            canvas.addEventListener('mouseleave', () => isDragging = false);
+            
+            canvas.addEventListener('touchstart', (e) => { 
+                isDragging = true; 
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY }; 
+            });
+            
+            canvas.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const deltaX = e.touches[0].clientX - previousMousePosition.x;
+                const deltaY = e.touches[0].clientY - previousMousePosition.y;
+                globe.rotation.y += deltaX * 0.008;
+                globe.rotation.x += deltaY * 0.008;
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            });
+            
+            canvas.addEventListener('touchend', () => isDragging = false);
+
+            // Animation
+            function animate() {
+                requestAnimationFrame(animate);
+                if (!isDragging) globe.rotation.y += 0.001;
+                
+                // Animate markers
+                const time = Date.now() * 0.002;
+                markers.forEach((marker, i) => {
+                    const offset = i * 0.7;
+                    const scale = 1 + Math.sin(time + offset) * 0.15;
+                    marker.ring.scale.set(scale, scale, scale);
+                    marker.ring.material.opacity = 0.7 - (scale - 1) * 0.3;
+                });
+                
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Handle resize
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            
+            return new THREE.Vector3(x, y, z);
+        }
+
+        function addConflictMarkers() {
+            conflictZones.forEach(zone => {
+                const position = latLonToVector3(zone.lat, zone.lon, 1.02);
+                
+                // Marker dot
+                const dotGeometry = new THREE.SphereGeometry(0.035, 16, 16);
+                const dotColor = zone.status === 'active' ? 0xef4444 : 0xf59e0b;
+                const dotMaterial = new THREE.MeshBasicMaterial({ 
+                    color: dotColor,
+                    emissive: dotColor,
+                    emissiveIntensity: 0.8
+                });
+                const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+                dot.position.copy(position);
+                globe.add(dot);
+                
+                // Pulse ring
+                const ringGeometry = new THREE.RingGeometry(0.04, 0.055, 32);
+                const ringMaterial = new THREE.MeshBasicMaterial({
+                    color: dotColor,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                ring.position.copy(position.clone().multiplyScalar(1.015));
+                ring.lookAt(new THREE.Vector3(0, 0, 0));
+                globe.add(ring);
+                
+                // Store for animation
+                markers.push({ dot, ring, zone });
+            });
+        }
+
+        // ==================== REALTIME API FUNCTIONS ====================
+        
+        // API 配置
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8080' 
+            : 'http://43.160.193.165:8080';
+
+        // 加载大盘指数 - 实时API
+        async function loadIndices() {
+            try {
+                // 使用腾讯财经API获取实时数据
+                const codes = 'sh000001,sz399001,sz399006,hkHSI,US.DJI,US.IXIC';
+                const response = await fetch(`https://qt.gtimg.cn/q=${codes}`, {
+                    method: 'GET',
+                    mode: 'no-cors'
+                });
+                
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const text = await response.text();
+                const data = parseTencentData(text);
+                
+                updateIndicesDisplay(data);
+            } catch (error) {
+                console.error('加载指数数据失败:', error);
+                // 使用模拟数据作为降级
+                useFallbackIndices();
+            }
+        }
+
+        // 解析腾讯财经数据
+        function parseTencentData(text) {
+            const lines = text.split(';');
+            const indices = [];
+            const names = {
+                'sh000001': '上证指数',
+                'sz399001': '深证成指',
+                'sz399006': '创业板指',
+                'hkHSI': '恒生指数',
+                'US.DJI': '道琼斯',
+                'US.IXIC': '纳斯达克'
+            };
+            
+            lines.forEach(line => {
+                const match = line.match(/v_(\w+)="([^"]+)"/);
+                if (match) {
+                    const code = match[1];
+                    const data = match[2].split('~');
+                    if (data.length > 32) {
+                        indices.push({
+                            code: code,
+                            name: names[code] || code,
+                            price: parseFloat(data[3]),
+                            change: parseFloat(data[31]),
+                            changePercent: parseFloat(data[32])
+                        });
+                    }
+                }
+            });
+            
+            return indices;
+        }
+
+        function updateIndicesDisplay(data) {
+            const indexMap = {
+                'sh000001': 'index-sh',
+                'sz399001': 'index-sz',
+                'sz399006': 'index-cy',
+                'hkHSI': 'index-hs',
+                'US.DJI': 'index-dj',
+                'US.IXIC': 'index-nq'
+            };
+            
+            data.forEach(index => {
+                const elementId = indexMap[index.code];
+                if (elementId) {
+                    const priceEl = document.querySelector(`#${elementId} .index-price`);
+                    const changeEl = document.querySelector(`#${elementId} .index-change`);
+                    
+                    if (priceEl) priceEl.textContent = index.price.toFixed(2);
+                    if (changeEl) {
+                        const sign = index.change >= 0 ? '+' : '';
+                        changeEl.textContent = `${sign}${index.changePercent.toFixed(2)}%`;
+                        changeEl.className = `index-change ${index.change >= 0 ? 'up' : 'down'}`;
+                    }
+                }
+            });
+        }
+
+        function useFallbackIndices() {
+            const fallbackData = [
+                { code: 'sh000001', price: 3285.42, change: 12.35, changePercent: 0.38 },
+                { code: 'sz399001', price: 10562.18, change: -28.45, changePercent: -0.27 },
+                { code: 'sz399006', price: 2185.65, change: -8.92, changePercent: -0.41 },
+                { code: 'hkHSI', price: 17562.35, change: 125.48, changePercent: 0.72 },
+                { code: 'US.DJI', price: 38562.80, change: -45.23, changePercent: -0.12 },
+                { code: 'US.IXIC', price: 15685.42, change: 89.65, changePercent: 0.57 }
+            ];
+            updateIndicesDisplay(fallbackData);
+        }
+
+        // 加载期货数据 - 实时API
+        async function loadFutures() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/futures`);
+                if (!response.ok) throw new Error('API request failed');
+                
+                const result = await response.json();
+                if (result.data && result.data.length > 0) {
+                    // 更新期货数据
+                    updateFuturesDisplay(result.data);
+                }
+            } catch (error) {
+                console.error('加载期货数据失败:', error);
+                // 使用默认数据
+                renderFutures();
+            }
+        }
+
+        function updateFuturesDisplay(data) {
+            // 更新期货显示
+            renderFutures();
+        }
+
+        // ==================== INITIALIZATION ====================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Hide loading after 1.5 seconds
+            setTimeout(() => {
+                document.getElementById('loading').classList.add('hidden');
+            }, 1500);
+            
+            // Initialize all components
+            initEarth();
+            renderNews();
+            renderConflicts();
+            renderFutures();
+            renderStocks('all');
+            renderCalendar('all');
+            renderOpinions('all');
+            
+            // Load realtime data
+            loadIndices();
+            loadFutures();
+            
+            // Auto refresh every 30 seconds
+            setInterval(() => {
+                loadIndices();
+                loadFutures();
+            }, 30000);
+        });
+    </script>
+</body>
+</html>

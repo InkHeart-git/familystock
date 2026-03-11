@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamilyStock - 智能投资平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .nav a {
+            color: #a0a0a0;
+            text-decoration: none;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+
+        .nav a:hover, .nav a.active {
+            color: #00d4ff;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 60px 20px;
+            margin-bottom: 40px;
+        }
+
+        .hero h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #00d4ff, #7b2cbf, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-size: 200% 200%;
+            animation: gradient 5s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .hero p {
+            font-size: 20px;
+            color: #a0a0a0;
+            max-width: 600px;
+            margin: 0 auto 30px;
+            line-height: 1.6;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            color: #fff;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 40px rgba(0,212,255,0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Features Grid */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 25px;
+            margin-bottom: 50px;
+        }
+
+        @media (max-width: 1024px) {
+            .features {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .feature-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 35px 25px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(0,212,255,0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .feature-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 20px;
+        }
+
+        .feature-card:nth-child(1) .feature-icon { background: linear-gradient(135deg, #00d4ff, #0099cc); }
+        .feature-card:nth-child(2) .feature-icon { background: linear-gradient(135deg, #7b2cbf, #ff006e); }
+        .feature-card:nth-child(3) .feature-icon { background: linear-gradient(135deg, #00ff88, #00cc6a); }
+        .feature-card:nth-child(4) .feature-icon { background: linear-gradient(135deg, #ffd700, #ff8c00); }
+
+        .feature-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .feature-desc {
+            font-size: 14px;
+            color: #888;
+            line-height: 1.6;
+        }
+
+        /* Market Overview */
+        .market-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 35px;
+            margin-bottom: 40px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .view-all {
+            color: #00d4ff;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .market-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .market-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .market-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .market-item {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .market-item:hover {
+            background: rgba(255,255,255,0.06);
+        }
+
+        .market-name {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .market-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .market-change {
+            font-size: 14px;
+        }
+
+        .positive { color: #00ff88; }
+        .negative { color: #ff4757; }
+
+        /* Stats Section */
+        .stats-section {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .stats-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 42px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 16px;
+            color: #888;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 40px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: #888;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: #00d4ff;
+        }
+
+        .footer p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .disclaimer {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">FamilyStock</div>
+            <nav class="nav">
+                <a href="index.html" class="active">首页</a>
+                <a href="global.html">全球投资</a>
+                <a href="ai-stock.html">AI选股</a>
+                <a href="portfolio.html">投资组合</a>
+                <a href="watchlist.html">自选股</a>
+                <a href="ai-analysis.html">AI分析</a>
+                <a href="alert-system.html">预警系统</a>
+            </nav>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero">
+            <h1>智能投资，从这里开始</h1>
+            <p>FamilyStock 是一款面向家庭投资者的智能投资平台，结合AI技术与全球市场数据，助您做出更明智的投资决策。</p>
+            <div class="hero-buttons">
+                <a href="ai-stock.html" class="btn btn-primary">开始AI选股</a>
+                <a href="portfolio.html" class="btn btn-secondary">查看组合</a>
+            </div>
+        </section>
+
+        <!-- Features Grid -->
+        <section class="features">
+            <a href="global.html" class="feature-card">
+                <div class="feature-icon">🌍</div>
+                <div class="feature-title">全球投资中心</div>
+                <div class="feature-desc">实时追踪全球主要市场指数，把握跨市场投资机会</div>
+            </a>
+            <a href="ai-stock.html" class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <div class="feature-title">AI智能选股</div>
+                <div class="feature-desc">基于深度学习算法，为您筛选最具潜力的投资标的</div>
+            </a>
+            <a href="portfolio.html" class="feature-card">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">投资组合管理</div>
+                <div class="feature-desc">全方位分析您的投资组合，优化资产配置</div>
+            </a>
+            <a href="ai-analysis.html" class="feature-card">
+                <div class="feature-icon">📈</div>
+                <div class="feature-title">AI深度分析</div>
+                <div class="feature-desc">多维度股票分析，结合全球热点事件智能预测</div>
+            </a>
+        </section>
+
+        <!-- Market Overview -->
+        <section class="market-section">
+            <div class="section-header">
+                <h2 class="section-title">📉 全球市场概览</h2>
+                <a href="global.html" class="view-all">查看全部 →</a>
+            </div>
+            <div class="market-grid">
+                <div class="market-item">
+                    <div class="market-name">标普 500</div>
+                    <div class="market-value">5,138.10</div>
+                    <div class="market-change positive">+0.58% ↑</div>
+                </div>
+                <div class="market-item">
+                    <div class="market-name">纳斯达克</div>
+                    <div class="market-value">16,245.80</div>
+                    <div class="market-change positive">+0.82% ↑</div>
+                </div>
+                <div class="market-item">
+                    <div class="market-name">上证指数</div>
+                    <div class="market-value">3,047.36</div>
+                    <div class="market-change positive">+0.41% ↑</div>
+                </div>
+                <div class="market-item">
+                    <div class="market-name">恒生指数</div>
+                    <div class="market-value">16,589.44</div>
+                    <div class="market-change negative">-0.23% ↓</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats Section -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <div class="stat-number">50,000+</div>
+                <div class="stat-label">活跃投资者</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">$2.5B</div>
+                <div class="stat-label">管理资产规模</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">92%</div>
+                <div class="stat-label">AI预测准确率</div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-links">
+                <a href="index.html">首页</a>
+                <a href="global.html">全球投资</a>
+                <a href="ai-stock.html">AI选股</a>
+                <a href="portfolio.html">投资组合</a>
+                <a href="ai-analysis.html">AI分析</a>
+                <a href="alert-system.html">预警系统</a>
+            </div>
+            <p>© 2024 FamilyStock. All rights reserved.</p>
+            <p class="disclaimer">⚠️ 风险提示：股市有风险，投资需谨慎。本平台的AI分析和建议仅供参考，不构成投资建议。</p>
+        </footer>
+    </div>
+
+    <script>
+        // Auto-update market data every 30 seconds
+        setInterval(() => {
+            // Simulate market data updates
+            const changes = document.querySelectorAll('.market-change');
+            changes.forEach(change => {
+                const isPositive = Math.random() > 0.5;
+                const value = (Math.random() * 2).toFixed(2);
+                change.className = 'market-change ' + (isPositive ? 'positive' : 'negative');
+                change.textContent = (isPositive ? '+' : '-') + value + '% ' + (isPositive ? '↑' : '↓');
+            });
+        }, 30000);
+    </script>
+</body>
+</html>

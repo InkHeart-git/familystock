@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamilyStock - 全球投资中心</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .nav a {
+            color: #a0a0a0;
+            text-decoration: none;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+
+        .nav a:hover, .nav a.active {
+            color: #00d4ff;
+        }
+
+        /* Market Overview */
+        .market-overview {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .market-overview {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .market-overview {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .market-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+        }
+
+        .market-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(0,212,255,0.3);
+        }
+
+        .market-card .region {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .market-card .index-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .market-card .price {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .market-card .change {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .change-positive {
+            color: #00ff88;
+        }
+
+        .change-negative {
+            color: #ff4757;
+        }
+
+        .mini-chart {
+            height: 60px;
+            margin-top: 15px;
+            opacity: 0.7;
+        }
+
+        /* Section Title */
+        .section-title {
+            font-size: 22px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Global Map Section */
+        .global-section {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .global-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .map-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .map-placeholder {
+            height: 400px;
+            background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(123,44,191,0.1));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .map-placeholder::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(0,212,255,0.1) 1px, transparent 1px);
+            background-size: 30px 30px;
+            animation: gridMove 20s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(30px, 30px); }
+        }
+
+        .world-map {
+            font-size: 120px;
+            opacity: 0.3;
+            z-index: 1;
+        }
+
+        .market-pins {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .market-pin {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .market-pin:hover {
+            transform: scale(1.1);
+        }
+
+        .pin-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #00d4ff;
+            box-shadow: 0 0 20px #00d4ff;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.2); }
+        }
+
+        .pin-label {
+            font-size: 11px;
+            background: rgba(0,0,0,0.7);
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        /* Market Status Panel */
+        .status-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .status-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .status-item:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .status-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .status-info .name {
+            font-weight: 500;
+        }
+
+        .status-info .time {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-open {
+            background: rgba(0,255,136,0.2);
+            color: #00ff88;
+        }
+
+        .status-closed {
+            background: rgba(255,71,87,0.2);
+            color: #ff4757;
+        }
+
+        .status-pre {
+            background: rgba(255,215,0,0.2);
+            color: #ffd700;
+        }
+
+        /* Hot Stocks Section */
+        .hot-stocks {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+        }
+
+        .stocks-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: rgba(255,255,255,0.05);
+            color: #888;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .tab-btn:hover, .tab-btn.active {
+            background: rgba(0,212,255,0.2);
+            color: #00d4ff;
+        }
+
+        .stocks-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .stocks-table th,
+        .stocks-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .stocks-table th {
+            color: #888;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        .stocks-table tr:hover td {
+            background: rgba(255,255,255,0.03);
+        }
+
+        .stock-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stock-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .stock-details {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .stock-symbol {
+            font-weight: 600;
+        }
+
+        .stock-name {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .trend-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        .trend-up {
+            background: rgba(0,255,136,0.1);
+            color: #00ff88;
+        }
+
+        .trend-down {
+            background: rgba(255,71,87,0.1);
+            color: #ff4757;
+        }
+
+        /* Currency Section */
+        .currency-section {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .currency-section {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .currency-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .currency-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .currency-pair {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .currency-names {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .currency-flag {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .currency-rate {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .currency-change {
+            font-size: 14px;
+        }
+
+        /* News Ticker */
+        .news-ticker {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 20px 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        .ticker-label {
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .ticker-content {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .ticker-text {
+            white-space: nowrap;
+            animation: ticker 30s linear infinite;
+        }
+
+        @keyframes ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">FamilyStock Global</div>
+            <nav class="nav">
+                <a href="index.html">首页</a>
+                <a href="global.html" class="active">全球投资</a>
+                <a href="ai-stock.html">AI选股</a>
+                <a href="portfolio.html">投资组合</a>
+                <a href="watchlist.html">自选股</a>
+                <a href="ai-analysis.html">AI分析</a>
+                <a href="alert-system.html">预警系统</a>
+            </nav>
+        </header>
+
+        <!-- Market Overview -->
+        <div class="market-overview">
+            <div class="market-card">
+                <div class="region">🇺🇸 美国市场</div>
+                <div class="index-name">标普 500</div>
+                <div class="price">5,138.10</div>
+                <div class="change">
+                    <span class="change-positive">+0.58%</span>
+                    <span>+29.45</span>
+                </div>
+                <div class="mini-chart">
+                    <canvas id="spxChart"></canvas>
+                </div>
+            </div>
+            <div class="market-card">
+                <div class="region">🇨🇳 中国市场</div>
+                <div class="index-name">上证指数</div>
+                <div class="price">3,047.36</div>
+                <div class="change">
+                    <span class="change-positive">+0.41%</span>
+                    <span>+12.28</span>
+                </div>
+                <div class="mini-chart">
+                    <canvas id="sseChart"></canvas>
+                </div>
+            </div>
+            <div class="market-card">
+                <div class="region">🇭🇰 香港市场</div>
+                <div class="index-name">恒生指数</div>
+                <div class="price">16,589.44</div>
+                <div class="change">
+                    <span class="change-negative">-0.23%</span>
+                    <span>-38.12</span>
+                </div>
+                <div class="mini-chart">
+                    <canvas id="hsiChart"></canvas>
+                </div>
+            </div>
+            <div class="market-card">
+                <div class="region">🇪🇺 欧洲市场</div>
+                <div class="index-name">斯托克 50</div>
+                <div class="price">4,876.52</div>
+                <div class="change">
+                    <span class="change-positive">+0.32%</span>
+                    <span>+15.68</span>
+                </div>
+                <div class="mini-chart">
+                    <canvas id="stoxxChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Map Section -->
+        <div class="global-section">
+            <div class="map-container">
+                <h2 class="section-title">🌍 全球市场热力图</h2>
+                <div class="map-placeholder">
+                    <div class="world-map">🌐</div>
+                    <div class="market-pins">
+                        <div class="market-pin" style="top: 35%; left: 25%;">
+                            <div class="pin-dot"></div>
+                            <div class="pin-label">纽约 +0.58%</div>
+                        </div>
+                        <div class="market-pin" style="top: 30%; left: 48%;">
+                            <div class="pin-dot"></div>
+                            <div class="pin-label">伦敦 +0.21%</div>
+                        </div>
+                        <div class="market-pin" style="top: 32%; left: 52%;">
+                            <div class="pin-dot"></div>
+                            <div class="pin-label">法兰克福 +0.32%</div>
+                        </div>
+                        <div class="market-pin" style="top: 45%; left: 75%;">
+                            <div class="pin-dot"></div>
+                            <div class="pin-label">上海 +0.41%</div>
+                        </div>
+                        <div class="market-pin" style="top: 48%; left: 78%;">
+                            <div class="pin-dot"></div>
+                            <div class="pin-label">香港 -0.23%</div>
+                        </div>
+                        <div class="market-pin" style="top: 42%; left: 82%;">
+                            <div class="pin-dot"></div>
+                            <div class="pin-label">东京 +0.15%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="status-panel">
+                <h2 class="section-title">⏰ 市场状态</h2>
+                <div class="status-list">
+                    <div class="status-item">
+                        <div class="status-info">
+                            <span class="name">纽约证券交易所</span>
+                            <span class="time">21:30 - 04:00 (次日)</span>
+                        </div>
+                        <span class="status-badge status-open">交易中</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-info">
+                            <span class="name">纳斯达克</span>
+                            <span class="time">21:30 - 04:00 (次日)</span>
+                        </div>
+                        <span class="status-badge status-open">交易中</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-info">
+                            <span class="name">上海证券交易所</span>
+                            <span class="time">09:30 - 15:00</span>
+                        </div>
+                        <span class="status-badge status-closed">已收盘</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-info">
+                            <span class="name">香港交易所</span>
+                            <span class="time">09:30 - 16:00</span>
+                        </div>
+                        <span class="status-badge status-closed">已收盘</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-info">
+                            <span class="name">伦敦证券交易所</span>
+                            <span class="time">16:00 - 00:30 (次日)</span>
+                        </div>
+                        <span class="status-badge status-pre">盘前</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-info">
+                            <span class="name">东京证券交易所</span>
+                            <span class="time">08:00 - 14:00</span>
+                        </div>
+                        <span class="status-badge status-closed">已收盘</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hot Stocks -->
+        <div class="hot-stocks">
+            <h2 class="section-title">🔥 全球热门股票</h2>
+            <div class="stocks-tabs">
+                <button class="tab-btn active" onclick="switchTab('us')">美股</button>
+                <button class="tab-btn" onclick="switchTab('cn')">A股</button>
+                <button class="tab-btn" onclick="switchTab('hk')">港股</button>
+                <button class="tab-btn" onclick="switchTab('crypto')">加密货币</button>
+            </div>
+            <table class="stocks-table" id="stocksTable">
+                <thead>
+                    <tr>
+                        <th>股票</th>
+                        <th>价格</th>
+                        <th>涨跌幅</th>
+                        <th>市值</th>
+                        <th>趋势</th>
+                    </tr>
+                </thead>
+                <tbody id="stocksBody">
+                    <!-- Generated by JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Currency Section -->
+        <div class="currency-section">
+            <div class="currency-card">
+                <div class="currency-pair">
+                    <div class="currency-names">
+                        <div class="currency-flag">🇺🇸</div>
+                        <div>
+                            <div style="font-weight: 600;">USD/CNY</div>
+                            <div style="font-size: 12px; color: #888;">美元/人民币</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="currency-rate">7.1985</div>
+                <div class="currency-change change-negative">-0.12%</div>
+            </div>
+            <div class="currency-card">
+                <div class="currency-pair">
+                    <div class="currency-names">
+                        <div class="currency-flag">🇪🇺</div>
+                        <div>
+                            <div style="font-weight: 600;">EUR/USD</div>
+                            <div style="font-size: 12px; color: #888;">欧元/美元</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="currency-rate">1.0842</div>
+                <div class="currency-change change-positive">+0.08%</div>
+            </div>
+            <div class="currency-card">
+                <div class="currency-pair">
+                    <div class="currency-names">
+                        <div class="currency-flag">🇯🇵</div>
+                        <div>
+                            <div style="font-weight: 600;">USD/JPY</div>
+                            <div style="font-size: 12px; color: #888;">美元/日元</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="currency-rate">150.25</div>
+                <div class="currency-change change-positive">+0.35%</div>
+            </div>
+        </div>
+
+        <!-- News Ticker -->
+        <div class="news-ticker">
+            <div class="ticker-label">📰 全球快讯</div>
+            <div class="ticker-content">
+                <div class="ticker-text">
+                    美联储维持利率不变，暗示年内可能降息 | 英伟达财报超预期，AI芯片需求强劲 | 中国制造业PMI回升至扩张区间 | 比特币突破6万美元大关 | 欧洲央行释放鸽派信号
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>FamilyStock 全球投资中心 | 数据实时更新，投资有风险，入市需谨慎</p>
+        </footer>
+    </div>
+
+    <script>
+        // Stock data by region
+        const stocksData = {
+            us: [
+                { symbol: 'AAPL', name: '苹果公司', price: 178.35, change: 2.15, marketCap: '2.8T', trend: 'up', color: '#007AFF' },
+                { symbol: 'NVDA', name: '英伟达', price: 875.28, change: 5.42, marketCap: '2.2T', trend: 'up', color: '#76B900' },
+                { symbol: 'MSFT', name: '微软', price: 412.58, change: 1.23, marketCap: '3.1T', trend: 'up', color: '#00A4EF' },
+                { symbol: 'TSLA', name: '特斯拉', price: 202.64, change: -1.23, marketCap: '645B', trend: 'down', color: '#CC0000' },
+                { symbol: 'AMZN', name: '亚马逊', price: 178.35, change: 0.85, marketCap: '1.9T', trend: 'up', color: '#FF9900' }
+            ],
+            cn: [
+                { symbol: '600519', name: '贵州茅台', price: 1,688.00, change: 0.52, marketCap: '2.1T', trend: 'up', color: '#E60012' },
+                { symbol: '300750', name: '宁德时代', price: 185.82, change: 2.35, marketCap: '817B', trend: 'up', color: '#00A651' },
+                { symbol: '601398', name: '工商银行', price: 5.12, change: -0.18, marketCap: '1.8T', trend: 'down', color: '#C41230' },
+                { symbol: '000858', name: '五粮液', price: 145.68, change: 1.25, marketCap: '565B', trend: 'up', color: '#FFD700' },
+                { symbol: '002594', name: '比亚迪', price: 198.50, change: 3.12, marketCap: '578B', trend: 'up', color: '#1E3A8A' }
+            ],
+            hk: [
+                { symbol: '0700', name: '腾讯控股', price: 298.40, change: 1.85, marketCap: '2.9T', trend: 'up', color: '#00A1E0' },
+                { symbol: '9988', name: '阿里巴巴', price: 78.25, change: -0.52, marketCap: '1.7T', trend: 'down', color: '#FF6A00' },
+                { symbol: '3690', name: '美团', price: 95.80, change: 2.15, marketCap: '598B', trend: 'up', color: '#FFD100' },
+                { symbol: '2318', name: '中国平安', price: 42.35, change: 0.35, marketCap: '775B', trend: 'up', color: '#E60012' },
+                { symbol: '1299', name: '友邦保险', price: 58.90, change: -0.85, marketCap: '712B', trend: 'down', color: '#0066B3' }
+            ],
+            crypto: [
+                { symbol: 'BTC', name: '比特币', price: 62,450.00, change: 3.25, marketCap: '1.2T', trend: 'up', color: '#F7931A' },
+                { symbol: 'ETH', name: '以太坊', price: 3,420.50, change: 2.85, marketCap: '410B', trend: 'up', color: '#627EEA' },
+                { symbol: 'SOL', name: 'Solana', price: 128.35, change: 5.42, marketCap: '58B', trend: 'up', color: '#00FFA3' },
+                { symbol: 'COIN', name: 'Coinbase', price: 215.38, change: 8.45, marketCap: '52B', trend: 'up', color: '#0052FF' },
+                { symbol: 'MSTR', name: 'MicroStrategy', price: 825.60, change: -2.15, marketCap: '16B', trend: 'down', color: '#D92231' }
+            ]
+        };
+
+        let currentTab = 'us';
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            renderStocks();
+        }
+
+        function renderStocks() {
+            const tbody = document.getElementById('stocksBody');
+            const stocks = stocksData[currentTab];
+            
+            tbody.innerHTML = stocks.map(stock => `
+                <tr>
+                    <td>
+                        <div class="stock-info">
+                            <div class="stock-icon" style="background: ${stock.color}20; color: ${stock.color};">
+                                ${stock.symbol.slice(0, 2)}
+                            </div>
+                            <div class="stock-details">
+                                <span class="stock-symbol">${stock.symbol}</span>
+                                <span class="stock-name">${stock.name}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>$${stock.price.toLocaleString()}</td>
+                    <td class="${stock.change >= 0 ? 'change-positive' : 'change-negative'}">
+                        ${stock.change >= 0 ? '+' : ''}${stock.change}%
+                    </td>
+                    <td>${stock.marketCap}</td>
+                    <td>
+                        <span class="trend-indicator ${stock.trend === 'up' ? 'trend-up' : 'trend-down'}">
+                            ${stock.trend === 'up' ? '📈' : '📉'} ${stock.trend === 'up' ? '看涨' : '看跌'}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Initialize mini charts
+        function initMiniCharts() {
+            const chartIds = ['spxChart', 'sseChart', 'hsiChart', 'stoxxChart'];
+            const colors = ['#00ff88', '#00ff88', '#ff4757', '#00ff88'];
+            
+            chartIds.forEach((id, index) => {
+                const ctx = document.getElementById(id);
+                if (!ctx) return;
+                
+                const data = Array.from({length: 20}, () => Math.random() * 20 + 40);
+                
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 20}, (_, i) => i),
+                        datasets: [{
+                            data: data,
+                            borderColor: colors[index],
+                            backgroundColor: colors[index] + '20',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { display: false },
+                            y: { display: false }
+                        }
+                    }
+                });
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            renderStocks();
+            initMiniCharts();
+        });
+    </script>
+</body>
+</html>

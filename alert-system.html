@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamilyStock 预警系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .nav a {
+            color: #a0a0a0;
+            text-decoration: none;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+
+        .nav a:hover, .nav a.active {
+            color: #00d4ff;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header p {
+            color: #888;
+            margin-top: 10px;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 24px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h2 .icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .icon-blue { background: linear-gradient(135deg, #667eea, #764ba2); }
+        .icon-green { background: linear-gradient(135deg, #11998e, #38ef7d); }
+        .icon-orange { background: linear-gradient(135deg, #f093fb, #f5576c); }
+        .icon-purple { background: linear-gradient(135deg, #4facfe, #00f2fe); }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .input-group input, .input-group select {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            border-color: #00d4ff;
+            box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
+        }
+
+        .input-group input::placeholder {
+            color: #666;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102,126,234,0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: white;
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255,65,108,0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(17,153,142,0.4);
+        }
+
+        .stock-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .stock-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.3s;
+        }
+
+        .stock-item:hover {
+            background: rgba(255,255,255,0.08);
+            transform: translateX(5px);
+        }
+
+        .stock-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .stock-code {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #00d4ff;
+        }
+
+        .stock-name {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .stock-price {
+            text-align: right;
+        }
+
+        .price {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .price-up { color: #ff4d4d; }
+        .price-down { color: #00ff88; }
+        .price-flat { color: #888; }
+
+        .change {
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
+        .alert-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .alert-item {
+            padding: 16px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid;
+            transition: all 0.3s;
+        }
+
+        .alert-item:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .alert-item.price-alert { border-left-color: #ff416c; }
+        .alert-item.news-alert { border-left-color: #38ef7d; }
+
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .alert-type {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .alert-type.price { background: rgba(255,65,108,0.2); color: #ff416c; }
+        .alert-type.news { background: rgba(56,239,125,0.2); color: #38ef7d; }
+
+        .alert-time {
+            font-size: 0.75rem;
+            color: #666;
+        }
+
+        .alert-content {
+            color: #ccc;
+            line-height: 1.5;
+        }
+
+        .alert-stock {
+            font-weight: 600;
+            color: #00d4ff;
+        }
+
+        .rule-section {
+            margin-bottom: 20px;
+        }
+
+        .rule-section h3 {
+            font-size: 1rem;
+            margin-bottom: 15px;
+            color: #aaa;
+        }
+
+        .rule-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .rule-item label {
+            flex: 1;
+            font-size: 0.9rem;
+        }
+
+        .rule-item input[type="number"] {
+            width: 80px;
+            padding: 8px 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            text-align: center;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.1);
+            border-radius: 26px;
+            transition: 0.3s;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 20px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .notification-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            background: rgba(30,30,50,0.95);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            max-width: 350px;
+        }
+
+        .notification-toast.show {
+            transform: translateX(0);
+        }
+
+        .notification-toast.success {
+            border-left: 4px solid #38ef7d;
+        }
+
+        .notification-toast.error {
+            border-left: 4px solid #ff416c;
+        }
+
+        .notification-toast.warning {
+            border-left: 4px solid #ffa500;
+        }
+
+        .notification-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .notification-body {
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(56,239,125,0.1);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #38ef7d;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #38ef7d;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 900px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="logo">FamilyStock Alert</div>
+                <nav class="nav">
+                    <a href="index.html">首页</a>
+                    <a href="global.html">全球投资</a>
+                    <a href="ai-stock.html">AI选股</a>
+                    <a href="portfolio.html">投资组合</a>
+                    <a href="watchlist.html">自选股</a>
+                    <a href="ai-analysis.html">AI分析</a>
+                    <a href="alert-system.html" class="active">预警系统</a>
+                </nav>
+            </div>
+            <h1>📈 智能预警中心</h1>
+            <p>实时监控股票价格波动与热点事件</p>
+            <div style="margin-top: 15px;">
+                <span class="status-indicator">
+                    <span class="status-dot"></span>
+                    系统运行中
+                </span>
+            </div>
+        </header>
+
+        <div class="dashboard">
+            <!-- 股票监控列表 -->
+            <div class="card">
+                <h2>
+                    <span class="icon icon-blue">📊</span>
+                    股票监控列表
+                </h2>
+                <div class="input-group">
+                    <input type="text" id="stockCode" placeholder="输入股票代码 (如: 000001)" maxlength="6">
+                    <input type="text" id="stockName" placeholder="股票名称 (如: 平安银行)">
+                    <button class="btn btn-primary" onclick="addStock()">
+                        <span>+</span> 添加
+                    </button>
+                </div>
+                <div class="stock-list" id="stockList">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <p>暂无监控股票，请添加</p>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-value" id="totalStocks">0</div>
+                        <div class="stat-label">监控股票</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="upStocks">0</div>
+                        <div class="stat-label">上涨</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="downStocks">0</div>
+                        <div class="stat-label">下跌</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 预警规则设置 -->
+            <div class="card">
+                <h2>
+                    <span class="icon icon-orange">⚙️</span>
+                    预警规则设置
+                </h2>
+                
+                <div class="rule-section">
+                    <h3>📊 价格波动预警</h3>
+                    <div class="rule-item">
+                        <label>涨跌幅超过</label>
+                        <input type="number" id="priceThreshold" value="5" min="1" max="20">
+                        <span>%</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="priceAlertEnabled" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="rule-section">
+                    <h3>📰 热点事件预警</h3>
+                    <div class="rule-item">
+                        <label>启用新闻监控</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="newsAlertEnabled" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="rule-item">
+                        <label>监控关键词 (逗号分隔)</label>
+                        <input type="text" id="newsKeywords" value="涨停,跌停,重大利好,重大利空,重组,收购" style="flex: 2;">
+                    </div>
+                </div>
+
+                <div class="rule-section">
+                    <h3>🔔 飞书推送设置</h3>
+                    <div class="rule-item">
+                        <label>启用飞书推送</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="feishuEnabled">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="input-group" style="margin-top: 10px;">
+                        <input type="text" id="feishuWebhook" placeholder="飞书 Webhook URL" style="flex: 2;">
+                        <button class="btn btn-success" onclick="testFeishu()">测试</button>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveSettings()" style="width: 100%; margin-top: 15px;">
+                    💾 保存设置
+                </button>
+            </div>
+
+            <!-- 实时预警通知 -->
+            <div class="card full-width">
+                <h2>
+                    <span class="icon icon-green">🔔</span>
+                    实时预警通知
+                    <span style="margin-left: auto; font-size: 0.8rem; color: #666;">
+                        <span class="loading" style="width: 12px; height: 12px; margin-right: 5px;"></span>
+                        实时监控中
+                    </span>
+                </h2>
+                <div class="alert-list" id="alertList">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔕</div>
+                        <p>暂无预警通知</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统日志 -->
+            <div class="card full-width">
+                <h2>
+                    <span class="icon icon-purple">📝</span>
+                    系统日志
+                </h2>
+                <div class="alert-list" id="logList" style="max-height: 200px; font-family: monospace; font-size: 0.85rem;">
+                    <div class="alert-item">
+                        <div class="alert-content" style="color: #888;">
+                            [系统] 预警系统已启动
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知 Toast -->
+    <div class="notification-toast" id="toast">
+        <div class="notification-header" id="toastHeader">通知</div>
+        <div class="notification-body" id="toastBody">内容</div>
+    </div>
+
+    <script>
+        // ==================== 数据存储 ====================
+        const Storage = {
+            get(key, defaultValue = null) {
+                try {
+                    const data = localStorage.getItem(`familystock_${key}`);
+                    return data ? JSON.parse(data) : defaultValue;
+                } catch (e) {
+                    return defaultValue;
+                }
+            },
+            set(key, value) {
+                try {
+                    localStorage.setItem(`familystock_${key}`, JSON.stringify(value));
+                } catch (e) {
+                    console.error('Storage error:', e);
+                }
+            }
+        };
+
+        // ==================== 状态管理 ====================
+        const State = {
+            stocks: Storage.get('stocks', []),
+            alerts: Storage.get('alerts', []),
+            settings: Storage.get('settings', {
+                priceThreshold: 5,
+                priceAlertEnabled: true,
+                newsAlertEnabled: true,
+                newsKeywords: '涨停,跌停,重大利好,重大利空,重组,收购',
+                feishuEnabled: false,
+                feishuWebhook: ''
+            }),
+            logs: []
+        };
+
+        // ==================== 模拟股票数据 ====================
+        const MockStockData = {
+            '000001': { name: '平安银行', basePrice: 10.50 },
+            '000002': { name: '万科A', basePrice: 15.20 },
+            '000858': { name: '五粮液', basePrice: 145.00 },
+            '002415': { name: '海康威视', basePrice: 32.80 },
+            '600000': { name: '浦发银行', basePrice: 7.60 },
+            '600519': { name: '贵州茅台', basePrice: 1680.00 },
+            '600036': { name: '招商银行', basePrice: 35.50 },
+            '000725': { name: '京东方A', basePrice: 4.20 },
+            '002594': { name: '比亚迪', basePrice: 245.00 },
+            '300750': { name: '宁德时代', basePrice: 185.00 }
+        };
+
+        // 生成模拟实时价格
+        function generateMockPrice(basePrice) {
+            const change = (Math.random() - 0.5) * 0.1; // ±5% 波动
+            return basePrice * (1 + change);
+        }
+
+        // ==================== 日志系统 ====================
+        function addLog(message, type = 'info') {
+            const log = {
+                time: new Date().toLocaleString('zh-CN'),
+                message,
+                type
+            };
+            State.logs.unshift(log);
+            if (State.logs.length > 50) State.logs.pop();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const logList = document.getElementById('logList');
+            if (State.logs.length === 0) {
+                logList.innerHTML = '<div class="empty-state"><p>暂无日志</p></div>';
+                return;
+            }
+            logList.innerHTML = State.logs.map(log => `
+                <div class="alert-item" style="padding: 8px 12px; margin-bottom: 5px;">
+                    <div class="alert-content" style="color: ${log.type === 'error' ? '#ff416c' : log.type === 'success' ? '#38ef7d' : '#888'};">
+                        [${log.time}] ${log.message}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ==================== 股票管理 ====================
+        function addStock() {
+            const codeInput = document.getElementById('stockCode');
+            const nameInput = document.getElementById('stockName');
+            const code = codeInput.value.trim();
+            const name = nameInput.value.trim();
+
+            if (!code || !/^\d{6}$/.test(code)) {
+                showToast('请输入有效的6位股票代码', 'error');
+                return;
+            }
+
+            if (!name) {
+                showToast('请输入股票名称', 'error');
+                return;
+            }
+
+            if (State.stocks.find(s => s.code === code)) {
+                showToast('该股票已在监控列表中', 'warning');
+                return;
+            }
+
+            const stock = {
+                code,
+                name,
+                addedAt: new Date().toISOString(),
+                basePrice: MockStockData[code]?.basePrice || (Math.random() * 100 + 10),
+                currentPrice: 0,
+                change: 0,
+                changePercent: 0
+            };
+
+            State.stocks.push(stock);
+            Storage.set('stocks', State.stocks);
+            
+            codeInput.value = '';
+            nameInput.value = '';
+            
+            renderStocks();
+            updateStats();
+            showToast(`已添加 ${name}(${code}) 到监控列表`, 'success');
+            addLog(`添加股票: ${name}(${code})`, 'success');
+        }
+
+        function removeStock(code) {
+            const stock = State.stocks.find(s => s.code === code);
+            State.stocks = State.stocks.filter(s => s.code !== code);
+            Storage.set('stocks', State.stocks);
+            renderStocks();
+            updateStats();
+            showToast(`已移除 ${stock?.name || code}`, 'success');
+            addLog(`移除股票: ${stock?.name}(${code})`);
+        }
+
+        function renderStocks() {
+            const stockList = document.getElementById('stockList');
+            if (State.stocks.length === 0) {
+                stockList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <p>暂无监控股票，请添加</p>
+                    </div>
+                `;
+                return;
+            }
+
+            stockList.innerHTML = State.stocks.map(stock => {
+                const priceClass = stock.changePercent > 0 ? 'price-up' : stock.changePercent < 0 ? 'price-down' : 'price-flat';
+                const changeSign = stock.changePercent > 0 ? '+' : '';
+                return `
+                    <div class="stock-item">
+                        <div class="stock-info">
+                            <div>
+                                <div class="stock-code">${stock.code}</div>
+                                <div class="stock-name">${stock.name}</div>
+                            </div>
+                        </div>
+                        <div class="stock-price">
+                            <div class="price ${priceClass}">¥${stock.currentPrice.toFixed(2)}</div>
+                            <div class="change ${priceClass}">${changeSign}${stock.changePercent.toFixed(2)}%</div>
+                        </div>
+                        <button class="btn btn-danger" onclick="removeStock('${stock.code}')">删除</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateStats() {
+            const upStocks = State.stocks.filter(s => s.changePercent > 0).length;
+            const downStocks = State.stocks.filter(s => s.changePercent < 0).length;
+            
+            document.getElementById('totalStocks').textContent = State.stocks.length;
+            document.getElementById('upStocks').textContent = upStocks;
+            document.getElementById('downStocks').textContent = downStocks;
+        }
+
+        // ==================== 预警系统 ====================
+        function createAlert(type, stock, message, data = {}) {
+            const alert = {
+                id: Date.now() + Math.random(),
+                type,
+                stockCode: stock.code,
+                stockName: stock.name,
+                message,
+                data,
+                createdAt: new Date().toISOString(),
+                read: false
+            };
+
+            State.alerts.unshift(alert);
+            if (State.alerts.length > 100) State.alerts.pop();
+            Storage.set('alerts', State.alerts);
+
+            renderAlerts();
+            showToast(message, type === 'price' ? 'warning' : 'success');
+            addLog(`预警触发: ${stock.name} - ${message}`, 'warning');
+
+            // 飞书推送
+            if (State.settings.feishuEnabled && State.settings.feishuWebhook) {
+                sendFeishuAlert(alert);
+            }
+        }
+
+        function renderAlerts() {
+            const alertList = document.getElementById('alertList');
+            if (State.alerts.length === 0) {
+                alertList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔕</div>
+                        <p>暂无预警通知</p>
+                    </div>
+                `;
+                return;
+            }
+
+            alertList.innerHTML = State.alerts.slice(0, 20).map(alert => {
+                const time = new Date(alert.createdAt).toLocaleString('zh-CN');
+                return `
+                    <div class="alert-item ${alert.type}-alert">
+                        <div class="alert-header">
+                            <span class="alert-type ${alert.type}">${alert.type === 'price' ? '💰 价格预警' : '📰 新闻预警'}</span>
+                            <span class="alert-time">${time}</span>
+                        </div>
+                        <div class="alert-content">
+                            <span class="alert-stock">${alert.stockName}(${alert.stockCode})</span>: ${alert.message}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==================== 价格监控 ====================
+        function checkPriceAlerts() {
+            if (!State.settings.priceAlertEnabled) return;
+
+            const threshold = parseFloat(State.settings.priceThreshold) || 5;
+
+            State.stocks.forEach(stock => {
+                // 模拟价格更新
+                const newPrice = generateMockPrice(stock.basePrice);
+                const change = newPrice - stock.basePrice;
+                const changePercent = (change / stock.basePrice) * 100;
+
+                stock.currentPrice = newPrice;
+                stock.change = change;
+                stock.changePercent = changePercent;
+
+                // 检查是否触发预警
+                if (Math.abs(changePercent) >= threshold) {
+                    const direction = changePercent > 0 ? '上涨' : '下跌';
+                    createAlert('price', stock, 
+                        `${direction} ${Math.abs(changePercent).toFixed(2)}%，当前价格 ¥${newPrice.toFixed(2)}`,
+                        { changePercent, price: newPrice }
+                    );
+                }
+            });
+
+            Storage.set('stocks', State.stocks);
+            renderStocks();
+            updateStats();
+        }
+
+        // ==================== 新闻监控 ====================
+        function checkNewsAlerts() {
+            if (!State.settings.newsAlertEnabled) return;
+
+            const keywords = State.settings.newsKeywords.split(',').map(k => k.trim()).filter(k => k);
+            if (keywords.length === 0) return;
+
+            // 模拟新闻触发
+            State.stocks.forEach(stock => {
+                if (Math.random() < 0.05) { // 5% 概率触发新闻
+                    const keyword = keywords[Math.floor(Math.random() * keywords.length)];
+                    const newsTemplates = [
+                        `【${keyword}】${stock.name}相关动态引发市场关注`,
+                        `【${keyword}】${stock.name}(${stock.code}) 盘中异动`,
+                        `【${keyword}】行业利好带动${stock.name}走强`,
+                        `【${keyword}】${stock.name}发布重要公告`
+                    ];
+                    const news = newsTemplates[Math.floor(Math.random() * newsTemplates.length)];
+                    
+                    createAlert('news', stock, news, { keyword });
+                }
+            });
+        }
+
+        // ==================== 飞书推送 ====================
+        async function sendFeishuAlert(alert) {
+            const webhook = State.settings.feishuWebhook;
+            if (!webhook) return;
+
+            const color = alert.type === 'price' ? 'red' : 'green';
+            const title = alert.type === 'price' ? '💰 股票价格预警' : '📰 股票新闻预警';
+            
+            const payload = {
+                msg_type: 'interactive',
+                card: {
+                    config: { wide_screen_mode: true },
+                    header: {
+                        title: { tag: 'plain_text', content: title },
+                        template: color
+                    },
+                    elements: [
+                        {
+                            tag: 'div',
+                            text: {
+                                tag: 'lark_md',
+                                content: `**股票:** ${alert.stockName} (${alert.stockCode})\n**时间:** ${new Date(alert.createdAt).toLocaleString('zh-CN')}\n**详情:** ${alert.message}`
+                            }
+                        }
+                    ]
+                }
+            };
+
+            try {
+                const response = await fetch(webhook, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (response.ok) {
+                    addLog(`飞书推送成功: ${alert.stockName}`, 'success');
+                } else {
+                    addLog(`飞书推送失败: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addLog(`飞书推送错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function testFeishu() {
+            const webhook = document.getElementById('feishuWebhook').value.trim();
+            if (!webhook) {
+                showToast('请输入飞书 Webhook URL', 'error');
+                return;
+            }
+
+            const payload = {
+                msg_type: 'text',
+                content: {
+                    text: '🔔 FamilyStock 预警系统测试消息\n\n如果您收到此消息，说明飞书推送配置正确！'
+                }
+            };
+
+            try {
+                const response = await fetch(webhook, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (response.ok) {
+                    showToast('测试消息已发送，请检查飞书', 'success');
+                    addLog('飞书测试推送成功', 'success');
+                } else {
+                    showToast('测试失败: ' + response.status, 'error');
+                    addLog(`飞书测试失败: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showToast('测试错误: ' + error.message, 'error');
+                addLog(`飞书测试错误: ${error.message}`, 'error');
+            }
+        }
+
+        // ==================== 设置管理 ====================
+        function saveSettings() {
+            State.settings = {
+                priceThreshold: document.getElementById('priceThreshold').value,
+                priceAlertEnabled: document.getElementById('priceAlertEnabled').checked,
+                newsAlertEnabled: document.getElementById('newsAlertEnabled').checked,
+                newsKeywords: document.getElementById('newsKeywords').value,
+                feishuEnabled: document.getElementById('feishuEnabled').checked,
+                feishuWebhook: document.getElementById('feishuWebhook').value.trim()
+            };
+            
+            Storage.set('settings', State.settings);
+            showToast('设置已保存', 'success');
+            addLog('预警规则设置已更新', 'success');
+        }
+
+        function loadSettings() {
+            document.getElementById('priceThreshold').value = State.settings.priceThreshold;
+            document.getElementById('priceAlertEnabled').checked = State.settings.priceAlertEnabled;
+            document.getElementById('newsAlertEnabled').checked = State.settings.newsAlertEnabled;
+            document.getElementById('newsKeywords').value = State.settings.newsKeywords;
+            document.getElementById('feishuEnabled').checked = State.settings.feishuEnabled;
+            document.getElementById('feishuWebhook').value = State.settings.feishuWebhook;
+        }
+
+        // ==================== 通知系统 ====================
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const header = document.getElementById('toastHeader');
+            const body = document.getElementById('toastBody');
+
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️'
+            };
+
+            toast.className = `notification-toast ${type}`;
+            header.textContent = `${icons[type] || 'ℹ️'} ${type === 'success' ? '成功' : type === 'error' ? '错误' : '警告'}`;
+            body.textContent = message;
+
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // ==================== 定时任务 ====================
+        function startMonitoring() {
+            // 立即执行一次
+            checkPriceAlerts();
+            
+            // 每 5 秒更新价格
+            setInterval(checkPriceAlerts, 5000);
+            
+            // 每 30 秒检查新闻
+            setInterval(checkNewsAlerts, 30000);
+            
+            addLog('定时监控任务已启动', 'success');
+        }
+
+        // ==================== 初始化 ====================
+        function init() {
+            loadSettings();
+            renderStocks();
+            renderAlerts();
+            renderLogs();
+            updateStats();
+            startMonitoring();
+            
+            // 添加一些示例股票
+            if (State.stocks.length === 0) {
+                const samples = [
+                    { code: '000001', name: '平安银行' },
+                    { code: '000858', name: '五粮液' },
+                    { code: '600519', name: '贵州茅台' }
+                ];
+                samples.forEach(s => {
+                    const stock = {
+                        ...s,
+                        addedAt: new Date().toISOString(),
+                        basePrice: MockStockData[s.code]?.basePrice || 50,
+                        currentPrice: 0,
+                        change: 0,
+                        changePercent: 0
+                    };
+                    State.stocks.push(stock);
+                });
+                Storage.set('stocks', State.stocks);
+                renderStocks();
+                updateStats();
+                addLog('已加载示例股票数据');
+            }
+            
+            addLog('预警系统初始化完成', 'success');
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.id === 'stockCode') {
+                document.getElementById('stockName').focus();
+            } else if (e.key === 'Enter' && e.target.id === 'stockName') {
+                addStock();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamilyStock - AI选股</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .nav a {
+            color: #a0a0a0;
+            text-decoration: none;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+
+        .nav a:hover, .nav a.active {
+            color: #00d4ff;
+        }
+
+        /* AI Header Banner */
+        .ai-banner {
+            background: linear-gradient(135deg, rgba(123,44,191,0.3), rgba(0,212,255,0.3));
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ai-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(0,212,255,0.2), transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .ai-banner-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .ai-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,212,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .ai-badge .dot {
+            width: 8px;
+            height: 8px;
+            background: #00ff88;
+            border-radius: 50%;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .ai-banner h1 {
+            font-size: 36px;
+            margin-bottom: 15px;
+        }
+
+        .ai-banner p {
+            color: #a0a0a0;
+            font-size: 16px;
+            max-width: 600px;
+        }
+
+        /* Strategy Selector */
+        .strategy-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 22px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .strategy-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .strategy-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .strategy-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            border: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .strategy-card:hover, .strategy-card.active {
+            background: rgba(0,212,255,0.1);
+            border-color: #00d4ff;
+            transform: translateY(-5px);
+        }
+
+        .strategy-card.active::after {
+            content: '✓';
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 24px;
+            height: 24px;
+            background: #00d4ff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #1a1a2e;
+        }
+
+        .strategy-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 15px;
+        }
+
+        .strategy-card:nth-child(1) .strategy-icon { background: linear-gradient(135deg, #00ff88, #00d4ff); }
+        .strategy-card:nth-child(2) .strategy-icon { background: linear-gradient(135deg, #7b2cbf, #ff006e); }
+        .strategy-card:nth-child(3) .strategy-icon { background: linear-gradient(135deg, #ffd700, #ff6b6b); }
+        .strategy-card:nth-child(4) .strategy-icon { background: linear-gradient(135deg, #00d4ff, #7b2cbf); }
+
+        .strategy-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .strategy-desc {
+            font-size: 13px;
+            color: #888;
+            line-height: 1.5;
+        }
+
+        /* Filter Section */
+        .filter-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .filter-group select, .filter-group input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: #fff;
+            font-size: 14px;
+            min-width: 150px;
+        }
+
+        .filter-group select option {
+            background: #1a1a2e;
+        }
+
+        .filter-btn {
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-left: auto;
+        }
+
+        .filter-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,212,255,0.3);
+        }
+
+        /* Results Section */
+        .results-section {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .results-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stocks-list {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .stock-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .stock-item:hover {
+            background: rgba(255,255,255,0.08);
+            transform: translateX(5px);
+        }
+
+        .stock-rank {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .stock-rank.gold { background: linear-gradient(135deg, #ffd700, #ffb700); color: #1a1a2e; }
+        .stock-rank.silver { background: linear-gradient(135deg, #c0c0c0, #a0a0a0); color: #1a1a2e; }
+        .stock-rank.bronze { background: linear-gradient(135deg, #cd7f32, #b87333); color: #1a1a2e; }
+        .stock-rank.normal { background: rgba(255,255,255,0.1); color: #fff; }
+
+        .stock-info {
+            flex: 1;
+        }
+
+        .stock-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .stock-symbol {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .stock-tag {
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: rgba(0,212,255,0.1);
+            color: #00d4ff;
+        }
+
+        .stock-name {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .stock-metrics {
+            display: flex;
+            gap: 20px;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .metric-value.positive { color: #00ff88; }
+        .metric-value.negative { color: #ff4757; }
+
+        .metric-label {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .ai-score {
+            text-align: center;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(123,44,191,0.1));
+            border-radius: 12px;
+            border: 1px solid rgba(0,212,255,0.2);
+        }
+
+        .ai-score-value {
+            font-size: 32px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .ai-score-label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        /* Analysis Panel */
+        .analysis-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .panel-title {
+            font-size: 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chart-wrapper {
+            height: 200px;
+        }
+
+        /* Factor Bars */
+        .factor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .factor-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .factor-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+
+        .factor-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .factor-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .factor-fill.high { background: linear-gradient(90deg, #00ff88, #00d4ff); }
+        .factor-fill.medium { background: linear-gradient(90deg, #ffd700, #ff6b6b); }
+        .factor-fill.low { background: linear-gradient(90deg, #ff4757, #ff6b6b); }
+
+        /* Action Buttons */
+        .action-btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .action-btn.primary {
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            color: #fff;
+        }
+
+        .action-btn.secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Loading State */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(26,26,46,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 20px;
+            color: #888;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">FamilyStock AI</div>
+            <nav class="nav">
+                <a href="index.html">首页</a>
+                <a href="global.html">全球投资</a>
+                <a href="ai-stock.html" class="active">AI选股</a>
+                <a href="portfolio.html">投资组合</a>
+                <a href="watchlist.html">自选股</a>
+                <a href="ai-analysis.html">AI分析</a>
+                <a href="alert-system.html">预警系统</a>
+            </nav>
+        </header>
+
+        <!-- AI Banner -->
+        <div class="ai-banner">
+            <div class="ai-banner-content">
+                <div class="ai-badge">
+                    <span class="dot"></span>
+                    AI 引擎运行中
+                </div>
+                <h1>🤖 智能选股系统</h1>
+                <p>基于深度学习算法，分析海量市场数据，为您筛选最具潜力的投资标的。结合技术指标、基本面分析和市场情绪，提供个性化的选股建议。</p>
+            </div>
+        </div>
+
+        <!-- Strategy Selector -->
+        <div class="strategy-section">
+            <h2 class="section-title">🎯 选择投资策略</h2>
+            <div class="strategy-grid">
+                <div class="strategy-card active" onclick="selectStrategy(this, 'growth')">
+                    <div class="strategy-icon">🚀</div>
+                    <div class="strategy-name">成长型</div>
+                    <div class="strategy-desc">关注高增长潜力股票，适合追求资本增值的投资者</div>
+                </div>
+                <div class="strategy-card" onclick="selectStrategy(this, 'value')">
+                    <div class="strategy-icon">💎</div>
+                    <div class="strategy-name">价值型</div>
+                    <div class="strategy-desc">寻找被低估的优质股票，适合长期稳健投资</div>
+                </div>
+                <div class="strategy-card" onclick="selectStrategy(this, 'dividend')">
+                    <div class="strategy-icon">💰</div>
+                    <div class="strategy-name">分红型</div>
+                    <div class="strategy-desc">聚焦高股息收益率股票，适合追求稳定现金流的投资者</div>
+                </div>
+                <div class="strategy-card" onclick="selectStrategy(this, 'momentum')">
+                    <div class="strategy-icon">⚡</div>
+                    <div class="strategy-name">动量型</div>
+                    <div class="strategy-desc">追踪市场趋势，投资近期表现强势的股票</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>市场</label>
+                    <select id="marketFilter">
+                        <option value="all">全部市场</option>
+                        <option value="us">美股</option>
+                        <option value="cn">A股</option>
+                        <option value="hk">港股</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>行业</label>
+                    <select id="sectorFilter">
+                        <option value="all">全部行业</option>
+                        <option value="tech">科技</option>
+                        <option value="finance">金融</option>
+                        <option value="healthcare">医疗</option>
+                        <option value="consumer">消费</option>
+                        <option value="energy">能源</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>市值</label>
+                    <select id="capFilter">
+                        <option value="all">全部市值</option>
+                        <option value="large">大盘股 (>1000亿)</option>
+                        <option value="mid">中盘股 (100-1000亿)</option>
+                        <option value="small">小盘股 (<100亿)</option>
+                    </select>
+                </div>
+                <button class="filter-btn" onclick="runAnalysis()">
+                    🔍 运行AI分析
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="results-section">
+            <div class="stocks-list">
+                <h3 class="section-title">📊 AI推荐股票</h3>
+                <div id="stocksContainer">
+                    <!-- Generated by JS -->
+                </div>
+            </div>
+
+            <div class="analysis-panel">
+                <div class="panel-card">
+                    <h4 class="panel-title">📈 策略表现</h4>
+                    <div class="chart-wrapper">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <h4 class="panel-title">🎯 选股因子权重</h4>
+                    <div class="factor-list">
+                        <div class="factor-item">
+                            <div class="factor-header">
+                                <span>技术分析</span>
+                                <span>85%</span>
+                            </div>
+                            <div class="factor-bar">
+                                <div class="factor-fill high" style="width: 85%"></div>
+                            </div>
+                        </div>
+                        <div class="factor-item">
+                            <div class="factor-header">
+                                <span>基本面</span>
+                                <span>70%</span>
+                            </div>
+                            <div class="factor-bar">
+                                <div class="factor-fill high" style="width: 70%"></div>
+                            </div>
+                        </div>
+                        <div class="factor-item">
+                            <div class="factor-header">
+                                <span>市场情绪</span>
+                                <span>60%</span>
+                            </div>
+                            <div class="factor-bar">
+                                <div class="factor-fill medium" style="width: 60%"></div>
+                            </div>
+                        </div>
+                        <div class="factor-item">
+                            <div class="factor-header">
+                                <span>风险控制</span>
+                                <span>75%</span>
+                            </div>
+                            <div class="factor-bar">
+                                <div class="factor-fill high" style="width: 75%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <h4 class="panel-title">💡 AI建议</h4>
+                    <p style="font-size: 14px; color: #a0a0a0; line-height: 1.6;">
+                        基于当前市场环境和您的策略偏好，AI建议重点关注科技板块的成长型股票。近期AI芯片和云计算领域表现强劲，建议适当增加配置。
+                    </p>
+                    <div class="action-btns">
+                        <button class="action-btn primary">一键跟投</button>
+                        <button class="action-btn secondary">导出报告</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>FamilyStock AI选股系统 | AI建议仅供参考，不构成投资建议</p>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">AI正在分析市场数据...</div>
+    </div>
+
+    <script>
+        // Stock recommendations data
+        const recommendations = {
+            growth: [
+                { rank: 1, symbol: 'NVDA', name: '英伟达', sector: '科技', price: 875.28, change: 5.42, score: 96, pe: 65, marketCap: '2.2T' },
+                { rank: 2, symbol: 'MSFT', name: '微软', sector: '科技', price: 412.58, change: 1.23, score: 94, pe: 35, marketCap: '3.1T' },
+                { rank: 3, symbol: 'AVGO', name: '博通', sector: '半导体', price: 1,425.60, change: 3.85, score: 92, pe: 42, marketCap: '625B' },
+                { rank: 4, symbol: 'AMD', name: 'AMD', sector: '半导体', price: 198.45, change: 2.65, score: 89, pe: 58, marketCap: '320B' },
+                { rank: 5, symbol: 'CRM', name: 'Salesforce', sector: '软件', price: 298.35, change: 1.85, score: 87, pe: 45, marketCap: '285B' }
+            ],
+            value: [
+                { rank: 1, symbol: 'BRK.B', name: '伯克希尔', sector: '金融', price: 412.35, change: 0.52, score: 95, pe: 9, marketCap: '875B' },
+                { rank: 2, symbol: 'JPM', name: '摩根大通', sector: '金融', price: 195.80, change: 0.85, score: 93, pe: 12, marketCap: '565B' },
+                { rank: 3, symbol: 'V', name: 'Visa', sector: '金融', price: 285.42, change: 0.35, score: 91, pe: 28, marketCap: '625B' },
+                { rank: 4, symbol: 'PG', name: '宝洁', sector: '消费', price: 165.25, change: 0.15, score: 88, pe: 24, marketCap: '395B' },
+                { rank: 5, symbol: 'KO', name: '可口可乐', sector: '消费', price: 62.85, change: 0.25, score: 86, pe: 22, marketCap: '272B' }
+            ],
+            dividend: [
+                { rank: 1, symbol: 'O', name: 'Realty Income', sector: 'REITs', price: 52.85, change: 0.35, score: 94, yield: '5.8%', marketCap: '42B' },
+                { rank: 2, symbol: 'JEPI', name: 'JPMorgan ETF', sector: 'ETF', price: 58.25, change: 0.25, score: 92, yield: '8.2%', marketCap: '35B' },
+                { rank: 3, symbol: 'SCHD', name: 'Schwab ETF', sector: 'ETF', price: 78.45, change: 0.45, score: 90, yield: '3.5%', marketCap: '52B' },
+                { rank: 4, symbol: 'VYM', name: 'Vanguard ETF', sector: 'ETF', price: 112.35, change: 0.55, score: 88, yield: '3.1%', marketCap: '48B' },
+                { rank: 5, symbol: 'T', name: 'AT&T', sector: '通信', price: 17.25, change: -0.15, score: 85, yield: '6.5%', marketCap: '125B' }
+            ],
+            momentum: [
+                { rank: 1, symbol: 'SMCI', name: '超微电脑', sector: '硬件', price: 985.60, change: 12.5, score: 98, momentum: '强', marketCap: '55B' },
+                { rank: 2, symbol: 'MSTR', name: 'MicroStrategy', sector: '科技', price: 825.60, change: 8.45, score: 95, momentum: '强', marketCap: '16B' },
+                { rank: 3, symbol: 'COIN', name: 'Coinbase', sector: '加密货币', price: 215.38, change: 8.45, score: 93, momentum: '强', marketCap: '52B' },
+                { rank: 4, symbol: 'PLTR', name: 'Palantir', sector: '软件', price: 28.45, change: 5.25, score: 90, momentum: '中', marketCap: '62B' },
+                { rank: 5, symbol: 'RBLX', name: 'Roblox', sector: '游戏', price: 45.85, change: 4.65, score: 87, momentum: '中', marketCap: '28B' }
+            ]
+        };
+
+        let currentStrategy = 'growth';
+        let performanceChart = null;
+
+        function selectStrategy(card, strategy) {
+            document.querySelectorAll('.strategy-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            currentStrategy = strategy;
+            renderStocks();
+            updateChart();
+        }
+
+        function renderStocks() {
+            const container = document.getElementById('stocksContainer');
+            const stocks = recommendations[currentStrategy];
+            
+            container.innerHTML = stocks.map(stock => {
+                const rankClass = stock.rank === 1 ? 'gold' : stock.rank === 2 ? 'silver' : stock.rank === 3 ? 'bronze' : 'normal';
+                const metricLabel = currentStrategy === 'dividend' ? '股息率' : currentStrategy === 'momentum' ? '动量' : 'P/E';
+                const metricValue = currentStrategy === 'dividend' ? stock.yield : currentStrategy === 'momentum' ? stock.momentum : stock.pe;
+                
+                return `
+                    <div class="stock-item" onclick="viewStock('${stock.symbol}')">
+                        <div class="stock-rank ${rankClass}">${stock.rank}</div>
+                        <div class="stock-info">
+                            <div class="stock-header">
+                                <span class="stock-symbol">${stock.symbol}</span>
+                                <span class="stock-tag">${stock.sector}</span>
+                            </div>
+                            <div class="stock-name">${stock.name} · 市值 ${stock.marketCap}</div>
+                        </div>
+                        <div class="stock-metrics">
+                            <div class="metric">
+                                <div class="metric-value">$${stock.price}</div>
+                                <div class="metric-label">价格</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value ${stock.change >= 0 ? 'positive' : 'negative'}">${stock.change >= 0 ? '+' : ''}${stock.change}%</div>
+                                <div class="metric-label">涨跌</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value">${metricValue}</div>
+                                <div class="metric-label">${metricLabel}</div>
+                            </div>
+                        </div>
+                        <div class="ai-score">
+                            <div class="ai-score-value">${stock.score}</div>
+                            <div class="ai-score-label">AI评分</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function runAnalysis() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.add('active');
+            
+            setTimeout(() => {
+                overlay.classList.remove('active');
+                renderStocks();
+                updateChart();
+            }, 2000);
+        }
+
+        function viewStock(symbol) {
+            window.location.href = `stock-detail.html?symbol=${symbol}`;
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('performanceChart');
+            if (!ctx) return;
+            
+            if (performanceChart) {
+                performanceChart.destroy();
+            }
+            
+            const data = {
+                growth: [15, 22, 18, 28, 35, 42, 38],
+                value: [8, 12, 15, 14, 18, 22, 25],
+                dividend: [5, 6, 7, 8, 9, 10, 11],
+                momentum: [10, 25, 15, 35, 28, 45, 52]
+            };
+            
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月'],
+                    datasets: [{
+                        label: '策略收益率 (%)',
+                        data: data[currentStrategy],
+                        borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0,212,255,0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#00d4ff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#888' }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#888' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            renderStocks();
+            updateChart();
+        });
+    </script>
+</body>
+</html>
