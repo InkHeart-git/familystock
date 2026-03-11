@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniRock v2.0 - 全流程测试</title>
+    <link rel="stylesheet" href="src/styles/variables.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; font-size: 28px; }
+        .test-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-xl);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            border: 1px solid var(--border-color);
+        }
+        .test-title {
+            font-size: var(--font-xl);
+            font-weight: var(--font-bold);
+            margin-bottom: var(--space-md);
+            color: var(--color-primary);
+        }
+        .test-item {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status {
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: var(--font-sm);
+            font-weight: var(--font-semibold);
+        }
+        .status.success { background: var(--color-success-light); color: var(--color-success); }
+        .status.error { background: var(--color-danger-light); color: var(--color-danger); }
+        .btn {
+            background: var(--gradient-primary);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            font-size: var(--font-md);
+            font-weight: var(--font-semibold);
+            margin: 8px 8px 8px 0;
+        }
+        .result-box {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            margin-top: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 MiniRock v2.0 - 全流程测试</h1>
+
+        <div class="test-card">
+            <div class="test-title">📦 阶段1: 配置与API层</div>
+            <div id="phase1-tests"></div>
+            <button class="btn" onclick="runPhase1()">运行阶段1测试</button>
+            <div id="phase1-result" class="result-box" style="display: none;"></div>
+        </div>
+
+        <div class="test-card">
+            <div class="test-title">⚙️ 阶段2: 服务层</div>
+            <div id="phase2-tests"></div>
+            <button class="btn" onclick="runPhase2()">运行阶段2测试</button>
+        </div>
+
+        <div class="test-card">
+            <div class="test-title">📈 阶段3: 股票数据流</div>
+            <input type="text" id="stock-input" value="600519" placeholder="股票代码" style="padding: 10px; margin-right: 8px;">
+            <button class="btn" onclick="testStockFlow()">获取实时数据</button>
+            <div id="stock-flow-result"></div>
+        </div>
+
+        <div class="test-card">
+            <div class="test-title">🔄 完整流程测试</div>
+            <button class="btn" onclick="runFullTest()">运行完整测试</button>
+            <div id="fulltest-result" class="result-box" style="display: none; margin-top: 16px;"></div>
+        </div>
+    </div>
+
+    <script src="src/config/index.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/api/client.js"></script>
+    <script src="src/api/stock.js"></script>
+    <script src="src/api/ai.js"></script>
+    <script src="src/services/storageService.js"></script>
+    <script src="src/services/stockService.js"></script>
+    <script src="src/services/aiService.js"></script>
+
+    <script>
+        const logs = [];
+        function log(msg) {
+            logs.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
+            console.log(msg);
+        }
+
+        function renderTestItem(containerId, name, status, message = '') {
+            const container = document.getElementById(containerId);
+            const statusClass = status === 'success' ? 'success' : 'error';
+            const statusText = status === 'success' ? '✓ 通过' : '✗ 失败';
+            const item = document.createElement('div');
+            item.className = 'test-item';
+            item.innerHTML = `<div><div>${name}</div>${message ? `<div style="font-size: 12px; color: var(--text-muted);">${message}</div>` : ''}</div><span class="status ${statusClass}">${statusText}</span>`;
+            container.appendChild(item);
+        }
+
+        async function runPhase1() {
+            log('开始阶段1测试');
+            document.getElementById('phase1-tests').innerHTML = '';
+            
+            const tests = [
+                { name: 'CONFIG对象存在', test: () => typeof CONFIG !== 'undefined' },
+                { name: 'API基础URL配置', test: () => CONFIG.API?.BASE_URL?.includes(':8080') },
+                { name: 'APIClient类存在', test: () => typeof APIClient !== 'undefined' },
+                { name: 'StockAPI类存在', test: () => typeof StockAPI !== 'undefined' }
+            ];
+
+            for (const { name, test } of tests) {
+                try {
+                    renderTestItem('phase1-tests', name, test() ? 'success' : 'error');
+                } catch (e) {
+                    renderTestItem('phase1-tests', name, 'error', e.message);
+                }
+            }
+
+            try {
+                const data = await stockAPI.getQuote('600519');
+                renderTestItem('phase1-tests', 'API实时数据获取', data?.close ? 'success' : 'error', data ? `茅台: ¥${data.close}` : '');
+                document.getElementById('phase1-result').style.display = 'block';
+                document.getElementById('phase1-result').textContent = JSON.stringify(data, null, 2);
+                log(`阶段1完成: 茅台 ¥${data?.close}`);
+            } catch (error) {
+                renderTestItem('phase1-tests', 'API实时数据获取', 'error', error.message);
+            }
+        }
+
+        async function runPhase2() {
+            log('开始阶段2测试');
+            document.getElementById('phase2-tests').innerHTML = '';
+            
+            const tests = [
+                { name: 'StorageService存在', test: () => typeof StorageService !== 'undefined' },
+                { name: 'StockService存在', test: () => typeof StockService !== 'undefined' },
+                { name: 'AIService存在', test: () => typeof AIService !== 'undefined' }
+            ];
+
+            for (const { name, test } of tests) {
+                try {
+                    renderTestItem('phase2-tests', name, test() ? 'success' : 'error');
+                } catch (e) {
+                    renderTestItem('phase2-tests', name, 'error', e.message);
+                }
+            }
+
+            try {
+                storageService.set('test_key', 'test_value');
+                const value = storageService.get('test_key');
+                renderTestItem('phase2-tests', '存储服务读写', value === 'test_value' ? 'success' : 'error');
+                storageService.remove('test_key');
+            } catch (e) {
+                renderTestItem('phase2-tests', '存储服务读写', 'error', e.message);
+            }
+
+            try {
+                await stockService.init();
+                renderTestItem('phase2-tests', '股票服务初始化', 'success');
+            } catch (e) {
+                renderTestItem('phase2-tests', '股票服务初始化', 'error', e.message);
+            }
+
+            try {
+                const score = aiService.getStockScore('600519', { pct_chg: 5.5 });
+                renderTestItem('phase2-tests', 'AI评分计算', score?.score > 0 ? 'success' : 'error', `评分: ${score?.score}`);
+            } catch (e) {
+                renderTestItem('phase2-tests', 'AI评分计算', 'error', e.message);
+            }
+            
+            log('阶段2完成');
+        }
+
+        async function testStockFlow() {
+            const symbol = document.getElementById('stock-input').value.trim() || '600519';
+            const container = document.getElementById('stock-flow-result');
+            container.innerHTML = '<div style="padding: 20px;">加载中...</div>';
+
+            try {
+                const data = await stockAPI.getQuote(symbol);
+                if (!data) {
+                    container.innerHTML = '<div style="color: var(--color-danger);">获取数据失败</div>';
+                    return;
+                }
+
+                const changeClass = data.pct_chg >= 0 ? 'change-up' : 'change-down';
+                container.innerHTML = `
+                    <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; margin-top: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: bold; font-size: 18px;">${data.name || symbol}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">${symbol}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 24px; font-weight: bold;">${data.formattedLocal || '¥' + data.close}</div>
+                                <div style="${changeClass === 'change-up' ? 'color: var(--color-up)' : 'color: var(--color-down)'};">${data.pct_chg >= 0 ? '+' : ''}${data.pct_chg?.toFixed(2)}%</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="result-box">${JSON.stringify(data, null, 2)}</div>
+                `;
+                log(`股票数据流: ${symbol} ¥${data.close}`);
+            } catch (error) {
+                container.innerHTML = `<div style="color: var(--color-danger);">错误: ${error.message}</div>`;
+            }
+        }
+
+        async function runFullTest() {
+            const resultBox = document.getElementById('fulltest-result');
+            resultBox.style.display = 'block';
+            resultBox.textContent = '运行完整测试流程...\n';
+            
+            try {
+                // 1. 获取股票数据
+                resultBox.textContent += '\n1. 获取股票数据 (600519)...\n';
+                const stockData = await stockAPI.getQuote('600519');
+                resultBox.textContent += `   ✓ 获取成功: ${stockData.name} ¥${stockData.close}\n`;
+
+                // 2. 添加持仓
+                resultBox.textContent += '\n2. 添加持仓...\n';
+                stockService.addHolding({
+                    symbol: '600519',
+                    name: stockData.name,
+                    quantity: 100,
+                    avgCost: 1400
+                });
+                resultBox.textContent += '   ✓ 持仓添加成功\n';
+
+                // 3. 获取持仓带价格
+                resultBox.textContent += '\n3. 获取持仓实时数据...\n';
+                const holdings = await stockService.getHoldingsWithPrice();
+                resultBox.textContent += `   ✓ 获取成功: ${holdings.length}只持仓\n`;
+
+                // 4. 计算资产
+                resultBox.textContent += '\n4. 计算资产...\n';
+                const assets = await stockService.calculateAssets();
+                resultBox.textContent += `   ✓ 总资产: ${assets.formattedValue}\n`;
+
+                // 5. AI分析
+                resultBox.textContent += '\n5. AI分析...\n';
+                const analysis = await aiService.analyzePortfolio(holdings);
+                resultBox.textContent += `   ✓ 综合评分: ${analysis.totalScore}分\n`;
+
+                resultBox.textContent += '\n✅ 完整流程测试通过!';
+                log('完整测试通过');
+            } catch (error) {
+                resultBox.textContent += '\n❌ 测试失败: ' + error.message;
+                log('测试失败: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

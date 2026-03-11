@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniRock v2.0 - 全流程测试</title>
+    <link rel="stylesheet" href="src/styles/variables.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; font-size: 28px; }
+        
+        .test-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-xl);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            border: 1px solid var(--border-color);
+        }
+        .test-title {
+            font-size: var(--font-xl);
+            font-weight: var(--font-bold);
+            margin-bottom: var(--space-md);
+            color: var(--color-primary);
+        }
+        .test-item {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .test-item:last-child { border-bottom: none; }
+        
+        .status {
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: var(--font-sm);
+            font-weight: var(--font-semibold);
+        }
+        .status.success { background: var(--color-success-light); color: var(--color-success); }
+        .status.error { background: var(--color-danger-light); color: var(--color-danger); }
+        
+        .btn {
+            background: var(--gradient-primary);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            font-size: var(--font-md);
+            font-weight: var(--font-semibold);
+            margin: 8px 8px 8px 0;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .result-box {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            margin-top: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border-left: 3px solid var(--color-primary);
+        }
+        
+        .summary {
+            background: var(--gradient-primary);
+            border-radius: var(--radius-xl);
+            padding: var(--space-xl);
+            text-align: center;
+            margin-bottom: var(--space-lg);
+        }
+        .summary-value { font-size: 36px; font-weight: var(--font-extrabold); }
+        
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        .input {
+            flex: 1;
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 MiniRock v2.0 - 全流程测试</h1>
+
+        <div class="summary">
+            <div style="font-size: 14px; opacity: 0.8; margin-bottom: 8px;">测试进度</div>
+            <div class="summary-value" id="overall-progress">0%</div>
+        </div>
+
+        <div class="test-card">
+            <div class="test-title">📦 阶段1: 配置与API层</div>
+            <div id="phase1-tests"></div>
+            <button class="btn" onclick="runPhase1()">运行阶段1测试</button>
+            <div id="phase1-result" class="result-box" style="display: none;"></div>
+        </div>
+
+        <div class="test-card">
+            <div class="test-title">⚙️ 阶段2: 服务层</div>
+            <div id="phase2-tests"></div>
+            <button class="btn" onclick="runPhase2()" disabled id="btn-phase2">运行阶段2测试</button>
+        </div>
+
+        <div class="test-card">
+            <div class="test-title">📈 阶段3: 股票数据流测试</div>
+            <div class="input-group">
+                <input type="text" class="input" id="stock-input" placeholder="输入股票代码 (如: 600519)" value="600519">
+                <button class="btn" onclick="testStockFlow()">获取实时数据</button>
+            </div>
+            <div id="stock-flow-result"></div>
+        </div>
+
+        <div class="test-card">
+            <div class="test-title">💼 阶段4: 持仓管理测试</div>
+            <div class="input-group">
+                <input type="text" class="input" id="add-symbol" placeholder="代码" style="flex: 0.5;">
+                <input type="number" class="input" id="add-quantity" placeholder="数量" style="flex: 0.5;">
+                <input type="number" class="input" id="add-cost" placeholder="成本价" style="flex: 0.5;">
+                <button class="btn" onclick="addHolding()">添加持仓</button>
+            </div>
+            <button class="btn" onclick="loadHoldings()">刷新持仓</button>
+            <button class="btn" onclick="calculateAssets()">计算资产</button>
+            <div id="holdings-list" style="margin-top: 16px;"></div>
+            <div id="assets-result" class="result-box" style="display: none; margin-top: 16px;"></div>
+        </div>
+
+        <div class="test-card">
+            <div class="test-title">📝 测试日志</div>
+            <div id="test-logs" class="result-box" style="max-height: 400px;"></div>
+        </div>
+    </div>
+
+    <script src="src/config/index.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/api/client.js"></script>
+    <script src="src/api/stock.js"></script>
+    <script src="src/api/ai.js"></script>
+    <script src="src/services/storageService.js"></script>
+    <script src="src/services/stockService.js"></script>
+    <script src="src/services/aiService.js"></script>
+    <script src="src/services/alertService.js"></script>
+
+    <script>
+        const logs = [];
+        function log(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const logEntry = `[${time}] ${type.toUpperCase()}: ${message}`;
+            logs.push(logEntry);
+            document.getElementById('test-logs').textContent = logs.join('\n');
+            console.log(logEntry);
+        }
+
+        let phase1Complete = false;
+
+        function renderTestItem(containerId, name, status, message = '') {
+            const container = document.getElementById(containerId);
+            const statusClass = status === 'success' ? 'success' : 'error';
+            const statusText = status === 'success' ? '✓ 通过' : '✗ 失败';
+            
+            const item = document.createElement('div');
+            item.className = 'test-item';
+            item.innerHTML = `
+                <div>
+                    <div>${name}</div>
+                    ${message ? `<div style="font-size: 12px; color: var(--text-muted);">${message}</div>` : ''}
+                </div>
+                <span class="status ${statusClass}">${statusText}</span>
+            `;
+            container.appendChild(item);
+        }
+
+        async function runPhase1() {
+            log('开始阶段1测试');
+            const container = document.getElementById('phase1-tests');
+            container.innerHTML = '';
+
+            renderTestItem('phase1-tests', 'CONFIG对象存在', typeof CONFIG !== 'undefined' ? 'success' : 'error');
+            renderTestItem('phase1-tests', 'API配置正确', CONFIG?.API?.BASE_URL?.includes(':8080') ? 'success' : 'error');
+            renderTestItem('phase1-tests', 'APIClient类存在', typeof APIClient !== 'undefined' ? 'success' : 'error');
+
+            try {
+                const data = await stockAPI.getQuote('600519');
+                if (data?.close) {
+                    renderTestItem('phase1-tests', 'API实时数据', 'success', `茅台: ¥${data.close}`);
+                    document.getElementById('phase1-result').style.display = 'block';
+                    document.getElementById('phase1-result').textContent = JSON.stringify(data, null, 2);
+                    phase1Complete = true;
+                    document.getElementById('btn-phase2').disabled = false;
+                    log(`API测试成功: 茅台 ¥${data.close}`);
+                }
+            } catch (e) {
+                renderTestItem('phase1-tests', 'API实时数据', 'error', e.message);
+            }
+        }
+
+        async function runPhase2() {
+            if (!phase1Complete) { alert('请先完成阶段1'); return; }
+            log('开始阶段2测试');
+            const container = document.getElementById('phase2-tests');
+            container.innerHTML = '';
+
+            renderTestItem('phase2-tests', 'StockService存在', typeof StockService !== 'undefined' ? 'success' : 'error');
+            renderTestItem('phase2-tests', 'AIService存在', typeof AIService !== 'undefined' ? 'success' : 'error');
+            renderTestItem('phase2-tests', 'AlertService存在', typeof AlertService !== 'undefined' ? 'success' : 'error');
+
+            try {
+                await stockService.init();
+                renderTestItem('phase2-tests', '股票服务初始化', 'success');
+                log('服务层初始化成功');
+            } catch (e) {
+                renderTestItem('phase2-tests', '股票服务初始化', 'error', e.message);
+            }
+        }
+
+        async function testStockFlow() {
+            const symbol = document.getElementById('stock-input').value.trim() || '600519';
+            const container = document.getElementById('stock-flow-result');
+            container.innerHTML = '<div style="padding: 20px;">加载中...</div>';
+
+            try {
+                const data = await stockAPI.getQuote(symbol);
+                if (!data) {
+                    container.innerHTML = '<div style="color: var(--color-danger);">获取数据失败</div>';
+                    return;
+                }
+
+                const changeClass = data.pct_chg >= 0 ? 'change-up' : 'change-down';
+                container.innerHTML = `
+                    <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; margin: 8px 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: bold; font-size: 16px;">${data.name || symbol}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">${symbol}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 20px; font-weight: bold;">¥${data.close}</div>
+                                <div class="${changeClass}">${data.pct_chg >= 0 ? '+' : ''}${data.pct_chg?.toFixed(2) || 0}%</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                log(`获取 ${symbol} 成功: ¥${data.close}`);
+            } catch (error) {
+                container.innerHTML = `<div style="color: var(--color-danger);">错误: ${error.message}</div>`;
+            }
+        }
+
+        async function addHolding() {
+            const symbol = document.getElementById('add-symbol').value.trim();
+            const quantity = parseInt(document.getElementById('add-quantity').value);
+            const cost = parseFloat(document.getElementById('add-cost').value);
+
+            if (!symbol || !quantity || !cost) { alert('请填写完整信息'); return; }
+
+            try {
+                const stockData = await stockAPI.getQuote(symbol);
+                const result = stockService.addHolding({
+                    symbol, name: stockData?.name || symbol, quantity, avgCost: cost
+                });
+
+                if (result) {
+                    log(`添加持仓: ${symbol} ${quantity}股 @ ¥${cost}`);
+                    loadHoldings();
+                }
+            } catch (error) {
+                alert('添加失败: ' + error.message);
+            }
+        }
+
+        async function loadHoldings() {
+            const container = document.getElementById('holdings-list');
+            container.innerHTML = '<div style="padding: 20px;">加载中...</div>';
+
+            try {
+                const holdings = await stockService.getHoldingsWithPrice();
+                if (holdings.length === 0) {
+                    container.innerHTML = '<div style="padding: 20px; text-align: center;">暂无持仓</div>';
+                    return;
+                }
+
+                let html = '';
+                holdings.forEach(h => {
+                    const profitClass = (h.profit || 0) >= 0 ? 'change-up' : 'change-down';
+                    html += `
+                        <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; margin: 8px 0;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>
+                                    <div style="font-weight: bold;">${h.name}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary);">${h.symbol} · ${h.quantity}股 · 成本¥${h.avgCost}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div>¥${h.close?.toFixed(2) || '-'}</div>
+                                    <div class="${profitClass}">${h.formattedProfit || '-'} (${h.formattedPercent || '-'})</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+                log(`加载 ${holdings.length} 只持仓`);
+            } catch (error) {
+                container.innerHTML = `<div style="color: var(--color-danger);">加载失败</div>`;
+            }
+        }
+
+        async function calculateAssets() {
+            const resultBox = document.getElementById('assets-result');
+            resultBox.style.display = 'block';
+            resultBox.textContent = '计算中...';
+
+            try {
+                const assets = await stockService.calculateAssets();
+                resultBox.textContent = `💰 资产统计:\n总资产: ${assets.formattedValue}\n总盈亏: ${assets.formattedProfit} (${assets.formattedPercent})\n持仓: ${assets.holdingsCount}只`;
+                log(`资产计算: ${assets.formattedValue}`);
+            } catch (error) {
+                resultBox.textContent = '计算失败: ' + error.message;
+            }
+        }
+
+        // 页面加载时自动运行阶段1
+        window.onload = function() {
+            log('测试页面已加载，准备就绪');
+        };
+    </script>
+</body>
+</html>

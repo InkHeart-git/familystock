@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FamilyStock - AI推演预警系统 V3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #fff; overflow-x: hidden; margin: 0; }
+        
+        /* 预警面板样式 */
+        .alert-panel {
+            position: fixed;
+            top: 40px;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, rgba(239,68,68,0.15) 0%, rgba(10,10,10,0.98) 100%);
+            border-bottom: 1px solid rgba(239,68,68,0.3);
+            z-index: 999;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease;
+        }
+        .alert-panel.active { max-height: 350px; }
+        .alert-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .alert-panel-content {
+            padding: 12px 16px;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+        .alert-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .alert-badge.critical {
+            background: rgba(239,68,68,0.3);
+            color: #ef4444;
+            animation: pulse-red 2s infinite;
+        }
+        .alert-badge.warning {
+            background: rgba(245,158,11,0.3);
+            color: #f59e0b;
+        }
+        @keyframes pulse-red {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .alert-item {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-left: 3px solid;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .alert-item:hover { background: rgba(255,255,255,0.08); }
+        .alert-item.critical { border-left-color: #ef4444; }
+        .alert-item.warning { border-left-color: #f59e0b; }
+        .alert-item.caution { border-left-color: #eab308; }
+        
+        /* 风险仪表盘 */
+        .risk-dashboard {
+            background: linear-gradient(135deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,0.95) 100%);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .risk-gauge {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            margin: 0 auto;
+        }
+        .risk-gauge-bg {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 180deg,
+                #22c55e 0deg 60deg,
+                #eab308 60deg 120deg,
+                #f59e0b 120deg 150deg,
+                #ef4444 150deg 180deg
+            );
+            mask: radial-gradient(transparent 55%, black 56%);
+            -webkit-mask: radial-gradient(transparent 55%, black 56%);
+        }
+        .risk-gauge-needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 45%;
+            background: #fff;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(0deg);
+            transition: transform 1s ease;
+            border-radius: 2px;
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+        .risk-gauge-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .risk-score { font-size: 32px; font-weight: 700; }
+        .risk-label { font-size: 11px; color: rgba(255,255,255,0.5); }
+        
+        /* 风险热力图 */
+        .heatmap-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            margin: 12px 0;
+        }
+        .heatmap-cell {
+            aspect-ratio: 1;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .heatmap-cell:hover { transform: scale(1.1); z-index: 10; }
+        .heatmap-legend {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 8px;
+            font-size: 11px;
+        }
+        
+        /* 资产敞口 */
+        .exposure-panel {
+            background: rgba(255,255,255,0.03);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 16px;
+        }
+        .exposure-bar {
+            display: flex;
+            height: 28px;
+            border-radius: 14px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+        .exposure-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            color: #fff;
+            transition: all 0.3s;
+            position: relative;
+        }
+        .exposure-segment:hover { filter: brightness(1.2); }
+        .exposure-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            margin-bottom: 4px;
+        }
+        .exposure-segment:hover .exposure-tooltip { opacity: 1; }
+        
+        /* 压力测试 */
+        .stress-test-panel {
+            background: linear-gradient(135deg, rgba(239,68,68,0.1) 0%, rgba(15,23,42,0.9) 100%);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 16px;
+            border: 1px solid rgba(239,68,68,0.2);
+        }
+        .stress-scenario {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+            border-left: 3px solid;
+        }
+        .stress-scenario.bull { border-left-color: #22c55e; }
+        .stress-scenario.base { border-left-color: #3b82f6; }
+        .stress-scenario.bear { border-left-color: #ef4444; }
+        .pnl-value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .pnl-positive { color: #22c55e; }
+        .pnl-negative { color: #ef4444; }
+        
+        /* 实时通知 */
+        .toast-container {
+            position: fixed;
+            top: 50px;
+            right: 16px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .toast {
+            background: rgba(30,41,59,0.98);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 14px 18px;
+            border-left: 4px solid;
+            max-width: 320px;
+            animation: slideIn 0.4s ease;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            pointer-events: auto;
+        }
+        .toast.critical { border-left-color: #ef4444; }
+        .toast.warning { border-left-color: #f59e0b; }
+        @keyframes slideIn {
+            from { transform: translateX(120%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* 流水线状态 */
+        .pipeline-status {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .pipeline-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .pipeline-indicator.running { background: #22c55e; }
+        .pipeline-indicator.idle { background: #64748b; animation: none; }
+        .pipeline-indicator.error { background: #ef4444; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+        }
+        .pipeline-progress {
+            flex: 1;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .pipeline-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+        
+        /* 原有样式 */
+        .news-ticker-container {
+            background: linear-gradient(90deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%);
+            border-bottom: 2px solid #e94560;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1001;
+            height: 40px;
+            display: flex;
+            align-items: center;
+        }
+        .news-label {
+            background: #e94560;
+            color: white;
+            padding: 0 15px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            white-space: nowrap;
+        }
+        .news-ticker { flex: 1; overflow: hidden; position: relative; height: 100%; }
+        .news-track { display: flex; animation: scroll 40s linear infinite; white-space: nowrap; padding: 10px 0; }
+        @keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .news-item { display: inline-flex; align-items: center; padding: 0 25px; font-size: 12px; color: #cbd5e1; }
+        .news-item::before { content: "▸"; color: #e94560; margin-right: 6px; }
+        
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(20,20,30,0.95); backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.1); z-index: 1000; display: flex; justify-content: space-around; padding: 8px 0; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 12px; color: rgba(255,255,255,0.5); cursor: pointer; transition: all 0.3s; border: none; background: none; font-size: 11px; position: relative; }
+        .nav-item.active { color: #3b82f6; }
+        .nav-item i { font-size: 20px; transition: transform 0.3s; }
+        .nav-item.active i { transform: scale(1.2); }
+        .nav-badge { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; animation: pulse 2s infinite; }
+        
+        .page { display: none; min-height: 100vh; padding: 40px 0 100px 0; }
+        .page.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        
+        #earth-container { position: relative; height: 35vh; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0a 100%); overflow: hidden; }
+        #earth-canvas { width: 100%; height: 100%; display: block; }
+        
+        .index-bar { background: linear-gradient(90deg, rgba(59,130,246,0.1), rgba(147,51,234,0.1)); border-bottom: 1px solid rgba(255,255,255,0.05); overflow-x: auto; margin-top: 0; }
+        .index-content { display: flex; padding: 12px 16px; gap: 20px; }
+        .index-item { text-align: center; min-width: 75px; }
+        .up { color: #ef4444; }
+        .down { color: #22c55e; }
+        
+        .conflict-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 8px 16px 16px; }
+        .conflict-card { flex-shrink: 0; width: 150px; background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); border: 1px solid rgba(239,68,68,0.3); border-radius: 12px; padding: 14px; cursor: pointer; transition: transform 0.2s; }
+        .conflict-card:hover { transform: scale(1.02); }
+        .conflict-card.tension { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05)); border-color: rgba(245,158,11,0.3); }
+        
+        .futures-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 8px 16px 16px; }
+        .future-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 8px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .future-item:hover { border-color: rgba(59,130,246,0.5); }
+        
+        .ai-entry { margin: 16px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 16px; padding: 24px; text-align: center; cursor: pointer; transition: transform 0.2s; }
+        .ai-entry:hover { transform: scale(1.02); }
+        
+        .stock-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 16px; }
+        .stock-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s; }
+        .stock-card:hover { border-color: rgba(59,130,246,0.5); }
+        .score-badge { background: linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        
+        .search-box { display: flex; gap: 10px; padding: 12px 16px; background: rgba(255,255,255,0.02); }
+        .search-input { flex: 1; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 16px; color: #fff; font-size: 14px; outline: none; }
+        .search-input:focus { border-color: #3b82f6; }
+        .search-btn { background: #3b82f6; border: none; border-radius: 10px; padding: 12px 20px; color: #fff; cursor: pointer; font-size: 14px; }
+        
+        .filter-btn { padding: 8px 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; font-size: 13px; color: rgba(255,255,255,0.7); cursor: pointer; white-space: nowrap; }
+        .filter-btn.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+        
+        .drawer { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a2e; border-radius: 24px 24px 0 0; max-height: 90vh; transform: translateY(100%); transition: transform 0.3s ease; z-index: 2001; overflow-y: auto; }
+        .drawer.active { transform: translateY(0); }
+        .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 2000; display: none; }
+        .drawer-overlay.active { display: block; }
+        
+        .loading-overlay { position: fixed; inset: 0; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.5s; }
+        .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+        .loading-spinner { width: 50px; height: 50px; border: 3px solid rgba(59,130,246,0.3); border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .calendar-item { background: rgba(255,255,255,0.03); border-radius: 12px; padding: 16px; margin-bottom: 12px; border-left: 3px solid; }
+        .calendar-item.high { border-left-color: #ef4444; }
+        .calendar-item.medium { border-left-color: #f59e0b; }
+        .calendar-item.low { border-left-color: #22c55e; }
+        
+        .influencer-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+        .influencer-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .influencer-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; border: 2px solid; }
+        .influencer-avatar.finance { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border-color: #60a5fa; }
+        .influencer-avatar.military { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-color: #fca5a5; }
+        .influencer-avatar.politics { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-color: #c4b5fd; }
+        .influencer-type { font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+        .influencer-type.finance { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .influencer-type.military { background: rgba(239,68,68,0.2); color: #ef4444; }
+        .influencer-type.politics { background: rgba(139,92,246,0.2); color: #a78bfa; }
+    </style>
+</head>
+<body>
+    <!-- 加载动画 -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div style="margin-top: 16px; color: rgba(255,255,255,0.5); font-size: 14px;">正在启动AI推演系统...</div>
+    </div>
+
+    <!-- 实时通知容器 -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- 顶部新闻滚动条 -->
+    <div class="news-ticker-container">
+        <div class="news-label">
+            <i class="fas fa-broadcast-tower mr-1"></i>
+            实时
+        </div>
+        <div class="news-ticker">
+            <div class="news-track" id="news-track"></div>
+        </div>
+    </div>
+
+    <!-- 预警面板 -->
+    <div id="alert-panel" class="alert-panel">
+        <div class="alert-panel-header" onclick="toggleAlertPanel()">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <i class="fas fa-exclamation-triangle" style="color:#ef4444;"></i>
+                <span style="font-weight:600;">AI风险预警</span>
+                <span id="alert-count-badge" class="alert-badge critical">
+                    <i class="fas fa-bell"></i>
+                    <span id="alert-count">0</span>
+                </span>
+            </div>
+            <i class="fas fa-chevron-down" id="alert-toggle-icon"></i>
+        </div>
+        <div class="alert-panel-content" id="alert-list">
+            <div style="text-align:center;padding:20px;color:rgba(255,255,255,0.5);">正在加载预警数据...</div>
+        </div>
+    </div>
+
+    <!-- 首页 -->
+    <div id="page-home" class="page active">
+        <!-- 风险仪表盘 -->
+        <div class="risk-dashboard">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;font-size:16px;font-weight:600;">🎯 风险仪表盘</h3>
+                <span style="font-size:11px;color:rgba(255,255,255,0.5);">实时 | 参考阿拉丁</span>
+            </div>
+            
+            <div style="display:flex;gap:16px;align-items:center;">
+                <div class="risk-gauge">
+                    <div class="risk-gauge-bg"></div>
+                    <div class="risk-gauge-needle" id="risk-needle"></div>
+                    <div class="risk-gauge-center">
+                        <div class="risk-score" id="risk-score">--</div>
+                        <div class="risk-label">风险指数</div>
+                    </div>
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:14px;margin-bottom:8px;">
+                        风险等级: <span id="risk-level" style="font-weight:600;color:#eab308;">--</span>
+                    </div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.6;" id="risk-summary">
+                        系统正在分析全球市场数据...
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 风险热力图 -->
+            <div style="margin-top:16px;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:8px;">🌡️ 风险热力图</div>
+                <div class="heatmap-container" id="risk-heatmap">
+                    <!-- 动态生成 -->
+                </div>
+                <div class="heatmap-legend">
+                    <span><span style="color:#22c55e;">●</span> 低风险</span>
+                    <span><span style="color:#eab308;">●</span> 中风险</span>
+                    <span><span style="color:#f59e0b;">●</span> 高风险</span>
+                    <span><span style="color:#ef4444;">●</span> 极高风险</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 资产敞口分析 -->
+        <div class="exposure-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;font-size:15px;font-weight:600;">📊 资产敞口分析</h3>
+                <span style="font-size:11px;color:rgba(255,255,255,0.5);">基于AI推演</span>
+            </div>
+            <div class="exposure-bar" id="exposure-bar">
+                <!-- 动态生成 -->
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;font-size:12px;" id="exposure-legend">
+                <!-- 动态生成 -->
+            </div>
+        </div>
+
+        <!-- 压力测试 / P&L影响 -->
+        <div class="stress-test-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;font-size:15px;font-weight:600;">⚡ 压力测试 & P&L影响</h3>
+                <span style="font-size:11px;color:rgba(255,255,255,0.5);">实时计算</span>
+            </div>
+            
+            <div class="stress-scenario bull">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="font-weight:600;color:#22c55e;">🟢 乐观情景 (25%)</span>
+                    <span class="pnl-value pnl-positive">+12.5%</span>
+                </div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.6);">地缘风险缓解，经济复苏超预期</div>
+            </div>
+            
+            <div class="stress-scenario base">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="font-weight:600;color:#3b82f6;">🔵 基准情景 (50%)</span>
+                    <span class="pnl-value" style="color:#64748b;">-2.3%</span>
+                </div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.6);">市场按当前趋势发展，风险逐步消化</div>
+            </div>
+            
+            <div class="stress-scenario bear">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="font-weight:600;color:#ef4444;">🔴 悲观情景 (25%)</span>
+                    <span class="pnl-value pnl-negative">-18.7%</span>
+                </div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.6);">风险事件升级，引发全球市场动荡</div>
+            </div>
+            
+            <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px;margin-top:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:13px;">预期P&L (加权)</span>
+                    <span class="pnl-value pnl-negative" id="expected-pnl">-2.7%</span>
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px;">
+                    VaR(95%): <span style="color:#ef4444;">-8.5%</span> | 最大回撤: <span style="color:#ef4444;">-20%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 流水线状态 -->
+        <div class="pipeline-status">
+            <div class="pipeline-indicator running" id="pipeline-indicator"></div>
+            <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:4px;">AI推演流水线</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);" id="pipeline-status-text">正在运行...</div>
+            </div>
+            <div class="pipeline-progress">
+                <div class="pipeline-progress-bar" id="pipeline-progress" style="width: 65%;"></div>
+            </div>
+        </div>
+
+        <!-- 3D地球 -->
+        <div id="earth-container">
+            <canvas id="earth-canvas"></canvas>
+        </div>
+        
+        <!-- 冲突热点 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;">
+            <h3 style="margin:0;font-size:16px;font-weight:600;">🔥 全球冲突热点</h3>
+            <span style="font-size:11px;color:rgba(255,255,255,0.4);">实时监测</span>
+        </div>
+        <div class="conflict-scroll" id="conflict-scroll"></div>
+        
+        <!-- 大宗商品 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;">
+            <h3 style="margin:0;font-size:16px;font-weight:600;">📈 大宗商品期货</h3>
+            <span style="font-size:11px;color:rgba(255,255,255,0.4);">实时行情</span>
+        </div>
+        <div class="futures-grid" id="futures-grid"></div>
+        
+        <!-- AI选股入口 -->
+        <div class="ai-entry" onclick="switchTab('stock', null)">
+            <div style="font-size:36px;margin-bottom:12px;">🤖</div>
+            <div style="font-size:18px;font-weight:700;margin-bottom:6px;">AI智能选股</div>
+            <div style="font-size:13px;opacity:0.85;">输入股票代码，自动推演风险与收益</div>
+        </div>
+    </div>
+
+    <!-- 选股页面 -->
+    <div id="page-stock" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">🤖 AI智能选股</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">输入股票代码，获取AI推演分析</p>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" class="search-input" id="stock-search-input" placeholder="输入股票代码或名称 (如: 600519 或 茅台)" onkeypress="if(event.key==='Enter')analyzeStock()">
+            <button class="search-btn" onclick="analyzeStock()">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+        
+        <!-- 股票分析结果面板 -->
+        <div id="stock-analysis-result" style="display:none;">
+            <!-- 动态生成 -->
+        </div>
+        
+        <div style="display:flex;gap:8px;padding:12px 16px;overflow-x:auto;background:rgba(255,255,255,0.02);">
+            <button class="filter-btn active" onclick="filterStocks('all', this)">全部</button>
+            <button class="filter-btn" onclick="filterStocks('tech', this)">科技</button>
+            <button class="filter-btn" onclick="filterStocks('finance', this)">金融</button>
+            <button class="filter-btn" onclick="filterStocks('consumer', this)">消费</button>
+            <button class="filter-btn" onclick="filterStocks('healthcare', this)">医疗</button>
+            <button class="filter-btn" onclick="filterStocks('energy', this)">能源</button>
+        </div>
+        <div id="stock-grid" class="stock-grid"></div>
+    </div>
+
+    <!-- 预警页面 -->
+    <div id="page-alerts" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">🚨 风险预警中心</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">AI自动推演生成的实时预警</p>
+        </div>
+        
+        <!-- 预警统计 -->
+        <div style="display:flex;gap:12px;padding:16px;overflow-x:auto;">
+            <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:12px 20px;text-align:center;min-width:80px;">
+                <div style="font-size:24px;font-weight:700;color:#ef4444;" id="stat-critical">0</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);">严重</div>
+            </div>
+            <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:12px 20px;text-align:center;min-width:80px;">
+                <div style="font-size:24px;font-weight:700;color:#f59e0b;" id="stat-warning">0</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);">警告</div>
+            </div>
+            <div style="background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3);border-radius:12px;padding:12px 20px;text-align:center;min-width:80px;">
+                <div style="font-size:24px;font-weight:700;color:#eab308;" id="stat-caution">0</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);">注意</div>
+            </div>
+        </div>
+        
+        <div style="display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto;">
+            <button class="filter-btn active" onclick="filterAlerts('all', this)">全部</button>
+            <button class="filter-btn" onclick="filterAlerts('critical', this)">🔴 严重</button>
+            <button class="filter-btn" onclick="filterAlerts('warning', this)">🟠 警告</button>
+            <button class="filter-btn" onclick="filterAlerts('caution', this)">🟡 注意</button>
+        </div>
+        
+        <div id="alerts-list" style="padding:0 16px;"></div>
+    </div>
+
+    <!-- 日历页面 -->
+    <div id="page-calendar" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">📅 财经日历</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">全球重要财经事件与数据发布</p>
+        </div>
+        <div style="padding:16px;">
+            <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;">
+                <button class="filter-btn active" onclick="filterCalendar('all', this)">全部</button>
+                <button class="filter-btn" onclick="filterCalendar('economic', this)">经济数据</button>
+                <button class="filter-btn" onclick="filterCalendar('earnings', this)">财报</button>
+                <button class="filter-btn" onclick="filterCalendar('policy', this)">政策</button>
+            </div>
+            <div id="calendar-list"></div>
+        </div>
+    </div>
+
+    <!-- 观点页面 -->
+    <div id="page-opinion" class="page">
+        <div style="padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <h2 style="margin:0;font-size:20px;">💬 大V观点</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.5);">追踪财经/军事/时政大V的实时观点</p>
+        </div>
+        <div style="padding:16px;">
+            <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;">
+                <button class="filter-btn active" onclick="filterOpinions('all', this)">全部</button>
+                <button class="filter-btn" onclick="filterOpinions('finance', this)">财经</button>
+                <button class="filter-btn" onclick="filterOpinions('military', this)">军事</button>
+                <button class="filter-btn" onclick="filterOpinions('politics', this)">时政</button>
+            </div>
+            <div id="opinion-list"></div>
+        </div>
+    </div>
+
+    <!-- 底部导航 -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" onclick="switchTab('home', this)">
+            <i class="fas fa-home"></i>
+            <span>首页</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('alerts', this)">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>预警</span>
+            <span class="nav-badge" id="nav-alert-badge" style="display:none;"></span>
+        </button>
+        <button class="nav-item" onclick="switchTab('stock', this)">
+            <i class="fas fa-chart-line"></i>
+            <span>选股</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('calendar', this)">
+            <i class="fas fa-calendar"></i>
+            <span>日历</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('opinion', this)">
+            <i class="fas fa-comments"></i>
+            <span>观点</span>
+        </button>
+    </nav>
+
+    <!-- 抽屉 -->
+    <div id="drawer-overlay" class="drawer-overlay" onclick="closeDrawer()"></div>
+    <div id="stock-drawer" class="drawer">
+        <div style="width:40px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;margin:12px auto;"></div>
+        <div id="drawer-content" style="padding:0 20px 20px;"></div>
+    </div>
+
+    <script>
+        // ==================== 配置 ====================
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8080' 
+            : 'http://43.160.193.165:8080';
+        
+        // ==================== 数据存储 ====================
+        let appData = {
+            alerts: [],
+            news: [],
+            pipelineStatus: {},
+            dashboard: {},
+            riskScore: 45
+        };
+
+        // ==================== 页面切换 ====================
+        function switchTab(tab, clickedNav = null) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('page-' + tab).classList.add('active');
+            
+            if (clickedNav) {
+                clickedNav.classList.add('active');
+            } else {
+                const navItems = document.querySelectorAll('.nav-item');
+                const tabMap = { 'home': 0, 'alerts': 1, 'stock': 2, 'calendar': 3, 'opinion': 4 };
+                if (navItems[tabMap[tab]]) navItems[tabMap[tab]].classList.add('active');
+            }
+            
+            if (tab === 'stock') renderStocks('all');
+            if (tab === 'alerts') renderAlertsPage();
+            if (tab === 'calendar') renderCalendar('all');
+            if (tab === 'opinion') renderOpinions('all');
+        }
+
+        // ==================== 预警面板 ====================
+        function toggleAlertPanel() {
+            const panel = document.getElementById('alert-panel');
+            const icon = document.getElementById('alert-toggle-icon');
+            panel.classList.toggle('active');
+            icon.classList.toggle('fa-chevron-down');
+            icon.classList.toggle('fa-chevron-up');
+        }
+
+        function updateAlertPanel() {
+            const alerts = appData.alerts.filter(a => !a.expires_at || new Date(a.expires_at) > new Date());
+            const alertList = document.getElementById('alert-list');
+            const alertCount = document.getElementById('alert-count');
+            const alertCountBadge = document.getElementById('alert-count-badge');
+            
+            alertCount.textContent = alerts.length;
+            
+            const hasCritical = alerts.some(a => a.level === 'CRITICAL');
+            const hasWarning = alerts.some(a => a.level === 'WARNING');
+            alertCountBadge.className = 'alert-badge ' + (hasCritical ? 'critical' : hasWarning ? 'warning' : 'caution');
+            
+            const navBadge = document.getElementById('nav-alert-badge');
+            navBadge.style.display = alerts.length > 0 ? 'block' : 'none';
+            
+            if (alerts.length === 0) {
+                alertList.innerHTML = '<div style="text-align:center;padding:20px;color:rgba(255,255,255,0.5);">暂无活跃预警</div>';
+                return;
+            }
+            
+            alertList.innerHTML = alerts.slice(0, 5).map(alert => `
+                <div class="alert-item ${alert.level.toLowerCase()}" onclick="showAlertDetail('${alert.id}')">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <span style="font-size:13px;font-weight:600;">${alert.level_icon} ${alert.title}</span>
+                        <span style="font-size:10px;color:rgba(255,255,255,0.4);">${formatTime(alert.created_at)}</span>
+                    </div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.5;" class="line-clamp-2">
+                        ${alert.description}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ==================== 风险仪表盘 ====================
+        function updateRiskDashboard() {
+            const riskScore = appData.riskScore;
+            
+            document.getElementById('risk-score').textContent = Math.round(riskScore);
+            document.getElementById('risk-level').textContent = getRiskLevelText(riskScore);
+            document.getElementById('risk-level').style.color = getRiskLevelColor(riskScore);
+            
+            const needle = document.getElementById('risk-needle');
+            const angle = (riskScore / 100) * 180;
+            needle.style.transform = `translate(-50%, -100%) rotate(${angle}deg)`;
+            
+            // 更新风险摘要
+            const alerts = appData.alerts;
+            const critical = alerts.filter(a => a.level === 'CRITICAL').length;
+            const warning = alerts.filter(a => a.level === 'WARNING').length;
+            document.getElementById('risk-summary').innerHTML = 
+                `当前有 <span style="color:#ef4444;font-weight:600;">${critical}</span> 个严重预警，` +
+                `<span style="color:#f59e0b;font-weight:600;">${warning}</span> 个警告预警。`;
+        }
+
+        function getRiskLevelText(score) {
+            if (score >= 80) return '严重';
+            if (score >= 60) return '高';
+            if (score >= 40) return '中';
+            if (score >= 20) return '低';
+            return '极低';
+        }
+
+        function getRiskLevelColor(score) {
+            if (score >= 80) return '#ef4444';
+            if (score >= 60) return '#f59e0b';
+            if (score >= 40) return '#eab308';
+            if (score >= 20) return '#22c55e';
+            return '#64748b';
+        }
+
+        // ==================== 风险热力图 ====================
+        function renderRiskHeatmap() {
+            const container = document.getElementById('risk-heatmap');
+            const sectors = [
+                { name: '科技', risk: 65 },
+                { name: '金融', risk: 55 },
+                { name: '能源', risk: 85 },
+                { name: '消费', risk: 45 },
+                { name: '医疗', risk: 40 },
+                { name: '军工', risk: 90 },
+                { name: '地产', risk: 70 },
+                { name: '材料', risk: 60 }
+            ];
+            
+            container.innerHTML = sectors.map(s => {
+                const color = getHeatmapColor(s.risk);
+                return `<div class="heatmap-cell" style="background:${color};" title="${s.name}: ${s.risk}%">${s.name}</div>`;
+            }).join('');
+        }
+
+        function getHeatmapColor(risk) {
+            if (risk >= 80) return 'rgba(239,68,68,0.8)';
+            if (risk >= 60) return 'rgba(245,158,11,0.8)';
+            if (risk >= 40) return 'rgba(234,179,8,0.8)';
+            return 'rgba(34,197,94,0.8)';
+        }
+
+        // ==================== 资产敞口 ====================
+        function renderExposurePanel() {
+            const exposures = [
+                { asset: '股票', exposure: 45, color: '#3b82f6' },
+                { asset: '债券', exposure: 30, color: '#8b5cf6' },
+                { asset: '商品', exposure: 15, color: '#f59e0b' },
+                { asset: '现金', exposure: 10, color: '#22c55e' }
+            ];
+            
+            const bar = document.getElementById('exposure-bar');
+            bar.innerHTML = exposures.map(e => `
+                <div class="exposure-segment" style="width:${e.exposure}%;background:${e.color};">
+                    ${e.exposure > 12 ? e.exposure + '%' : ''}
+                    <div class="exposure-tooltip">${e.asset}: ${e.exposure}%</div>
+                </div>
+            `).join('');
+            
+            const legend = document.getElementById('exposure-legend');
+            legend.innerHTML = exposures.map(e => `
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="width:12px;height:12px;border-radius:3px;background:${e.color};"></div>
+                    <span>${e.asset} (${e.exposure}%)</span>
+                </div>
+            `).join('');
+        }
+
+        // ==================== 股票分析 ====================
+        function analyzeStock() {
+            const input = document.getElementById('stock-search-input');
+            const query = input.value.trim();
+            const resultDiv = document.getElementById('stock-analysis-result');
+            
+            if (!query) return;
+            
+            // 模拟AI推演分析
+            const mockAnalysis = {
+                symbol: query,
+                name: query.match(/^\d+$/) ? '股票名称' : query,
+                currentPrice: (Math.random() * 100 + 50).toFixed(2),
+                aiScore: Math.floor(Math.random() * 30 + 70),
+                riskLevel: ['低', '中', '高'][Math.floor(Math.random() * 3)],
+                scenarios: {
+                    bull: { pnl: (Math.random() * 20 + 5).toFixed(1) },
+                    base: { pnl: (Math.random() * 10 - 5).toFixed(1) },
+                    bear: { pnl: (Math.random() * -20 - 5).toFixed(1) }
+                },
+                var95: (Math.random() * -10 - 3).toFixed(1),
+                maxDrawdown: (Math.random() * -25 - 10).toFixed(1),
+                recommendation: Math.random() > 0.5 ? '建议增持' : '建议观望'
+            };
+            
+            resultDiv.innerHTML = `
+                <div style="background:rgba(255,255,255,0.03);border-radius:16px;padding:16px;margin:16px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <div>
+                            <div style="font-size:18px;font-weight:700;">${mockAnalysis.name}</div>
+                            <div style="font-size:13px;color:rgba(255,255,255,0.5);">${mockAnalysis.symbol}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:24px;font-weight:700;">¥${mockAnalysis.currentPrice}</div>
+                            <span class="score-badge">${mockAnalysis.aiScore}分</span>
+                        </div>
+                    </div>
+                    
+                    <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:14px;margin-bottom:12px;">
+                        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">📊 AI推演 - 情景分析</div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                            <span style="font-size:12px;color:#22c55e;">乐观情景</span>
+                            <span style="font-size:14px;font-weight:600;color:#22c55e;">+${mockAnalysis.scenarios.bull.pnl}%</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                            <span style="font-size:12px;color:#3b82f6;">基准情景</span>
+                            <span style="font-size:14px;font-weight:600;color:${mockAnalysis.scenarios.base.pnl > 0 ? '#22c55e' : '#ef4444'};">${mockAnalysis.scenarios.base.pnl > 0 ? '+' : ''}${mockAnalysis.scenarios.base.pnl}%</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;">
+                            <span style="font-size:12px;color:#ef4444;">悲观情景</span>
+                            <span style="font-size:14px;font-weight:600;color:#ef4444;">${mockAnalysis.scenarios.bear.pnl}%</span>
+                        </div>
+                    </div>
+                    
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+                        <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px;text-align:center;">
+                            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px;">VaR (95%)</div>
+                            <div style="font-size:16px;font-weight:600;color:#ef4444;">${mockAnalysis.var95}%</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px;text-align:center;">
+                            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px;">最大回撤</div>
+                            <div style="font-size:16px;font-weight:600;color:#ef4444;">${mockAnalysis.maxDrawdown}%</div>
+                        </div>
+                    </div>
+                    
+                    <div style="background:linear-gradient(135deg, rgba(59,130,246,0.2), rgba(139,92,246,0.2));border-radius:10px;padding:12px;text-align:center;">
+                        <div style="font-size:13px;font-weight:600;">💡 AI建议: ${mockAnalysis.recommendation}</div>
+                    </div>
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+            
+            // 显示通知
+            showToast('分析完成', `已完成对 ${mockAnalysis.name} 的AI推演分析`, 'info');
+        }
+
+        // ==================== 通知系统 ====================
+        function showToast(title, content, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div style="font-size:14px;font-weight:600;margin-bottom:4px;">${title}</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.7);">${content}</div>
+            `;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(120%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // ==================== 数据渲染 ====================
+        const newsData = [
+            { time: "10:30", category: "冲突", text: "美军空袭也门胡塞武装目标，红海局势升级" },
+            { time: "10:25", category: "市场", text: "布伦特原油突破85美元，地缘风险溢价上升" },
+            { time: "10:15", category: "政治", text: "欧盟通过对俄第14轮制裁方案" },
+            { time: "10:10", category: "冲突", text: "以军空袭加沙南部，哈马斯称将扩大反击" },
+            { time: "10:05", category: "市场", text: "现货黄金创历史新高，避险需求激增" },
+            { time: "09:55", category: "政治", text: "北约秘书长：将增加对乌克兰军事援助" },
+            { time: "09:45", category: "冲突", text: "俄军对基辅发动大规模无人机袭击" },
+            { time: "09:30", category: "市场", text: "美元指数下跌，美联储降息预期升温" }
+        ];
+
+        const conflictZones = [
+            { name: "美以-伊朗", intensity: 95, status: "active", description: "美以与伊朗紧张关系升级" },
+            { name: "巴以冲突", intensity: 90, status: "active", description: "加沙地带持续战事" },
+            { name: "红海危机", intensity: 80, status: "active", description: "胡塞武装袭击商船" },
+            { name: "俄乌冲突", intensity: 85, status: "active", description: "持续军事冲突" },
+            { name: "台海局势", intensity: 70, status: "tension", description: "地缘政治风险上升" },
+            { name: "朝鲜半岛", intensity: 65, status: "tension", description: "导弹试射频繁" }
+        ];
+
+        const futuresData = [
+            { name: "WTI原油", symbol: "CL", price: 81.25, change: 2.35, changePercent: 2.98, trend: "up", icon: "🛢️" },
+            { name: "布伦特原油", symbol: "BZ", price: 85.67, change: 2.48, changePercent: 2.98, trend: "up", icon: "🛢️" },
+            { name: "黄金", symbol: "GC", price: 2845.30, change: 28.50, changePercent: 1.01, trend: "up", icon: "🥇" },
+            { name: "天然气", symbol: "NG", price: 2.85, change: -0.12, changePercent: -4.04, trend: "down", icon: "🔥" },
+            { name: "铜", symbol: "HG", price: 4.25, change: 0.08, changePercent: 1.92, trend: "up", icon: "🔶" },
+            { name: "小麦", symbol: "ZW", price: 585.25, change: -8.50, changePercent: -1.43, trend: "down", icon: "🌾" }
+        ];
+
+        const stockData = [
+            { symbol: '600519', name: '贵州茅台', sector: 'consumer', sectorName: '消费', price: 1688.88, change: 1.24, aiScore: 92 },
+            { symbol: '000858', name: '五粮液', sector: 'consumer', sectorName: '消费', price: 145.32, change: 0.89, aiScore: 88 },
+            { symbol: '002594', name: '比亚迪', sector: 'tech', sectorName: '科技', price: 268.50, change: 2.15, aiScore: 95 },
+            { symbol: '300750', name: '宁德时代', sector: 'energy', sectorName: '能源', price: 198.20, change: -0.56, aiScore: 85 },
+            { symbol: '601012', name: '隆基绿能', sector: 'energy', sectorName: '能源', price: 22.35, change: 1.88, aiScore: 78 },
+            { symbol: '600036', name: '招商银行', sector: 'finance', sectorName: '金融', price: 35.60, change: 0.45, aiScore: 82 },
+            { symbol: '000001', name: '平安银行', sector: 'finance', sectorName: '金融', price: 11.25, change: 0.32, aiScore: 75 },
+            { symbol: '600276', name: '恒瑞医药', sector: 'healthcare', sectorName: '医疗', price: 48.90, change: -1.25, aiScore: 80 },
+            { symbol: '300760', name: '迈瑞医疗', sector: 'healthcare', sectorName: '医疗', price: 298.50, change: 0.95, aiScore: 88 },
+            { symbol: '002415', name: '海康威视', sector: 'tech', sectorName: '科技', price: 32.80, change: 1.56, aiScore: 86 }
+        ];
+
+        function renderNews() {
+            const track = document.getElementById('news-track');
+            const items = [...newsData, ...newsData];
+            track.innerHTML = items.map(news => `
+                <div class="news-item">
+                    <span style="color:#64748b;margin-right:6px;font-size:10px;">${news.time}</span>
+                    <span style="background:rgba(233,69,96,0.2);color:#e94560;padding:1px 6px;border-radius:3px;font-size:9px;margin-right:8px;">${news.category}</span>
+                    ${news.text}
+                </div>
+            `).join('');
+        }
+
+        function renderConflicts() {
+            const container = document.getElementById('conflict-scroll');
+            container.innerHTML = conflictZones.map(zone => `
+                <div class="conflict-card ${zone.status === 'tension' ? 'tension' : ''}">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <span style="width:8px;height:8px;border-radius:50%;background:${zone.status === 'active' ? '#ef4444' : '#f59e0b'};"></span>
+                        <span style="font-size:14px;font-weight:600;">${zone.name}</span>
+                    </div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:6px;">强度: ${zone.intensity}/100</div>
+                    <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${zone.status === 'active' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'};color:${zone.status === 'active' ? '#ef4444' : '#f59e0b'};">
+                        ${zone.status === 'active' ? '🔴 高度活跃' : '🟡 持续紧张'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        function renderFutures() {
+            const container = document.getElementById('futures-grid');
+            container.innerHTML = futuresData.map(future => `
+                <div class="future-item">
+                    <div style="font-size:22px;margin-bottom:6px;">${future.icon}</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.6);">${future.name}</div>
+                    <div style="font-size:14px;font-weight:600;">$${future.price.toFixed(2)}</div>
+                    <div class="${future.trend === 'up' ? 'up' : 'down'}" style="font-size:11px;margin-top:2px;">
+                        ${future.change > 0 ? '+' : ''}${future.changePercent.toFixed(2)}%
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderStocks(filter) {
+            const grid = document.getElementById('stock-grid');
+            let filtered = filter === 'all' ? stockData : stockData.filter(s => s.sector === filter);
+            
+            grid.innerHTML = filtered.map(stock => `
+                <div class="stock-card" onclick="showStockDetail('${stock.symbol}')">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:15px;font-weight:600;">${stock.name}</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.4);">${stock.symbol}</span>
+                    </div>
+                    <div style="font-size:18px;font-weight:700;margin-bottom:4px;">¥${stock.price.toFixed(2)}</div>
+                    <div style="font-size:13px;margin-bottom:12px;color:${stock.change >= 0 ? '#ef4444' : '#22c55e'};">
+                        ${stock.change >= 0 ? '+' : ''}${stock.change}%
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);">
+                        <span class="score-badge">${stock.aiScore}分</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.5);">AI评分</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterStocks(sector, clickedBtn) {
+            document.querySelectorAll('#page-stock .filter-btn').forEach(btn => btn.classList.remove('active'));
+            clickedBtn.classList.add('active');
+            renderStocks(sector);
+        }
+
+        function showStockDetail(symbol) {
+            const stock = stockData.find(s => s.symbol === symbol);
+            if (!stock) return;
+            
+            document.getElementById('drawer-content').innerHTML = `
+                <div style="padding:20px 0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <div>
+                            <div style="font-size:20px;font-weight:700;">${stock.name}</div>
+                            <div style="font-size:13px;color:rgba(255,255,255,0.5);">${stock.symbol} · ${stock.sectorName}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:24px;font-weight:700;">¥${stock.price.toFixed(2)}</div>
+                            <div style="color:${stock.change >= 0 ? '#ef4444' : '#22c55e'};">${stock.change >= 0 ? '+' : ''}${stock.change}%</div>
+                        </div>
+                    </div>
+                    <div style="height:200px;background:rgba(255,255,255,0.03);border-radius:12px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;">
+                        <span style="color:rgba(255,255,255,0.3);">📈 走势图区域</span>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:16px;">
+                        <div style="font-size:16px;font-weight:600;margin-bottom:12px;">🤖 AI分析</div>
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                            <span class="score-badge">${stock.aiScore}分</span>
+                            <span style="color:${stock.aiScore >= 80 ? '#22c55e' : '#f59e0b'};">${stock.aiScore >= 80 ? '强烈买入' : '谨慎关注'}</span>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:12px;">
+                        <button style="flex:1;background:#3b82f6;border:none;border-radius:12px;padding:14px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;">加入自选</button>
+                        <button style="flex:1;background:rgba(255,255,255,0.1);border:none;border-radius:12px;padding:14px;color:#fff;font-size:15px;cursor:pointer;" onclick="closeDrawer()">关闭</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('stock-drawer').classList.add('active');
+            document.getElementById('drawer-overlay').classList.add('active');
+        }
+
+        function closeDrawer() {
+            document.getElementById('stock-drawer').classList.remove('active');
+            document.getElementById('drawer-overlay').classList.remove('active');
+        }
+
+        function renderAlertsPage() {
+            const alerts = appData.alerts;
+            document.getElementById('stat-critical').textContent = alerts.filter(a => a.level === 'CRITICAL').length;
+            document.getElementById('stat-warning').textContent = alerts.filter(a => a.level === 'WARNING').length;
+            document.getElementById('stat-caution').textContent = alerts.filter(a => a.level === 'CAUTION').length;
+            
+            const list = document.getElementById('alerts-list');
+            if (alerts.length === 0) {
+                list.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,255,255,0.5);">暂无预警</div>';
+                return;
+            }
+            
+            list.innerHTML = alerts.map(alert => `
+                <div class="alert-item ${alert.level.toLowerCase()}">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-weight:600;">${alert.level_icon} ${alert.title}</span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.4);">${formatTime(alert.created_at)}</span>
+                    </div>
+                    <div style="font-size:13px;color:rgba(255,255,255,0.7);line-height:1.5;">${alert.description}</div>
+                </div>
+            `).join('');
+        }
+
+        function filterAlerts(level, btn) {
+            document.querySelectorAll('#page-alerts .filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        function formatTime(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // ==================== 3D地球 ====================
+        let scene, camera, renderer, globe, markers = [];
+        function initEarth() {
+            const container = document.getElementById('earth-container');
+            const canvas = document.getElementById('earth-canvas');
+            
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.z = 2.5;
+
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            globe = new THREE.Group();
+            scene.add(globe);
+
+            const geometry = new THREE.SphereGeometry(1, 64, 64);
+            const textureLoader = new THREE.TextureLoader();
+            const earthTexture = textureLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg');
+            const bumpTexture = textureLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png');
+            
+            const material = new THREE.MeshPhongMaterial({
+                map: earthTexture,
+                bumpMap: bumpTexture,
+                bumpScale: 0.05,
+                emissive: 0x001133,
+                emissiveIntensity: 0.1,
+                shininess: 25
+            });
+            
+            const earth = new THREE.Mesh(geometry, material);
+            globe.add(earth);
+
+            const glowGeometry = new THREE.SphereGeometry(1.08, 32, 32);
+            const glowMaterial = new THREE.MeshPhongMaterial({
+                color: 0x3b82f6,
+                transparent: true,
+                opacity: 0.1,
+                side: THREE.BackSide
+            });
+            const atmosphere = new THREE.Mesh(glowGeometry, glowMaterial);
+            globe.add(atmosphere);
+
+            const ambientLight = new THREE.AmbientLight(0x333333, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 3, 5);
+            scene.add(directionalLight);
+            
+            addConflictMarkers();
+
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            
+            canvas.addEventListener('mousedown', (e) => { 
+                isDragging = true; 
+                previousMousePosition = { x: e.clientX, y: e.clientY }; 
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                globe.rotation.y += deltaX * 0.005;
+                globe.rotation.x += deltaY * 0.005;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            canvas.addEventListener('mouseup', () => isDragging = false);
+            canvas.addEventListener('mouseleave', () => isDragging = false);
+
+            function animate() {
+                requestAnimationFrame(animate);
+                if (!isDragging) globe.rotation.y += 0.001;
+                
+                const time = Date.now() * 0.002;
+                markers.forEach((marker, i) => {
+                    const offset = i * 0.7;
+                    const scale = 1 + Math.sin(time + offset) * 0.15;
+                    marker.ring.scale.set(scale, scale, scale);
+                    marker.ring.material.opacity = 0.7 - (scale - 1) * 0.3;
+                });
+                
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            return new THREE.Vector3(x, y, z);
+        }
+
+        function addConflictMarkers() {
+            const zones = [
+                { lat: 32.0, lon: 53.0, status: 'active' },
+                { lat: 31.5, lon: 34.4, status: 'active' },
+                { lat: 15.0, lon: 45.0, status: 'active' },
+                { lat: 49.0, lon: 31.0, status: 'active' },
+                { lat: 24.0, lon: 121.0, status: 'tension' },
+                { lat: 38.0, lon: 127.0, status: 'tension' }
+            ];
+            
+            zones.forEach(zone => {
+                const position = latLonToVector3(zone.lat, zone.lon, 1.02);
+                const dotColor = zone.status === 'active' ? 0xef4444 : 0xf59e0b;
+                
+                const dotGeometry = new THREE.SphereGeometry(0.035, 16, 16);
+                const dotMaterial = new THREE.MeshBasicMaterial({ 
+                    color: dotColor, emissive: dotColor, emissiveIntensity: 0.8
+                });
+                const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+                dot.position.copy(position);
+                globe.add(dot);
+                
+                const ringGeometry = new THREE.RingGeometry(0.04, 0.055, 32);
+                const ringMaterial = new THREE.MeshBasicMaterial({
+                    color: dotColor, side: THREE.DoubleSide, transparent: true, opacity: 0.7
+                });
+                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                ring.position.copy(position.clone().multiplyScalar(1.015));
+                ring.lookAt(new THREE.Vector3(0, 0, 0));
+                globe.add(ring);
+                
+                markers.push({ dot, ring });
+            });
+        }
+
+        // ==================== 模拟数据加载 ====================
+        function loadMockAlerts() {
+            appData.alerts = [
+                {
+                    id: 'ALT-20250306-0001',
+                    level: 'CRITICAL',
+                    level_icon: '🔴',
+                    title: '战争爆发风险预警',
+                    description: '基于新闻「美军空袭也门胡塞武装目标，红海局势升级」的分析，检测到战争爆发风险信号。',
+                    created_at: new Date().toISOString(),
+                    affected_assets: ['原油', '黄金', '军工'],
+                    affected_sectors: ['能源', '军工', '航运']
+                },
+                {
+                    id: 'ALT-20250306-0002',
+                    level: 'WARNING',
+                    level_icon: '🟠',
+                    title: '能源危机风险预警',
+                    description: '布伦特原油突破85美元，地缘风险溢价上升，检测到能源危机风险信号。',
+                    created_at: new Date(Date.now() - 30*60000).toISOString(),
+                    affected_assets: ['原油', '天然气', '新能源'],
+                    affected_sectors: ['能源', '化工', '航空']
+                },
+                {
+                    id: 'ALT-20250306-0003',
+                    level: 'CAUTION',
+                    level_icon: '🟡',
+                    title: '供应链风险预警',
+                    description: '红海航运受阻，全球供应链面临压力，建议关注相关风险。',
+                    created_at: new Date(Date.now() - 60*60000).toISOString(),
+                    affected_assets: ['航运', '集装箱'],
+                    affected_sectors: ['物流', '贸易', '制造']
+                }
+            ];
+            updateAlertPanel();
+            updateRiskDashboard();
+            renderAlertsPage();
+        }
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                document.getElementById('loading').classList.add('hidden');
+            }, 1500);
+            
+            initEarth();
+            renderNews();
+            renderConflicts();
+            renderFutures();
+            renderStocks('all');
+            renderRiskHeatmap();
+            renderExposurePanel();
+            loadMockAlerts();
+            
+            // 模拟流水线进度
+            setInterval(() => {
+                const progress = document.getElementById('pipeline-progress');
+                const currentWidth = parseFloat(progress.style.width) || 0;
+                const newWidth = currentWidth >= 100 ? 0 : currentWidth + 5;
+                progress.style.width = newWidth + '%';
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
