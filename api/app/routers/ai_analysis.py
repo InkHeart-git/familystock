@@ -1,7 +1,7 @@
 """
 AI分析服务路由
 提供个股诊断、组合分析、新闻关联和情景推演
-已接入本地新闻库
+已接入本地新闻库 (SQLite)
 """
 
 from fastapi import APIRouter, HTTPException, Query
@@ -11,13 +11,7 @@ from datetime import datetime, timedelta
 import requests
 import json
 import os
-
-# LanceDB新闻库支持
-try:
-    import lancedb
-    LANCEDB_AVAILABLE = True
-except ImportError:
-    LANCEDB_AVAILABLE = False
+import sqlite3
 
 router = APIRouter(prefix="/api/ai", tags=["AI分析"])
 
@@ -26,7 +20,7 @@ DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_API_KEY = "sk-ba29925a6dc84f6da02ac006a2fc93f2"
 
 # 新闻库配置
-LANCE_DB_PATH = "/var/www/familystock/lancedb/news_analysis.lance"
+SQLITE_DB_PATH = "/var/www/familystock/api/data/family_stock.db"
 NEWS_CACHE = {}  # 内存缓存
 
 class StockAnalysisRequest(BaseModel):
@@ -49,40 +43,77 @@ class PortfolioAnalysisRequest(BaseModel):
 # ==================== 新闻库操作 ====================
 
 def get_related_news_from_db(symbol: str, name: str, limit: int = 3) -> List[dict]:
-    """从本地新闻库获取相关新闻"""
+    """从本地新闻库获取相关新闻 (优先SQLite，支持灵犀的新闻库)"""
     # 先检查内存缓存
     cache_key = f"{symbol}_{datetime.now().strftime('%Y%m%d')}"
     if cache_key in NEWS_CACHE:
         return NEWS_CACHE[cache_key][:limit]
     
-    # 如果LanceDB可用且存在，尝试读取
-    if LANCEDB_AVAILABLE and os.path.exists(LANCE_DB_PATH):
-        try:
-            db = lancedb.connect(LANCE_DB_PATH)
-            # 由于表结构未知，先尝试列出表
-            tables = db.list_tables()
-            if tables:
-                # 假设第一个表是新闻表
-                news_table = db.open_table(tables[0])
-                # 搜索相关新闻（通过symbol或关键词匹配）
-                results = news_table.search().where(f"symbol = '{symbol}' OR title LIKE '%{name}%'").limit(limit).to_pandas()
-                news_list = []
-                for _, row in results.iterrows():
-                    news_list.append({
-                        "title": row.get("title", ""),
-                        "summary": row.get("summary", row.get("content", "")[:100]),
-                        "source": row.get("source", "未知"),
-                        "published_at": str(row.get("published_at", datetime.now())),
-                        "sentiment": row.get("sentiment", "neutral")
-                    })
-                if news_list:
-                    NEWS_CACHE[cache_key] = news_list
-                    return news_list
-        except Exception as e:
-            print(f"从LanceDB读取新闻失败: {e}")
+    news_list = []
     
-    # 返回模拟新闻数据（真实数据接入前使用）
-    return generate_mock_news(symbol, name, limit)
+    # 1. 尝试从SQLite读取 (灵犀的新闻库)
+    if os.path.exists(SQLITE_DB_PATH):
+        try:
+            conn = sqlite3.connect(SQLITE_DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # 获取表名
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+            
+            if 'news' in tables or 'articles' in tables:
+                table_name = 'news' if 'news' in tables else 'articles'
+                
+                # 搜索相关新闻 (按股票名称或代码匹配)
+                query = f"""
+                    SELECT title, content, source, published_at, category 
+                    FROM {table_name} 
+                    WHERE title LIKE ? OR content LIKE ? OR category LIKE ?
+                    ORDER BY published_at DESC 
+                    LIMIT ?
+                """
+                cursor.execute(query, (f'%{name}%', f'%{name}%', f'%{name}%', limit))
+                
+                rows = cursor.fetchall()
+                for row in rows:
+                    news_list.append({
+                        "title": row['title'],
+                        "summary": row['content'][:150] + "..." if row['content'] else row['title'],
+                        "source": row.get('source', '新浪财经'),
+                        "published_at": row.get('published_at', datetime.now().isoformat()),
+                        "category": row.get('category', '财经'),
+                        "sentiment": analyze_sentiment(row['title'] + row.get('content', ''))
+                    })
+            
+            conn.close()
+        except Exception as e:
+            print(f"从SQLite读取新闻失败: {e}")
+    
+    # 2. 如果SQLite没有数据，使用模拟新闻
+    if not news_list:
+        news_list = generate_mock_news(symbol, name, limit)
+    
+    # 缓存结果
+    if news_list:
+        NEWS_CACHE[cache_key] = news_list
+    
+    return news_list
+
+
+def analyze_sentiment(text: str) -> str:
+    """简单情感分析"""
+    positive_words = ['上涨', '利好', '突破', '增长', '盈利', '增持', '看好', '推荐', '强势']
+    negative_words = ['下跌', '利空', '风险', '亏损', '减持', '警告', '调查', '处罚', '暴雷']
+    
+    p_count = sum(1 for w in positive_words if w in text)
+    n_count = sum(1 for w in negative_words if w in text)
+    
+    if p_count > n_count:
+        return "positive"
+    elif n_count > p_count:
+        return "negative"
+    return "neutral"
 
 
 def generate_mock_news(symbol: str, name: str, limit: int = 3) -> List[dict]:
@@ -104,6 +135,18 @@ def generate_mock_news(symbol: str, name: str, limit: int = 3) -> List[dict]:
         "平安": [
             {"title": f"{name}：银行业绩稳健，资产质量持续改善", "sentiment": "positive", "source": "财联社"},
             {"title": f"央行降准预期升温，银行板块或受益", "sentiment": "positive", "source": "经济观察报"},
+        ],
+        "招商": [
+            {"title": f"{name}：零售银行业务增长强劲", "sentiment": "positive", "source": "证券时报"},
+            {"title": f"财富管理业务推动{name}业绩提升", "sentiment": "positive", "source": "财联社"},
+        ],
+        "讯飞": [
+            {"title": f"{name}AI大模型业务进展迅速", "sentiment": "positive", "source": "科技日报"},
+            {"title": f"人工智能政策利好，{name}有望受益", "sentiment": "positive", "source": "中国证券报"},
+        ],
+        "海康": [
+            {"title": f"{name}安防业务稳健，创新业务高增长", "sentiment": "positive", "source": "财联社"},
+            {"title": f"数字化转型加速，{name}订单充足", "sentiment": "positive", "source": "证券时报"},
         ],
     }
     
@@ -503,5 +546,5 @@ async def get_related_news(
         "news_count": len(news_list),
         "news": news_list,
         "timestamp": datetime.now().isoformat(),
-        "source": "本地新闻库"
+        "source": "SQLite新闻库" if os.path.exists(SQLITE_DB_PATH) else "模拟数据"
     }
