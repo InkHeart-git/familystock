@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>MiniRock - AI投资助手</title>
+    <title>Ministone - 投资模拟平台</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <style>
         :root {
@@ -1144,6 +1144,130 @@
             background: rgba(59, 130, 246, 0.05);
         }
 
+        /* 风险提示弹窗 */
+        .risk-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .risk-modal.show {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .risk-modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 24px;
+            padding: 32px;
+            width: 100%;
+            max-width: 420px;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .risk-modal-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .risk-modal-icon {
+            font-size: 56px;
+            margin-bottom: 16px;
+        }
+
+        .risk-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .risk-modal-subtitle {
+            font-size: 14px;
+            color: #f87171;
+            font-weight: 600;
+        }
+
+        .risk-modal-body {
+            margin-bottom: 24px;
+        }
+
+        .risk-section {
+            margin-bottom: 20px;
+            padding: 16px;
+            background: rgba(239, 68, 68, 0.08);
+            border-radius: 16px;
+            border: 1px solid rgba(239, 68, 68, 0.15);
+        }
+
+        .risk-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #fca5a5;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .risk-section-content {
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.7;
+        }
+
+        .risk-section-content ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .risk-section-content li {
+            margin-bottom: 6px;
+        }
+
+        .risk-modal-footer {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .risk-confirm-btn {
+            width: 100%;
+            padding: 16px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .risk-confirm-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
+        }
+
+        .risk-note {
+            text-align: center;
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 8px;
+        }
+
         /* 底部导航 */
         .bottom-nav {
             position: fixed;
@@ -1263,6 +1387,60 @@
     <!-- Toast提示 -->
     <div class="toast" id="toast"></div>
 
+    <!-- 风险提示弹窗 -->
+    <div class="risk-modal" id="riskModal">
+        <div class="risk-modal-content">
+            <div class="risk-modal-header">
+                <div class="risk-modal-icon">⚠️</div>
+                <div class="risk-modal-title">投资风险提示</div>
+                <div class="risk-modal-subtitle">Ministone 投资模拟平台</div>
+            </div>
+            <div class="risk-modal-body">
+                <div class="risk-section">
+                    <div class="risk-section-title">
+                        <span>🎮</span>
+                        <span>本平台性质</span>
+                    </div>
+                    <div class="risk-section-content">
+                        Ministone 是一个<strong>投资模拟学习平台</strong>，所有资金均为虚拟资金，不涉及真实货币交易。本平台仅供投资学习和模拟演练使用。
+                    </div>
+                </div>
+                <div class="risk-section">
+                    <div class="risk-section-title">
+                        <span>📊</span>
+                        <span>数据声明</span>
+                    </div>
+                    <div class="risk-section-content">
+                        <ul>
+                            <li>平台展示的股票行情数据仅供参考，可能存在延迟</li>
+                            <li>AI分析结果基于公开数据和算法模型，不构成投资建议</li>
+                            <li>历史表现不代表未来收益，模拟交易结果与现实可能存在差异</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="risk-section">
+                    <div class="risk-section-title">
+                        <span>⚡</span>
+                        <span>风险提示</span>
+                    </div>
+                    <div class="risk-section-content">
+                        <ul>
+                            <li><strong style="color: #f87171;">股市有风险，入市需谨慎</strong></li>
+                            <li>模拟交易的盈亏不代表真实投资结果</li>
+                            <li>进行真实投资前请咨询专业人士</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="risk-modal-footer">
+                <button class="risk-confirm-btn" onclick="closeRiskModal()">
+                    我已了解风险，进入平台
+                </button>
+                <div class="risk-note">点击上方按钮即表示您已阅读并理解上述风险提示</div>
+            </div>
+        </div>
+    </div>
+
     <!-- 添加持仓模态框 -->
     <div class="modal" id="addModal">
         <div class="modal-content">
@@ -1290,8 +1468,8 @@
         <div class="logo-container">
             <div class="logo">🌍</div>
         </div>
-        <div class="brand-name">MiniRock</div>
-        <div class="tagline">AI投资助手 · 让全球情报为您赚钱</div>
+        <div class="brand-name">Ministone</div>
+        <div class="tagline">投资模拟平台 · 零风险学习投资</div>
         
         <div class="input-group">
             <input type="tel" class="input-field" placeholder="请输入手机号" id="phoneInput" value="18651993693" maxlength="11">
@@ -1370,6 +1548,32 @@
         // 全局状态
         let currentUser = null;
         let holdings = [];
+        let riskModalShown = false; // 风险提示弹窗是否已显示
+
+        // 显示风险提示弹窗
+        function showRiskModal() {
+            if (!riskModalShown) {
+                document.getElementById('riskModal').classList.add('show');
+            }
+        }
+
+        // 关闭风险提示弹窗
+        function closeRiskModal() {
+            document.getElementById('riskModal').classList.remove('show');
+            riskModalShown = true;
+            // 保存到本地存储，避免重复显示
+            localStorage.setItem('riskModalShown', 'true');
+        }
+
+        // 检查是否需要显示风险提示
+        function checkRiskModal() {
+            const hasShown = localStorage.getItem('riskModalShown');
+            if (!hasShown) {
+                setTimeout(() => {
+                    showRiskModal();
+                }, 500); // 延迟500ms显示，让用户先看到主页
+            }
+        }
 
         // 显示Toast
         function showToast(message, type = 'info') {
@@ -1406,6 +1610,7 @@
             document.getElementById('homePage').style.display = 'block';
             
             loadHoldings();
+            checkRiskModal(); // 检查并显示风险提示
             showToast('登录成功！', 'success');
         }
 
@@ -1765,6 +1970,11 @@
                 }
             }
         }
+
+        // 点击风险提示弹窗外部关闭
+        document.getElementById('riskModal').addEventListener('click', function(e) {
+            if (e.target === this) closeRiskModal();
+        });
 
         // 点击模态框外部关闭
         document.getElementById('addModal').addEventListener('click', function(e) {

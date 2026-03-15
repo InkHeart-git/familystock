@@ -13,7 +13,7 @@ import json
 import os
 import sqlite3
 
-router = APIRouter(prefix="/api/ai", tags=["AI分析"])
+router = APIRouter(prefix="/ai", tags=["AI分析"])
 
 # DeepSeek API配置
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
@@ -62,8 +62,14 @@ def get_related_news_from_db(symbol: str, name: str, limit: int = 3) -> List[dic
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [row[0] for row in cursor.fetchall()]
             
-            if 'news' in tables or 'articles' in tables:
-                table_name = 'news' if 'news' in tables else 'articles'
+            # 检测新闻表名 (支持: news, articles, news_articles)
+            table_name = None
+            for t in ['news_articles', 'news', 'articles']:
+                if t in tables:
+                    table_name = t
+                    break
+            
+            if table_name:
                 
                 # 搜索相关新闻 (按股票名称或代码匹配)
                 query = f"""

@@ -39,11 +39,12 @@
 </head>
 <body class="pb-20">
   <!-- 顶部 -->
-  <div class="gradient-header text-white px-5 pt-12 pb-8 rounded-b-3xl">
-    <div class="flex items-center justify-between mb-6">
-      <button onclick="history.back()" class="text-white/80 hover:text-white">
-        <i class="fas fa-chevron-left text-xl"></i>
-      </button>
+  <div class="gradient-header text-white px-5 pt-12 pb-6 rounded-b-3xl">
+    <div class="flex items-center justify-between mb-4">
+      <a href="/minirock-auth.html" class="text-white/80 hover:text-white flex items-center gap-1">
+        <i class="fas fa-home text-lg"></i>
+        <span class="text-sm">首页</span>
+      </a>
       <span class="text-lg font-semibold">组合分析</span>
       <button onclick="refreshAnalysis()" class="text-white/80 hover:text-white">
         <i class="fas fa-sync-alt" id="refreshIcon"></i>
@@ -57,18 +58,18 @@
       </div>
       <div class="health-ring">
         <span class="text-2xl font-bold" id="portfolioHealth">--</span>
-        <span class="text-xs">健康度</div>
+        <span class="text-xs">健康度</span>
       </div>
     </div>
     
-    <div class="flex items-center gap-4 mt-4">
-      <div class="flex-1">
+    <div class="flex items-center gap-6 mt-4">
+      <div>
         <div class="text-sm opacity-80">总盈亏</div>
-        <div class="text-lg font-semibold" id="totalProfit">--</div>
+        <div class="text-lg font-semibold mt-1" id="totalProfit">--</div>
       </div>
-      <div class="flex-1">
+      <div>
         <div class="text-sm opacity-80">收益率</div>
-        <div class="text-lg font-semibold" id="profitPercent">--</div>
+        <div class="text-lg font-semibold mt-1" id="profitPercent">--</div>
       </div>
     </div>
   </div>
@@ -166,7 +167,7 @@
   </div>
 
   <script>
-    const API_CONFIG = { baseURL: 'http://43.160.193.165:8006', timeout: 10000 };
+    const API_CONFIG = { baseURL: '/api', timeout: 10000 };
 
     document.addEventListener('DOMContentLoaded', () => {
       loadPortfolioAnalysis();
@@ -186,7 +187,7 @@
         document.getElementById('contentState').classList.add('hidden');
 
         // 1. 获取持仓数据
-        const holdingsRes = await fetch(`${API_CONFIG.baseURL}/api/portfolio/holdings?user_id=demo_user`);
+        const holdingsRes = await fetch(`${API_CONFIG.baseURL}/portfolio/holdings?user_id=demo_user`);
         const holdingsData = await holdingsRes.json();
 
         // 2. 更新顶部统计
@@ -305,7 +306,7 @@
         document.getElementById('aiLoading').classList.remove('hidden');
         document.getElementById('aiContent').classList.add('hidden');
 
-        const response = await fetch(`${API_CONFIG.baseURL}/api/ai/analyze-portfolio`, {
+        const response = await fetch(`${API_CONFIG.baseURL}/ai/analyze-portfolio`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

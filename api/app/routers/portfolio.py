@@ -12,7 +12,7 @@ import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-router = APIRouter(prefix="/api/portfolio", tags=["持仓管理"])
+router = APIRouter(prefix="/portfolio", tags=["持仓管理"])
 
 # Tushare配置
 TUSHARE_TOKEN = "f4ba795df2475484a98087c15dc0fe5050c7197a9358d7edc044b735"
@@ -39,7 +39,9 @@ class HoldingRequest(BaseModel):
 def get_db_connection():
     """获取数据库连接"""
     try:
-        return psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**DB_CONFIG)
+        conn.set_client_encoding('UTF8')
+        return conn
     except Exception as e:
         print(f"数据库连接失败: {e}")
         return None
@@ -53,11 +55,17 @@ def ensure_user_exists(conn, user_id):
     """确保用户存在"""
     try:
         with conn.cursor() as cur:
+            # 先检查用户是否存在
+            cur.execute("SELECT id FROM users WHERE user_id = %s OR phone = %s", (user_id, user_id))
+            if cur.fetchone():
+                return  # 用户已存在
+            
+            # 插入新用户（提供所有必需的列）
             cur.execute("""
-                INSERT INTO users (user_id, name) 
-                VALUES (%s, %s) 
+                INSERT INTO users (user_id, name, phone, password_hash) 
+                VALUES (%s, %s, %s, %s) 
                 ON CONFLICT DO NOTHING
-            """, (user_id, '投资者'))
+            """, (user_id, '投资者', user_id, 'temp_hash'))
             conn.commit()
     except:
         conn.rollback()
@@ -145,7 +153,7 @@ async def get_holdings(user_id: str = Query(default="demo_user", description="�
                 
                 cur.execute("""
                     INSERT INTO users (user_id, name) VALUES (%s, %s) ON CONFLICT DO NOTHING
-                """, (user_id, '测试用户'))
+                """, (user_id, '投资者'))
                 
                 # 插入初始数据（如果没有）
                 cur.execute("""

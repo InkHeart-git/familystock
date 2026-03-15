@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>灵犀 - 个股诊断</title>
+  <title>ministone - 个股诊断</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -42,10 +42,10 @@
   <div class="max-w-md mx-auto bg-white min-h-screen pb-20">
     <!-- 顶部导航 -->
     <div class="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10">
-      <button onclick="history.back()" class="flex items-center gap-1 text-gray-500 hover:text-gray-700">
-        <i class="fas fa-chevron-left"></i>
-        <span>返回</span>
-      </button>
+      <a href="/minirock-auth.html" class="flex items-center gap-1 text-gray-500 hover:text-gray-700" style="text-decoration: none;">
+        <i class="fas fa-home"></i>
+        <span>首页</span>
+      </a>
       <div class="text-center">
         <span class="font-semibold text-lg block" id="stockName">加载中...</span>
         <span class="text-gray-400 text-sm" id="stockCode"></span>
@@ -179,7 +179,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     const stockCode = urlParams.get('code') || '600519';
     
-    const API_CONFIG = { baseURL: 'http://43.160.193.165:8006', timeout: 10000 };
+    const API_CONFIG = { baseURL: '/api', timeout: 10000 };
     
     // 全局存储股票数据
     let stockData = {};
@@ -198,53 +198,77 @@
       });
     }
 
-    // 加载股票详情
+    // 加载股票详情 - 使用方舟提供的新API
     async function loadStockDetail(code) {
       try {
+        console.log('[DEBUG] 开始加载股票详情:', code);
         document.getElementById('loadingState').classList.remove('hidden');
         document.getElementById('contentState').classList.add('hidden');
         
-        // 1. 获取持仓信息
-        const holdingsRes = await fetch(`${API_CONFIG.baseURL}/api/portfolio/holdings?user_id=demo_user`);
-        const holdingsData = await holdingsRes.json();
-        const holding = holdingsData.holdings.find(h => h.symbol === code);
+        // 1. 获取股票基础信息、财务指标、行情（新API）
+        const apiUrl = `${API_CONFIG.baseURL}/stock/basic/${code}`;
+        console.log('[DEBUG] 请求API:', apiUrl);
+        const basicRes = await fetch(apiUrl);
+        console.log('[DEBUG] API响应状态:', basicRes.status);
+        if (!basicRes.ok) throw new Error('获取股票信息失败');
+        const basicData = await basicRes.json();
+        console.log('[DEBUG] API返回数据:', basicData);
         
-        // 2. 获取实时行情
-        const suffix = code.startsWith('6') ? '.SH' : '.SZ';
-        const quoteRes = await fetch(`${API_CONFIG.baseURL}/quote/${code}${suffix}`);
-        const quote = await quoteRes.json();
-        
-        // 3. 获取股票名称
-        const stockInfo = await fetchStockInfo(code);
+        // 2. 获取持仓信息（如果有）
+        let holding = null;
+        try {
+          const holdingsRes = await fetch(`${API_CONFIG.baseURL}/portfolio/holdings`, {
+            headers: getAuthHeaders()
+          });
+          if (holdingsRes.ok) {
+            const holdingsData = await holdingsRes.json();
+            holding = holdingsData.holdings?.find(h => h.symbol === code) || null;
+          }
+        } catch (e) {
+          console.log('持仓信息获取失败:', e);
+        }
         
         // 存储数据
         stockData = {
           code,
-          name: stockInfo.name,
-          price: quote.close,
-          change: quote.change,
-          changePercent: quote.pct_chg,
-          holding: holding || null
+          name: basicData.basic_info?.name || code,
+          price: basicData.quote_info?.close || 0,
+          change: basicData.quote_info?.change || 0,
+          changePercent: basicData.quote_info?.pct_chg || 0,
+          holding: holding,
+          basicInfo: basicData.basic_info,
+          financeInfo: basicData.finance_info,
+          quoteInfo: basicData.quote_info
         };
+        console.log('[DEBUG] 存储的stockData:', stockData);
         
         // 更新页面
+        console.log('[DEBUG] 开始更新页面显示');
         updateStockDisplay(stockData);
         
         // 显示内容
+        console.log('[DEBUG] 显示内容区域');
         document.getElementById('loadingState').classList.add('hidden');
         document.getElementById('contentState').classList.remove('hidden');
+        console.log('[DEBUG] 页面显示完成');
         
-        // 4. 加载AI分析
+        // 3. 加载AI分析
         loadAIAnalysis(stockData);
         
-        // 5. 加载情景推演
+        // 4. 加载情景推演
         loadScenario(stockData);
         
-        // 6. 加载新闻
-        loadNews(stockData);
+        // 5. 加载新闻（使用新API）
+        loadNewsV2(stockData);
         
-        // 7. 渲染事件
-        renderEvents(stockInfo.name);
+        // 6. 加载财务历史（使用新API）
+        loadFinanceHistory(stockData);
+        
+        // 7. 加载资金面信息（使用新API）
+        loadCapitalInfo(stockData);
+        
+        // 8. 渲染事件
+        renderEvents(stockData.name);
         
       } catch (error) {
         console.error('加载失败:', error);
@@ -259,6 +283,16 @@
           </div>
         `;
       }
+    }
+    
+    // 获取认证头
+    function getAuthHeaders() {
+      const token = localStorage.getItem('auth_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      return headers;
     }
 
     // 更新股票显示
@@ -301,13 +335,17 @@
       }
     }
 
-    // 加载AI分析
+    // 加载AI分析 - 带超时和错误处理
     async function loadAIAnalysis(data) {
       try {
         document.getElementById('aiLoading').classList.remove('hidden');
         document.getElementById('aiContent').classList.add('hidden');
         
-        const response = await fetch(`${API_CONFIG.baseURL}/api/ai/analyze-stock`, {
+        // 10秒超时
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch(`${API_CONFIG.baseURL}/ai/analyze-stock`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -318,12 +356,19 @@
             quantity: data.holding ? data.holding.quantity : 0,
             change_percent: data.changePercent,
             profit_percent: data.holding ? data.holding.profit_percent : 0
-          })
+          }),
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`API错误: ${response.status}`);
+        }
         
         const result = await response.json();
         
-        document.getElementById('aiAnalysis').textContent = result.analysis;
+        document.getElementById('aiAnalysis').textContent = result.analysis || '暂无分析数据';
         document.getElementById('aiSource').textContent = result.source === 'AI' ? 'AI生成' : '模拟数据';
         
         // 风险等级
@@ -343,18 +388,38 @@
         
       } catch (error) {
         console.error('AI分析失败:', error);
-        document.getElementById('aiAnalysis').textContent = 'AI分析暂时不可用，请稍后重试。';
+        // 显示友好的错误信息
+        document.getElementById('aiAnalysis').textContent = 'AI分析服务暂时繁忙，请稍后重试。您可以直接联系客服获取专业分析建议。';
         document.getElementById('aiRiskLevel').textContent = '未知';
-        document.getElementById('aiSource').textContent = '错误';
+        document.getElementById('aiRiskLevel').className = 'px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600';
+        document.getElementById('aiSource').textContent = '服务繁忙';
         document.getElementById('aiLoading').classList.add('hidden');
         document.getElementById('aiContent').classList.remove('hidden');
       }
     }
 
-    // 加载情景推演
+    // 加载情景推演 - 带超时和错误处理
     async function loadScenario(data) {
       try {
-        const response = await fetch(`${API_CONFIG.baseURL}/api/ai/scenario/${data.code}?name=${encodeURIComponent(data.name)}&current_price=${data.price}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        
+        // 修正URL参数传递
+        const params = new URLSearchParams({
+          name: data.name,
+          current_price: data.price.toString()
+        });
+        
+        const response = await fetch(`${API_CONFIG.baseURL}/ai/scenario/${data.code}?${params.toString()}`, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`API错误: ${response.status}`);
+        }
+        
         const result = await response.json();
         
         const scenarioList = document.getElementById('scenarioList');
@@ -368,6 +433,7 @@
           const s = scenarios[key];
           if (!s) return;
           
+          const projectedPrice = data.price * (1 + s.change_percent / 100);
           const changeClass = s.change_percent >= 0 ? 'text-red-500' : 'text-green-500';
           const changeSign = s.change_percent >= 0 ? '+' : '';
           
@@ -379,7 +445,7 @@
               </div>
               <div class="flex justify-between items-center text-sm">
                 <span class="text-gray-600">预期价格</span>
-                <span class="font-bold">¥${s.projected_price.toFixed(2)}</span>
+                <span class="font-bold">¥${projectedPrice.toFixed(2)}</span>
               </div>
               <p class="text-gray-500 text-xs mt-2">${s.description}</p>
             </div>
@@ -389,13 +455,121 @@
         document.getElementById('scenarioSection').classList.remove('hidden');
       } catch (error) {
         console.error('情景推演加载失败:', error);
+        // 显示友好的错误提示
+        document.getElementById('scenarioList').innerHTML = `
+          <div class="text-center py-8 text-gray-400">
+            <i class="fas fa-chart-area text-4xl mb-3 block"></i>
+            <p>情景推演服务暂时不可用</p>
+            <p class="text-sm mt-2">请稍后刷新重试</p>
+          </div>
+        `;
+        document.getElementById('scenarioSection').classList.remove('hidden');
       }
     }
 
-    // 加载新闻
-    async function loadNews(data) {
+    // 加载新闻V2 - 使用方舟的新API
+    async function loadNewsV2(data) {
       try {
-        const response = await fetch(`${API_CONFIG.baseURL}/api/ai/news-related/${data.code}?name=${encodeURIComponent(data.name)}&limit=5`);
+        const response = await fetch(`${API_CONFIG.baseURL}/stock/news/${data.code}?limit=5`);
+        if (!response.ok) throw new Error('获取新闻失败');
+        const result = await response.json();
+        
+        const newsList = document.getElementById('newsList');
+        newsList.innerHTML = '';
+        
+        // 合并公告和新闻
+        const allNews = [
+          ...(result.announcements || []).map(a => ({
+            title: a.title,
+            summary: a.content?.substring(0, 100) + '...',
+            source: a.type || '公告',
+            published_at: a.ann_date,
+            sentiment: 'neutral',
+            type: 'announcement'
+          })),
+          ...(result.news || []).map(n => ({
+            title: n.title,
+            summary: n.content?.substring(0, 100) + '...',
+            source: n.source,
+            published_at: n.published_at,
+            sentiment: 'neutral',
+            type: 'news'
+          }))
+        ].slice(0, 5);
+        
+        if (allNews.length === 0) {
+          newsList.innerHTML = `
+            <div class="text-center py-8 text-gray-400">
+              <i class="far fa-newspaper text-4xl mb-3"></i>
+              <p>暂无相关新闻</p>
+            </div>
+          `;
+          return;
+        }
+        
+        allNews.forEach(item => {
+          const sentimentClass = item.sentiment === 'positive' ? 'positive' : 
+                                item.sentiment === 'negative' ? 'negative' : 'neutral';
+          const icon = item.type === 'announcement' ? '📋' : '📰';
+          
+          newsList.innerHTML += `
+            <div class="news-item ${sentimentClass} cursor-pointer hover:shadow-md transition">
+              <div class="flex justify-between items-start mb-2">
+                <span class="font-medium text-sm line-clamp-2">${icon} ${item.title}</span>
+              </div>
+              <p class="text-gray-600 text-xs line-clamp-2 mb-2">${item.summary || ''}</p>
+              <div class="flex justify-between items-center text-xs text-gray-400">
+                <span>${item.source}</span>
+                <span>${new Date(item.published_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+          `;
+        });
+      } catch (error) {
+        console.error('新闻加载失败:', error);
+        // 降级到旧API
+        loadNews(data);
+      }
+    }
+    
+    // 加载财务历史 - 使用方舟的新API
+    async function loadFinanceHistory(data) {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/stock/finance/${data.code}?limit=4`);
+        if (!response.ok) throw new Error('获取财务数据失败');
+        const result = await response.json();
+        
+        // 可以在这里添加财务历史图表或表格展示
+        console.log('财务历史:', result.finance_history);
+        
+      } catch (error) {
+        console.error('财务历史加载失败:', error);
+      }
+    }
+    
+    // 加载资金面信息 - 使用方舟的新API
+    async function loadCapitalInfo(data) {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/stock/capital/${data.code}`);
+        if (!response.ok) throw new Error('获取资金面数据失败');
+        const result = await response.json();
+        
+        console.log('资金面信息:', {
+          hsgt: result.hsgt_hold,
+          topList: result.top_list
+        });
+        
+        // 可以在这里添加北向资金和龙虎榜展示
+        if (result.hsgt_hold) {
+          console.log(`北向资金持股: ${result.hsgt_hold.hold_ratio}%`);
+        }
+        
+      } catch (error) {
+        console.error('资金面信息加载失败:', error);
+      }
+    }
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/ai/news-related/${data.code}?name=${encodeURIComponent(data.name)}&limit=5`);
         const result = await response.json();
         
         const newsList = document.getElementById('newsList');
@@ -476,13 +650,43 @@
       `).join('');
     }
 
-    // 按钮功能
+    // 按钮功能 - 增强版
     function showDetailReport() {
-      alert('详细AI分析报告功能开发中...');
+      // 创建模态框显示详细报告
+      const modal = document.createElement('div');
+      modal.id = 'detailReportModal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:1000;padding:20px;';
+      
+      const stockName = document.querySelector('h1').textContent;
+      const stockCode = document.querySelector('.text-gray-500').textContent;
+      const aiReport = document.getElementById('aiReportContent').textContent;
+      const riskLevel = document.getElementById('aiRiskLevel').textContent;
+      
+      modal.innerHTML = '<div style="background:white;border-radius:16px;max-width:600px;width:100%;max-height:80vh;overflow-y:auto;padding:24px;position:relative;animation:slideIn 0.3s ease;"><button onclick="closeDetailReport()" style="position:absolute;top:16px;right:16px;background:#f3f4f6;border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;">×</button><h2 style="margin:0 0 8px 0;color:#1f2937;font-size:20px;">📊 ' + stockName + ' ' + stockCode + ' - AI详细分析报告</h2><div style="margin-bottom:16px;"><span style="background:' + (riskLevel.includes('高') ? '#fee2e2;color:#dc2626' : riskLevel.includes('中') ? '#fef3c7;color:#d97706' : '#d1fae5;color:#059669') + ';padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;">' + riskLevel + '</span></div><div style="background:#f8fafc;border-radius:12px;padding:16px;margin-bottom:16px;line-height:1.8;color:#374151;font-size:14px;white-space:pre-wrap;">' + aiReport + '</div><div style="background:linear-gradient(135deg,#1e5f8e 0%,#164a6e 100%);border-radius:12px;padding:16px;color:white;"><div style="font-weight:600;margin-bottom:8px;">⚠️ 风险提示</div><div style="font-size:13px;opacity:0.9;">本报告由AI基于模拟数据生成，仅供参考，不构成投资建议。投资有风险，入市需谨慎。</div></div><button onclick="closeDetailReport()" style="width:100%;margin-top:16px;padding:12px;background:#3b82f6;color:white;border:none;border-radius:8px;font-weight:500;cursor:pointer;">关闭报告</button></div><style>@keyframes slideIn {from {transform:translateY(50px);opacity:0;}to {transform:translateY(0);opacity:1;}}</style>';
+      
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeDetailReport(); });
+    }
+    
+    function closeDetailReport() {
+      const modal = document.getElementById('detailReportModal');
+      if (modal) modal.remove();
     }
     
     function showScenario() {
-      document.getElementById('scenarioSection').scrollIntoView({ behavior: 'smooth' });
+      const section = document.getElementById('scenarioSection');
+      section.classList.remove('hidden');
+      section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // 添加高亮动画效果
+      section.style.transition = 'all 0.5s ease';
+      section.style.boxShadow = '0 0 20px rgba(59, 130, 246, 0.5)';
+      section.style.transform = 'scale(1.02)';
+      
+      setTimeout(() => {
+        section.style.boxShadow = 'none';
+        section.style.transform = 'scale(1)';
+      }, 1500);
     }
     
     function toggleFollow() {
