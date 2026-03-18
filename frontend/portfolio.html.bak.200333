@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ministone</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="stock_database.js"></script>
+  <script src="minirock-api.js"></script>
+  <script>
+    // 全局免责声明关闭函数 - 必须在页面加载前定义
+    function closeDisclaimer() {
+      var modal = document.getElementById("disclaimerModal");
+      if (modal) modal.classList.remove("active");
+      localStorage.setItem("disclaimerAgreed", "true");
+    }
+  </script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --primary: #1E5F8E;
+      --primary-dark: #164A6E;
+      --primary-light: #4A8FBF;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --text-primary: #1F2937;
+      --text-secondary: #6B7280;
+      --text-muted: #9CA3AF;
+      --bg-page: #F8FAFC;
+      --bg-card: #FFFFFF;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", "Inter", sans-serif;
+      background: var(--bg-page);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+    
+    .page-container {
+      max-width: 768px;
+      margin: 0 auto;
+      min-height: 100vh;
+      position: relative;
+    }
+    
+    /* 免责声明弹窗 */
+    .disclaimer-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+    
+    .disclaimer-modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .disclaimer-content {
+      background: white;
+      border-radius: 20px;
+      padding: 32px 28px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      transform: scale(0.9) translateY(20px);
+      transition: all 0.3s ease;
+    }
+    
+    .disclaimer-modal.active .disclaimer-content {
+      transform: scale(1) translateY(0);
+    }
+    
+    .disclaimer-icon {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+    
+    .disclaimer-icon svg {
+      width: 32px;
+      height: 32px;
+      color: #D97706;
+    }
+    
+    .disclaimer-title {
+      font-size: 20px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+    
+    .disclaimer-text {
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    
+    .disclaimer-text strong {
+      color: var(--danger);
+      font-weight: 600;
+    }
+    
+    .disclaimer-btn {
+      width: 100%;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #1E5F8E 0%, #164A6E 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .disclaimer-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(30, 95, 142, 0.3);
+    }
+    
+    .disclaimer-footer {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    
+    /* 投资模拟游戏入口 */
+    .game-entry-section {
+      padding: 0 20px;
+      margin-bottom: 20px;
+    }
+    
+    .game-entry-card {
+      background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+      border-radius: 16px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .game-entry-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 150px;
+      height: 150px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+    }
+    
+    .game-entry-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+    
+    .game-icon {
+      width: 56px;
+      height: 56px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    
+    .game-icon svg {
+      width: 28px;
+      height: 28px;
+      color: white;
+    }
+    
+    .game-info {
+      flex: 1;
+      color: white;
+    }
+    
+    .game-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .game-badge {
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.25);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    
+    .game-desc {
+      font-size: 13px;
+      opacity: 0.9;
+      line-height: 1.4;
+    }
+    
+    .game-arrow {
+      width: 36px;
+      height: 36px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    
+    .game-arrow svg {
+      width: 20px;
+      height: 20px;
+      color: white;
+    }
+    
+    .game-entry-card:hover .game-arrow {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateX(4px);
+    }
+    
+    /* 顶部蓝色区域 */
+    .home-header {
+      background: linear-gradient(135deg, #1E5F8E 0%, #164A6E 100%);
+      padding: 20px 24px 32px;
+      color: white;
+      border-radius: 0 0 24px 24px;
+      margin-bottom: 16px;
+    }
+    
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    
+    .app-title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    
+    .nav-actions {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    
+    .nav-icon {
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      opacity: 0.9;
+      transition: opacity 0.2s;
+    }
+    
+    .nav-icon:hover {
+      opacity: 1;
+    }
+    
+    .alert-dot {
+      position: relative;
+    }
+    
+    .alert-dot::after {
+      content: '';
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      width: 8px;
+      height: 8px;
+      background: #EF4444;
+      border-radius: 50%;
+      border: 2px solid #1E5F8E;
+    }
+    
+    /* 健康度区域 */
+    .health-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .health-score-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    
+    .health-ring {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 8px solid rgba(255,255,255,0.2);
+      border-top-color: #10B981;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    
+    .health-ring::before {
+      content: '';
+      position: absolute;
+      width: 104px;
+      height: 104px;
+      border-radius: 50%;
+      border: 4px solid #10B981;
+      clip-path: polygon(0 0, 100% 0, 100% 78%, 0 78%);
+    }
+    
+    .health-score-value {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    
+    .health-score-label {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-top: 4px;
+    }
+    
+    .quick-actions {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      justify-content: center;
+    }
+    
+    .quick-action-btn {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex: 1;
+      max-width: 160px;
+      justify-content: center;
+    }
+    
+    .quick-action-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    
+    /* 搜索栏 */
+    .search-section {
+      padding: 0 20px;
+      margin-bottom: 20px;
+    }
+    
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: white;
+      border-radius: 12px;
+      padding: 12px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border: 2px solid transparent;
+      transition: border-color 0.2s;
+    }
+    
+    .search-box:focus-within {
+      border-color: var(--primary-light);
+    }
+    
+    .search-box input {
+      flex: 1;
+      border: none;
+      background: none;
+      font-size: 16px;
+      color: var(--text-primary);
+      outline: none;
+      margin-left: 12px;
+    }
+    
+    .search-box input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    /* 搜索结果 */
+    .search-results {
+      position: absolute;
+      top: 100%;
+      left: 20px;
+      right: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+    }
+    
+    .search-results.active {
+      display: block;
+    }
+    
+    .search-result-item {
+      padding: 16px 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #F1F5F9;
+      transition: background 0.2s;
+    }
+    
+    .search-result-item:hover {
+      background: #F8FAFC;
+    }
+    
+    .search-result-item:last-child {
+      border-bottom: none;
+    }
+    
+    /* 内容区域 */
+    .content-section {
+      padding: 0 20px;
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-primary);
+    }
+    
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, #E5E7EB 0%, transparent 100%);
+      margin-left: 12px;
+    }
+    
+    /* 持仓列表 */
+    .stock-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .stock-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .stock-item:hover {
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+    
+    .stock-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .stock-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .stock-code {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .stock-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .stock-price {
+      text-align: right;
+    }
+    
+    .price-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .price-change {
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .price-change.up {
+      color: var(--danger);
+    }
+    
+    .price-change.down {
+      color: var(--success);
+    }
+    
+    .stock-health {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .health-badge {
+      width: 44px;
+      height: 22px;
+      border-radius: 11px;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .health-badge.good {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+    }
+    
+    .health-badge.warning {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--warning);
+    }
+    
+    .health-badge.danger {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+    
+    .btn-ai {
+      background: var(--primary);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .btn-ai:hover {
+      background: var(--primary-dark);
+    }
+    
+    .btn-delete {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    
+    .btn-delete:hover {
+      opacity: 1;
+    }
+    
+    /* 加载状态 */
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+    }
+    
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #E5E7EB;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* 空状态 */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+    
+    /* 底部留白 */
+    .bottom-spacer {
+      height: 40px;
+    }
+    
+    /* Toast 提示 */
+    .toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #1F2937;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 1000;
+    }
+    
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <!-- 免责声明弹窗 -->
+  <div class="disclaimer-modal active" id="disclaimerModal">
+    <div class="disclaimer-content">
+      <div class="disclaimer-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+      <h2 class="disclaimer-title">投资模拟游戏 · 风险提示</h2>
+      <p class="disclaimer-text">
+        本网站为<strong>投资模拟游戏</strong>，所有数据仅供娱乐和学习参考。<br><br>
+        请勿将游戏内容作为真实投资依据，因参考本网站信息而进行的投资决策所产生的后果，均由用户本人承担。
+      </p>
+      <button class="disclaimer-btn" onclick="closeDisclaimer()">
+        我已了解，进入游戏
+      </button>
+      <p class="disclaimer-footer">点击按钮即表示您同意本声明</p>
+    </div>
+  </div>
+
+  <div class="page-container">
+    <!-- 顶部蓝色区域 -->
+    <div class="home-header">
+      <div class="top-nav">
+        <span class="app-title">ministone</span>
+        <div class="nav-actions">
+          <i data-lucide="bell" class="nav-icon alert-dot"></i>
+          <i data-lucide="settings" class="nav-icon"></i>
+        </div>
+      </div>
+
+      <div class="health-section">
+        <div class="health-score-container">
+          <div class="health-ring">
+            <span class="health-score-value" id="portfolioScore">--</span>
+            <span class="health-score-label" id="portfolioLabel">计算中...</span>
+          </div>
+        </div>
+
+        <div class="quick-actions">
+          <button class="quick-action-btn" onclick="showAlerts()">
+            <i data-lucide="alert-triangle" style="width:16px;height:16px;"></i>
+            <span>今日关注: <span id="alertCount">0</span>个预警</span>
+          </button>
+          <button class="quick-action-btn" onclick="window.location.href='/portfolio-analysis.html'">
+            <i data-lucide="pie-chart" style="width:16px;height:16px;"></i>
+            <span>组合分析</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 搜索栏 -->
+    <div class="search-section" style="position:relative;">
+      <div class="search-box">
+        <i data-lucide="search" style="width:20px;height:20px;color:#9CA3AF;"></i>
+        <input type="text" id="searchInput" placeholder="搜索股票名称或代码..." autocomplete="off">
+      </div>
+      <div class="search-results" id="searchResults"></div>
+    </div>
+
+    <!-- 投资模拟游戏入口 -->
+    <div class="game-entry-section">
+      <div class="game-entry-card" onclick="enterInvestmentGame()">
+        <div class="game-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+        </div>
+        <div class="game-info">
+          <div class="game-title">
+            ministone 投资模拟
+            <span class="game-badge">模拟游戏</span>
+          </div>
+          <div class="game-desc">零风险体验投资乐趣，虚拟资金实战演练</div>
+        </div>
+        <div class="game-arrow">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- 持仓列表 -->
+    <div class="content-section">
+      <h2 class="section-title">
+        <i data-lucide="wallet" style="width:20px;height:20px;"></i>
+        我的持仓
+      </h2>
+
+      <div class="stock-list" id="stockList">
+        <div class="loading">
+          <div class="loading-spinner"></div>
+          <p>正在加载持仓数据...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部留白 -->
+    <div class="bottom-spacer"></div>
+  </div>
+
+  <!-- Toast 提示 -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ============================================
+    // MiniRock 新版主页 - 根据小七设计实现
+    // ============================================
+    
+    // API 配置
+    const API_CONFIG = {
+      baseURL: '/api',
+      timeout: 10000
+    };
+
+    // 模拟持仓数据（实际应从后端获取）
+    let portfolioData = [];
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      await loadPortfolio();
+      setupSearch();
+      
+      // 检查是否已经同意免责声明
+      if (localStorage.getItem('disclaimerAgreed') === 'true') {
+        closeDisclaimer();
+      }
+    });
+    
+    // 关闭免责声明弹窗
+    function closeDisclaimer() {
+      const modal = document.getElementById('disclaimerModal');
+      modal.classList.remove('active');
+      localStorage.setItem('disclaimerAgreed', 'true');
+    }
+    
+    // 进入投资模拟游戏
+    function enterInvestmentGame() {
+      showToast('投资模拟游戏开发中，敬请期待！');
+    }
+
+    // 加载持仓数据 - 使用MiniRockAPI
+    async function loadPortfolio() {
+      try {
+        const stockList = document.getElementById('stockList');
+        stockList.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>正在加载持仓数据...</p></div>';
+        
+        // 调用真实API获取持仓数据
+        const res = await MiniRockAPI.Portfolio.getHoldings();
+        console.log('Portfolio API response:', res);
+        
+        // 检查API返回状态
+        if (res.code !== 200) {
+          throw new Error(res.message || '加载持仓失败');
+        }
+        
+        // 获取实际数据
+        const holdings = res.data || [];
+        
+        // 更新组合健康度显示
+        document.getElementById('portfolioScore').textContent = holdings.length > 0 ? '80' : '--';
+        const label = holdings.length > 0 ? '整体良好' : '暂无数据';
+        document.getElementById('portfolioLabel').textContent = label;
+        
+        // 转换数据格式并渲染
+        portfolioData = holdings.map(h => ({
+          code: h.ts_code,
+          name: h.name,
+          shares: h.quantity,
+          avgPrice: h.cost
+        }));
+        
+        renderStockListFromAPI(holdings);
+        
+        // 加载预警数量
+        loadAlertCount();
+        
+      } catch (error) {
+        console.error('加载持仓失败:', error);
+        document.getElementById('stockList').innerHTML = `
+          <div class="empty-state">
+            <i data-lucide="alert-circle"></i>
+            <p>加载失败，请刷新重试</p>
+            <p style="font-size:12px;color:#9CA3AF;margin-top:8px;">${error.message}</p>
+          </div>
+        `;
+        lucide.createIcons();
+      }
+    }
+
+    // 从API数据渲染持仓列表
+    function renderStockListFromAPI(holdings) {
+      const stockList = document.getElementById('stockList');
+      
+      if (holdings.length === 0) {
+        stockList.innerHTML = `
+          <div class="empty-state">
+            <i data-lucide="inbox"></i>
+            <p>暂无持仓</p>
+            <p style="font-size:14px;margin-top:8px;">点击上方搜索添加股票</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+      
+      stockList.innerHTML = holdings.map(holding => {
+        const profitRate = holding.profit_rate || 0;
+        const changeClass = profitRate >= 0 ? 'up' : 'down';
+        const changeSign = profitRate >= 0 ? '+' : '';
+        const healthScore = profitRate >= 10 ? 90 : profitRate >= 0 ? 75 : profitRate >= -10 ? 50 : 30;
+        const healthClass = healthScore >= 80 ? 'good' : 
+                           healthScore >= 60 ? 'warning' : 'danger';
+        const healthText = healthScore >= 80 ? '良好' : 
+                          healthScore >= 60 ? '注意' : '风险';
+        
+        return `
+          <div class="stock-item" onclick="viewStockDetail('${holding.ts_code}')">
+            <div class="stock-info">
+              <span class="stock-name">${holding.name}</span>
+              <span class="stock-code">${holding.ts_code} · ${holding.quantity}股</span>
+            </div>
+
+            <div class="stock-meta">
+              <div class="stock-price">
+                <div class="price-value">¥${holding.current_price ? holding.current_price.toFixed(2) : '--'}</div>
+                <div class="price-change ${changeClass}">${changeSign}${profitRate.toFixed(2)}%</div>
+              </div>
+
+              <div class="stock-health">
+                <span class="health-badge ${healthClass}">${healthText}</span>
+                <button class="btn-ai" onclick="event.stopPropagation();analyzeStock('${holding.ts_code}')">AI诊断</button>
+                <button class="btn-delete" onclick="event.stopPropagation();deleteStock('${holding.ts_code}', '${holding.name}')" title="删除">🗑️</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      lucide.createIcons();
+    }
+
+    // 加载预警数量
+    async function loadAlertCount() {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/portfolio/alerts?user_id=demo_user`);
+        if (response.ok) {
+          const data = await response.json();
+          document.getElementById('alertCount').textContent = data.alert_count || 0;
+        }
+      } catch (error) {
+        console.error('加载预警失败:', error);
+      }
+    }
+
+    // 获取股票行情
+    async function fetchStockQuote(code) {
+      try {
+        // 先尝试从后端API获取
+        const response = await fetch(`${API_CONFIG.baseURL}/tushare/quote/${code}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            code,
+            price: data.close || data.price || 0,
+            change: data.change || 0,
+            changePercent: data.changePercent || 0
+          };
+        }
+        
+        // API失败返回模拟数据
+        return generateMockQuote(code);
+      } catch (error) {
+        console.warn(`获取${code}行情失败:`, error);
+        return generateMockQuote(code);
+      }
+    }
+
+    // 生成模拟行情
+    function generateMockQuote(code) {
+      const basePrices = {
+        '600519': 1680,
+        '300750': 198.5,
+        '000858': 145.2,
+        '002594': 268.8
+      };
+      
+      const basePrice = basePrices[code] || (Math.random() * 100 + 50);
+      const changePercent = (Math.random() - 0.5) * 6;
+      const change = basePrice * changePercent / 100;
+      
+      return {
+        code,
+        price: basePrice + change,
+        change,
+        changePercent
+      };
+    }
+
+    // 设置搜索功能
+    function setupSearch() {
+      const searchInput = document.getElementById('searchInput');
+      const searchResults = document.getElementById('searchResults');
+      
+      if (!searchInput || !searchResults) return;
+      
+      let debounceTimer;
+      
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        const query = e.target.value.trim();
+        
+        if (query.length === 0) {
+          searchResults.classList.remove('active');
+          return;
+        }
+        
+        debounceTimer = setTimeout(() => {
+          performSearch(query);
+        }, 300);
+      });
+      
+      // 点击外部关闭搜索结果
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+          searchResults.classList.remove('active');
+        }
+      });
+    }
+
+    // 执行搜索 - 使用MiniRockAPI
+    async function performSearch(query) {
+      const searchResults = document.getElementById('searchResults');
+      
+      try {
+        // 使用后端API搜索
+        const data = await MiniRockAPI.Stock.search(query, 10);
+        displaySearchResults(data.results || []);
+      } catch (error) {
+        console.warn('API搜索失败，使用本地搜索:', error);
+        searchLocalStocks(query);
+      }
+    }
+
+    // 本地股票搜索（备用）
+    function searchLocalStocks(query) {
+      if (!window.stockDatabase) {
+        displaySearchResults([]);
+        return;
+      }
+      
+      const results = window.stockDatabase.filter(stock => {
+        return stock.name.toLowerCase().includes(query.toLowerCase()) ||
+               stock.code.includes(query);
+      }).slice(0, 10);
+      
+      displaySearchResults(results);
+    }
+
+    // 显示搜索结果
+    function displaySearchResults(results) {
+      const searchResults = document.getElementById('searchResults');
+      
+      if (results.length === 0) {
+        searchResults.innerHTML = '<div style="padding: 20px; text-align: center; color: #9CA3AF;">未找到匹配的股票</div>';
+        searchResults.classList.add('active');
+        return;
+      }
+      
+      searchResults.innerHTML = results.map(stock => `
+        <div class="search-result-item" onclick="addStock('${stock.code}', '${stock.name}')">
+          <div>
+            <div style="font-weight: 600; color: #1F2937;">${stock.name}</div>
+            <div style="font-size: 12px; color: #9CA3AF;">${stock.code} · ${stock.industry || '股票'}</div>
+          </div>
+          <button class="btn-ai" style="flex-shrink: 0;">添加</button>
+        </div>
+      `).join('');
+      
+      searchResults.classList.add('active');
+    }
+
+    // 添加股票到持仓
+    async function addStock(code, name) {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/portfolio/holdings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: 'demo_user',
+            symbol: code,
+            name: name,
+            quantity: 100,
+            avg_cost: 0
+          })
+        });
+        
+        if (response.ok) {
+          showToast(`已添加 ${name} 到持仓`);
+          document.getElementById('searchResults').classList.remove('active');
+          document.getElementById('searchInput').value = '';
+          await loadPortfolio();
+        } else {
+          showToast('添加失败，请重试');
+        }
+      } catch (error) {
+        console.error('添加股票失败:', error);
+        showToast('添加失败，请检查网络');
+      }
+    }
+
+    // 删除股票
+    async function deleteStock(code, name) {
+      if (!confirm(`确定要删除 ${name} (${code}) 吗？`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/portfolio/holdings/${code}?user_id=demo_user`, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          showToast(`已删除 ${name}`);
+          await loadPortfolio();
+        } else {
+          showToast('删除失败，请重试');
+        }
+      } catch (error) {
+        console.error('删除股票失败:', error);
+        showToast('删除失败，请检查网络');
+      }
+    }
+
+    // AI诊断股票
+    async function analyzeStock(code) {
+      showToast(`正在分析 ${code}...`);
+      
+      try {
+        // 打开新页面进行AI分析
+        window.location.href = `/stock-detail.html?code=${code}`;
+      } catch (error) {
+        console.error('分析股票失败:', error);
+        showToast('分析失败，请重试');
+      }
+    }
+
+    // 查看股票详情
+    function viewStockDetail(code) {
+      window.location.href = `/stock-detail.html?code=${code}`;
+    }
+
+    // 显示预警
+    function showAlerts() {
+      showToast('今日预警功能开发中...');
+    }
+
+    // 显示Toast提示
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+
+    // 刷新数据（供外部调用）
+    window.refreshPortfolio = loadPortfolio;
+  </script>
+</body>
+</html>

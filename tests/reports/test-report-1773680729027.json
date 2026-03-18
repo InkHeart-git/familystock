@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-03-16T17:03:38.862Z",
+  "tests": [
+    {
+      "name": "用户注册",
+      "status": "FAIL",
+      "detail": "elementHandle.click: Timeout 30000ms exceeded.\nCall log:\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <p class=\"text-gray-600 text-sm leading-relaxed mb-6\">↵                股市有风险，入市需谨慎。本模拟平台仅供学习交流使用，不构成任何投…</p> from <div id=\"riskModal\" class=\"fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-5\">…</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <p class=\"text-gray-600 text-sm leading-relaxed mb-6\">↵                股市有风险，入市需谨慎。本模拟平台仅供学习交流使用，不构成任何投…</p> from <div id=\"riskModal\" class=\"fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-5\">…</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    58 × waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <p class=\"text-gray-600 text-sm leading-relaxed mb-6\">↵                股市有风险，入市需谨慎。本模拟平台仅供学习交流使用，不构成任何投…</p> from <div id=\"riskModal\" class=\"fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-5\">…</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n"
+    },
+    {
+      "name": "用户登录",
+      "status": "FAIL",
+      "detail": "elementHandle.click: Timeout 30000ms exceeded.\nCall log:\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <p class=\"text-gray-600 text-sm leading-relaxed mb-6\">↵                股市有风险，入市需谨慎。本模拟平台仅供学习交流使用，不构成任何投…</p> from <div id=\"riskModal\" class=\"fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-5\">…</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <p class=\"text-gray-600 text-sm leading-relaxed mb-6\">↵                股市有风险，入市需谨慎。本模拟平台仅供学习交流使用，不构成任何投…</p> from <div id=\"riskModal\" class=\"fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-5\">…</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    58 × waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <p class=\"text-gray-600 text-sm leading-relaxed mb-6\">↵                股市有风险，入市需谨慎。本模拟平台仅供学习交流使用，不构成任何投…</p> from <div id=\"riskModal\" class=\"fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-5\">…</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n"
+    },
+    {
+      "name": "首页加载",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "股票搜索(代码)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "添加持仓",
+      "status": "WARN",
+      "detail": "未检测到成功提示"
+    },
+    {
+      "name": "个股详情页",
+      "status": "FAIL",
+      "detail": "页面元素缺失"
+    },
+    {
+      "name": "组合分析页",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "自选股页面",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "中文名称搜索",
+      "status": "FAIL",
+      "detail": "搜索无结果"
+    },
+    {
+      "name": "AI 个股诊断",
+      "status": "PASS",
+      "detail": ""
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 4,
+    "warnings": 1
+  }
+}

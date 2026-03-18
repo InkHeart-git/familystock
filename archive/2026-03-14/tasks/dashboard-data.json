@@ -1,0 +1,7 @@
+{"tasks":[
+{"id":"TASK-001","title":"Tushare数据同步","agent":"玲珑 (04:30)","status":"done"},
+{"id":"TASK-002","title":"UI设计优化","agent":"方舟 (已分配)","status":"todo"},
+{"id":"TASK-003","title":"后端API开发","agent":"灵犀 (已分配)","status":"todo"},
+{"id":"TASK-004","title":"AI诊断修复","agent":"灵犀 (已分配)","status":"todo"},
+{"id":"TASK-001","title":"Tushare数据同步","agent":"5489只股票入库","status":"todo"},
+{"id":"TASK-005","title":"首页功能新增与风险提示","agent":"弹窗+游戏入口已上线","status":"todo"}],"updated":"2026-03-14T13:15:01+08:00"}

@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-03-16T16:59:14.505Z",
+  "tests": [
+    {
+      "name": "用户注册",
+      "status": "FAIL",
+      "detail": "Attempting to serialize unexpected value: ([x, y]) => {\n    window.mouseX = x;\n    window.mouseY = y;\n  }"
+    },
+    {
+      "name": "用户登录",
+      "status": "FAIL",
+      "detail": "Attempting to serialize unexpected value: ([x, y]) => {\n    window.mouseX = x;\n    window.mouseY = y;\n  }"
+    },
+    {
+      "name": "首页加载",
+      "status": "FAIL",
+      "detail": "Attempting to serialize unexpected value: ([amount]) => window.scrollBy(0, amount)"
+    },
+    {
+      "name": "股票搜索(代码)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "添加持仓",
+      "status": "FAIL",
+      "detail": "Attempting to serialize unexpected value: ([x, y]) => {\n    window.mouseX = x;\n    window.mouseY = y;\n  }"
+    },
+    {
+      "name": "个股详情页",
+      "status": "FAIL",
+      "detail": "Attempting to serialize unexpected value: ([amount]) => window.scrollBy(0, amount)"
+    },
+    {
+      "name": "组合分析页",
+      "status": "FAIL",
+      "detail": "Attempting to serialize unexpected value: ([amount]) => window.scrollBy(0, amount)"
+    },
+    {
+      "name": "自选股页面",
+      "status": "FAIL",
+      "detail": "Attempting to serialize unexpected value: ([amount]) => window.scrollBy(0, amount)"
+    },
+    {
+      "name": "中文名称搜索",
+      "status": "FAIL",
+      "detail": "Attempting to serialize unexpected value: ([x, y]) => {\n    window.mouseX = x;\n    window.mouseY = y;\n  }"
+    },
+    {
+      "name": "AI 个股诊断",
+      "status": "PASS",
+      "detail": ""
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 8,
+    "warnings": 0
+  }
+}

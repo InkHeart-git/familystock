@@ -1,0 +1,285 @@
+"""
+持仓管理API路由
+提供用户持仓的CRUD操作和实时行情查询
+"""
+
+from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+import requests
+import os
+
+class HoldingRequest(BaseModel):
+    symbol: str
+    name: str
+    quantity: int
+    avg_cost: float
+
+router = APIRouter(prefix="/api/portfolio", tags=["持仓管理"])
+
+# Tushare配置
+TUSHARE_TOKEN = "f4ba795df2475484a98087c15dc0fe5050c7197a9358d7edc044b735"
+TUSHARE_API_URL = "http://api.tushare.pro"
+
+# 模拟用户持仓数据（实际应从数据库读取）
+# 格式: {user_id: [{symbol, name, quantity, avg_cost, market}]}
+USER_PORTFOLIO = {
+    "demo_user": [
+        {"symbol": "600519", "name": "贵州茅台", "quantity": 10, "avg_cost": 1650.0, "market": "A股"},
+        {"symbol": "300750", "name": "宁德时代", "quantity": 50, "avg_cost": 200.0, "market": "A股"},
+        {"symbol": "002594", "name": "比亚迪", "quantity": 30, "avg_cost": 260.0, "market": "A股"}
+    ]
+}
+
+
+def get_tushare_quote(symbol: str):
+    """从Tushare获取实时行情"""
+    try:
+        # 格式化代码
+        if "." not in symbol:
+            if symbol.startswith("6"):
+                ts_code = f"{symbol}.SH"
+            else:
+                ts_code = f"{symbol}.SZ"
+        else:
+            ts_code = symbol
+        
+        payload = {
+            "api_name": "daily",
+            "token": TUSHARE_TOKEN,
+            "params": {
+                "ts_code": ts_code,
+                "limit": 1
+            }
+        }
+        
+        response = requests.post(TUSHARE_API_URL, json=payload, timeout=10)
+        result = response.json()
+        
+        if result.get("code") != 0 or not result.get("data", {}).get("items"):
+            return None
+        
+        fields = result["data"]["fields"]
+        item = result["data"]["items"][0]
+        data = dict(zip(fields, item))
+        
+        return {
+            "symbol": symbol,
+            "price": float(data.get("close", 0)),
+            "open": float(data.get("open", 0)),
+            "high": float(data.get("high", 0)),
+            "low": float(data.get("low", 0)),
+            "change": float(data.get("change", 0)),
+            "change_percent": float(data.get("pct_chg", 0)),
+            "volume": int(data.get("vol", 0)),
+            "amount": float(data.get("amount", 0)),
+            "updated_at": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"获取行情失败 {symbol}: {e}")
+        return None
+
+
+@router.get("/holdings")
+async def get_holdings(user_id: str = Query(default="demo_user", description="用户ID")):
+    """获取用户持仓列表（含实时行情）"""
+    holdings = USER_PORTFOLIO.get(user_id, [])
+    
+    if not holdings:
+        return {
+            "user_id": user_id,
+            "holdings": [],
+            "total_value": 0,
+            "total_cost": 0,
+            "total_profit": 0,
+            "total_profit_percent": 0,
+            "health_score": 0
+        }
+    
+    # 获取实时行情
+    enriched_holdings = []
+    total_value = 0
+    total_cost = 0
+    
+    for holding in holdings:
+        quote = get_tushare_quote(holding["symbol"])
+        
+        if quote:
+            current_price = quote["price"]
+            market_value = current_price * holding["quantity"]
+            cost_value = holding["avg_cost"] * holding["quantity"]
+            profit = market_value - cost_value
+            profit_percent = (profit / cost_value * 100) if cost_value > 0 else 0
+            
+            enriched_holding = {
+                **holding,
+                "current_price": current_price,
+                "market_value": round(market_value, 2),
+                "cost_value": round(cost_value, 2),
+                "profit": round(profit, 2),
+                "profit_percent": round(profit_percent, 2),
+                "change_percent": quote.get("change_percent", 0),
+                "health_score": calculate_health_score(profit_percent, quote.get("change_percent", 0))
+            }
+            
+            total_value += market_value
+            total_cost += cost_value
+        else:
+            # API失败时使用模拟数据
+            enriched_holding = {
+                **holding,
+                "current_price": holding["avg_cost"] * (1 + (hash(holding["symbol"]) % 10 - 5) / 100),
+                "market_value": holding["avg_cost"] * holding["quantity"],
+                "cost_value": holding["avg_cost"] * holding["quantity"],
+                "profit": 0,
+                "profit_percent": 0,
+                "change_percent": (hash(holding["symbol"]) % 10 - 5) / 10,
+                "health_score": 70,
+                "data_source": "mock"
+            }
+            total_value += enriched_holding["market_value"]
+            total_cost += enriched_holding["cost_value"]
+        
+        enriched_holdings.append(enriched_holding)
+    
+    total_profit = total_value - total_cost
+    total_profit_percent = (total_profit / total_cost * 100) if total_cost > 0 else 0
+    
+    # 计算组合健康度
+    health_score = calculate_portfolio_health(enriched_holdings)
+    
+    return {
+        "user_id": user_id,
+        "holdings": enriched_holdings,
+        "total_value": round(total_value, 2),
+        "total_cost": round(total_cost, 2),
+        "total_profit": round(total_profit, 2),
+        "total_profit_percent": round(total_profit_percent, 2),
+        "health_score": health_score,
+        "updated_at": datetime.now().isoformat()
+    }
+
+
+@router.post("/holdings")
+async def add_holding(
+    request: HoldingRequest,
+    user_id: str = Query(default="demo_user")
+):
+    """添加持仓"""
+    symbol = request.symbol
+    name = request.name
+    quantity = request.quantity
+    avg_cost = request.avg_cost
+    
+    if user_id not in USER_PORTFOLIO:
+        USER_PORTFOLIO[user_id] = []
+    
+    # 检查是否已存在
+    existing = next((h for h in USER_PORTFOLIO[user_id] if h["symbol"] == symbol), None)
+    
+    if existing:
+        # 更新持仓
+        total_qty = existing["quantity"] + quantity
+        total_cost_value = (existing["quantity"] * existing["avg_cost"]) + (quantity * avg_cost)
+        existing["quantity"] = total_qty
+        existing["avg_cost"] = round(total_cost_value / total_qty, 2)
+    else:
+        # 新增持仓
+        USER_PORTFOLIO[user_id].append({
+            "symbol": symbol,
+            "name": name,
+            "quantity": quantity,
+            "avg_cost": avg_cost,
+            "market": "A股"
+        })
+    
+    return {"success": True, "message": f"已添加 {name} 到持仓"}
+
+
+@router.delete("/holdings/{symbol}")
+async def remove_holding(symbol: str, user_id: str = Query(default="demo_user")):
+    """删除持仓"""
+    if user_id not in USER_PORTFOLIO:
+        raise HTTPException(status_code=404, detail="用户无持仓")
+    
+    original_len = len(USER_PORTFOLIO[user_id])
+    USER_PORTFOLIO[user_id] = [h for h in USER_PORTFOLIO[user_id] if h["symbol"] != symbol]
+    
+    if len(USER_PORTFOLIO[user_id]) == original_len:
+        raise HTTPException(status_code=404, detail="未找到该持仓")
+    
+    return {"success": True, "message": f"已删除股票 {symbol}"}
+
+
+@router.get("/alerts")
+async def get_alerts(user_id: str = Query(default="demo_user")):
+    """获取用户预警信息"""
+    # 模拟预警数据
+    alerts = [
+        {
+            "id": 1,
+            "symbol": "300750",
+            "name": "宁德时代",
+            "type": "profit_warning",
+            "severity": "medium",
+            "message": "持仓亏损超过5%，建议关注",
+            "created_at": datetime.now().isoformat()
+        },
+        {
+            "id": 2,
+            "symbol": "002594",
+            "name": "比亚迪",
+            "type": "price_alert",
+            "severity": "low",
+            "message": "股价接近近期高点",
+            "created_at": datetime.now().isoformat()
+        }
+    ]
+    
+    return {
+        "user_id": user_id,
+        "alert_count": len(alerts),
+        "alerts": alerts
+    }
+
+
+def calculate_health_score(profit_percent: float, change_percent: float) -> int:
+    """计算个股健康度分数"""
+    score = 70  # 基础分
+    
+    # 根据盈亏调整
+    if profit_percent > 10:
+        score += 15
+    elif profit_percent > 0:
+        score += 10
+    elif profit_percent > -5:
+        score -= 5
+    else:
+        score -= 15
+    
+    # 根据今日涨跌调整
+    if change_percent > 3:
+        score += 5
+    elif change_percent < -3:
+        score -= 5
+    
+    return max(0, min(100, score))
+
+
+def calculate_portfolio_health(holdings: list) -> int:
+    """计算组合整体健康度"""
+    if not holdings:
+        return 0
+    
+    total_score = sum(h.get("health_score", 70) for h in holdings)
+    avg_score = total_score / len(holdings)
+    
+    # 根据组合盈亏调整
+    total_profit = sum(h.get("profit", 0) for h in holdings)
+    if total_profit > 0:
+        avg_score += 5
+    elif total_profit < -1000:
+        avg_score -= 10
+    
+    return max(0, min(100, int(avg_score)))

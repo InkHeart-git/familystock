@@ -1,0 +1,331 @@
+"""
+个股详情页API
+包含基础信息、行情、资金面、基本面、资讯5个模块
+"""
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+import pymysql
+from datetime import datetime, timedelta
+
+router_stock_detail = APIRouter(prefix="/api/stock", tags=["个股详情"])
+
+# 数据库配置
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "familystock",
+    "password": "Familystock@2026",
+    "database": "familystock",
+    "charset": "utf8mb4"
+}
+
+def get_db_connection():
+    """获取数据库连接"""
+    try:
+        conn = pymysql.connect(**DB_CONFIG)
+        return conn
+    except Exception as e:
+        print(f"数据库连接失败: {e}")
+        raise HTTPException(status_code=500, detail="数据库连接失败")
+
+def format_ts_code(ts_code: str) -> str:
+    """格式化股票代码"""
+    if "." not in ts_code:
+        if ts_code.startswith("6"):
+            return f"{ts_code}.SH"
+        else:
+            return f"{ts_code}.SZ"
+    return ts_code
+
+@router_stock_detail.get("/basic/{ts_code}")
+async def get_stock_basic_info(ts_code: str):
+    """获取股票基础信息和财务指标"""
+    try:
+        ts_code = format_ts_code(ts_code)
+        conn = get_db_connection()
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        
+        # 获取基础信息
+        cursor.execute("""
+        SELECT * FROM stock_basic WHERE ts_code = %s LIMIT 1
+        """, (ts_code,))
+        basic_info = cursor.fetchone()
+        
+        if not basic_info:
+            # 尝试通过symbol查询
+            cursor.execute("""
+            SELECT * FROM stock_basic WHERE symbol = %s LIMIT 1
+            """, (ts_code.split(".")[0],))
+            basic_info = cursor.fetchone()
+            if not basic_info:
+                raise HTTPException(status_code=404, detail="股票不存在")
+            ts_code = basic_info["ts_code"]
+        
+        # 获取最新财务指标
+        cursor.execute("""
+        SELECT * FROM stock_finance_indicator 
+        WHERE ts_code = %s 
+        ORDER BY end_date DESC 
+        LIMIT 1
+        """, (ts_code,))
+        finance_info = cursor.fetchone()
+        
+        # 获取最新行情
+        cursor.execute("""
+        SELECT * FROM stock_daily 
+        WHERE ts_code = %s 
+        ORDER BY trade_date DESC 
+        LIMIT 1
+        """, (ts_code,))
+        quote_info = cursor.fetchone()
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "basic_info": {
+                "ts_code": basic_info.get("ts_code"),
+                "symbol": basic_info.get("symbol"),
+                "name": basic_info.get("name"),
+                "area": basic_info.get("area"),
+                "industry": basic_info.get("industry"),
+                "market": basic_info.get("market"),
+                "list_date": basic_info.get("list_date")
+            },
+            "finance_info": {
+                "pe": float(finance_info.get("pe", 0)) if finance_info and finance_info.get("pe") else 0,
+                "pb": float(finance_info.get("pb", 0)) if finance_info and finance_info.get("pb") else 0,
+                "roe": float(finance_info.get("roe", 0)) if finance_info and finance_info.get("roe") else 0,
+                "roa": float(finance_info.get("roa", 0)) if finance_info and finance_info.get("roa") else 0,
+                "gross_margin": float(finance_info.get("gross_margin", 0)) if finance_info and finance_info.get("gross_margin") else 0,
+                "net_margin": float(finance_info.get("net_margin", 0)) if finance_info and finance_info.get("net_margin") else 0,
+                "revenue_growth": float(finance_info.get("revenue_growth", 0)) if finance_info and finance_info.get("revenue_growth") else 0,
+                "profit_growth": float(finance_info.get("profit_growth", 0)) if finance_info and finance_info.get("profit_growth") else 0,
+                "debt_ratio": float(finance_info.get("debt_ratio", 0)) if finance_info and finance_info.get("debt_ratio") else 0,
+                "current_ratio": float(finance_info.get("current_ratio", 0)) if finance_info and finance_info.get("current_ratio") else 0,
+                "update_date": finance_info.get("end_date") if finance_info else None
+            } if finance_info else {},
+            "quote_info": {
+                "trade_date": quote_info.get("trade_date") if quote_info else None,
+                "open": float(quote_info.get("open", 0)) if quote_info and quote_info.get("open") else 0,
+                "high": float(quote_info.get("high", 0)) if quote_info and quote_info.get("high") else 0,
+                "low": float(quote_info.get("low", 0)) if quote_info and quote_info.get("low") else 0,
+                "close": float(quote_info.get("close", 0)) if quote_info and quote_info.get("close") else 0,
+                "pre_close": float(quote_info.get("pre_close", 0)) if quote_info and quote_info.get("pre_close") else 0,
+                "change": float(quote_info.get("change", 0)) if quote_info and quote_info.get("change") else 0,
+                "pct_chg": float(quote_info.get("pct_chg", 0)) if quote_info and quote_info.get("pct_chg") else 0,
+                "volume": float(quote_info.get("vol", 0)) if quote_info and quote_info.get("vol") else 0,
+                "amount": float(quote_info.get("amount", 0)) if quote_info and quote_info.get("amount") else 0
+            } if quote_info else {}
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取基础信息失败: {str(e)}")
+
+@router_stock_detail.get("/kline/{ts_code}")
+async def get_stock_kline(ts_code: str, period: str = Query("1m", description="时间周期：1m/3m/6m/12m")):
+    """获取股票K线数据"""
+    try:
+        ts_code = format_ts_code(ts_code)
+        
+        # 计算时间范围
+        days_map = {
+            "1m": 30,
+            "3m": 90,
+            "6m": 180,
+            "12m": 365
+        }
+        days = days_map.get(period, 30)
+        end_date = datetime.now().strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        
+        cursor.execute("""
+        SELECT trade_date, open, high, low, close, vol, amount
+        FROM stock_daily 
+        WHERE ts_code = %s AND trade_date >= %s AND trade_date <= %s
+        ORDER BY trade_date ASC
+        """, (ts_code, start_date, end_date))
+        
+        kline_data = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # 格式化返回
+        formatted_data = []
+        for item in kline_data:
+            formatted_data.append({
+                "date": item.get("trade_date"),
+                "open": float(item.get("open", 0)),
+                "high": float(item.get("high", 0)),
+                "low": float(item.get("low", 0)),
+                "close": float(item.get("close", 0)),
+                "volume": float(item.get("vol", 0)),
+                "amount": float(item.get("amount", 0))
+            })
+        
+        return {
+            "ts_code": ts_code,
+            "period": period,
+            "start_date": start_date,
+            "end_date": end_date,
+            "data": formatted_data,
+            "count": len(formatted_data)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取K线数据失败: {str(e)}")
+
+@router_stock_detail.get("/capital/{ts_code}")
+async def get_stock_capital_info(ts_code: str):
+    """获取资金面信息：北向资金、机构持仓、龙虎榜"""
+    try:
+        ts_code = format_ts_code(ts_code)
+        conn = get_db_connection()
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        
+        # 获取最新北向资金持仓
+        cursor.execute("""
+        SELECT * FROM stock_hsgt_hold 
+        WHERE ts_code = %s 
+        ORDER BY trade_date DESC 
+        LIMIT 1
+        """, (ts_code,))
+        hsgt_info = cursor.fetchone()
+        
+        # 获取最近30天龙虎榜数据
+        end_date = datetime.now().strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
+        cursor.execute("""
+        SELECT * FROM stock_top_list 
+        WHERE ts_code = %s AND trade_date >= %s AND trade_date <= %s
+        ORDER BY trade_date DESC
+        """, (ts_code, start_date, end_date))
+        top_list = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "hsgt_hold": {
+                "hold_amount": float(hsgt_info.get("hold_amount", 0)) if hsgt_info and hsgt_info.get("hold_amount") else 0,
+                "hold_ratio": float(hsgt_info.get("hold_ratio", 0)) if hsgt_info and hsgt_info.get("hold_ratio") else 0,
+                "trade_date": hsgt_info.get("trade_date") if hsgt_info else None
+            } if hsgt_info else {},
+            "top_list": [
+                {
+                    "trade_date": item.get("trade_date"),
+                    "name": item.get("name"),
+                    "close": float(item.get("close", 0)),
+                    "pct_change": float(item.get("pct_change", 0)),
+                    "turnover_rate": float(item.get("turnover_rate", 0)),
+                    "amount": float(item.get("amount", 0)),
+                    "buy_amount": float(item.get("buy_amount", 0)),
+                    "sell_amount": float(item.get("sell_amount", 0)),
+                    "net_amount": float(item.get("net_amount", 0)),
+                    "reason": item.get("reason")
+                } for item in top_list
+            ],
+            "top_list_count": len(top_list)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取资金面信息失败: {str(e)}")
+
+@router_stock_detail.get("/finance/{ts_code}")
+async def get_stock_finance_history(ts_code: str, limit: int = Query(4, description="获取最近几期财报")):
+    """获取历史财务数据"""
+    try:
+        ts_code = format_ts_code(ts_code)
+        conn = get_db_connection()
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        
+        cursor.execute("""
+        SELECT * FROM stock_finance_indicator 
+        WHERE ts_code = %s 
+        ORDER BY end_date DESC 
+        LIMIT %s
+        """, (ts_code, limit))
+        
+        finance_history = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        formatted_data = []
+        for item in finance_history:
+            formatted_data.append({
+                "end_date": item.get("end_date"),
+                "pe": float(item.get("pe", 0)) if item.get("pe") else 0,
+                "pb": float(item.get("pb", 0)) if item.get("pb") else 0,
+                "roe": float(item.get("roe", 0)) if item.get("roe") else 0,
+                "gross_margin": float(item.get("gross_margin", 0)) if item.get("gross_margin") else 0,
+                "net_margin": float(item.get("net_margin", 0)) if item.get("net_margin") else 0,
+                "revenue_growth": float(item.get("revenue_growth", 0)) if item.get("revenue_growth") else 0,
+                "profit_growth": float(item.get("profit_growth", 0)) if item.get("profit_growth") else 0
+            })
+        
+        return {
+            "ts_code": ts_code,
+            "finance_history": formatted_data,
+            "count": len(formatted_data)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取财务历史失败: {str(e)}")
+
+@router_stock_detail.get("/news/{ts_code}")
+async def get_stock_news(ts_code: str, limit: int = Query(20, description="返回条数")):
+    """获取股票相关新闻和公告"""
+    try:
+        ts_code = format_ts_code(ts_code)
+        symbol = ts_code.split(".")[0]
+        conn = get_db_connection()
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        
+        # 获取公司公告
+        cursor.execute("""
+        SELECT * FROM stock_announcement 
+        WHERE ts_code = %s 
+        ORDER BY ann_date DESC 
+        LIMIT %s
+        """, (ts_code, limit//2))
+        announcements = cursor.fetchall()
+        
+        # 获取相关新闻
+        cursor.execute("""
+        SELECT * FROM stock_news 
+        WHERE title LIKE %s OR content LIKE %s
+        ORDER BY published_at DESC 
+        LIMIT %s
+        """, (f"%{symbol}%", f"%{symbol}%", limit//2))
+        news = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "announcements": [
+                {
+                    "ann_date": item.get("ann_date"),
+                    "title": item.get("ann_title"),
+                    "content": item.get("ann_content"),
+                    "type": item.get("ann_type")
+                } for item in announcements
+            ],
+            "news": [
+                {
+                    "published_at": item.get("published_at"),
+                    "title": item.get("title"),
+                    "content": item.get("content"),
+                    "source": item.get("source")
+                } for item in news
+            ],
+            "announcement_count": len(announcements),
+            "news_count": len(news)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取新闻公告失败: {str(e)}")

@@ -1,0 +1,168 @@
+"""
+import sqlite3
+Tushare API路由扩展
+import sqlite3
+现在从本地数据库读取数据，不再调用外部API
+import sqlite3
+"""
+import sqlite3
+
+import sqlite3
+from fastapi import APIRouter, HTTPException, Query
+import sqlite3
+from pydantic import BaseModel
+import sqlite3
+from typing import List, Optional
+import sqlite3
+import pymysql
+import sqlite3
+from datetime import datetime, timedelta
+
+router_tushare = APIRouter(prefix="/tushare", tags=["Tushare数据"])
+
+# 数据库配置
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "familystock",
+    "password": "Familystock@2026",
+    "database": "familystock",
+    "charset": "utf8mb4"
+}
+
+def get_db_connection():
+    """获取数据库连接"""
+    try:
+        conn = pymysql.connect(**DB_CONFIG)
+        return conn
+    except Exception as e:
+        print(f"数据库连接失败: {e}")
+        raise HTTPException(status_code=500, detail="数据库连接失败")
+
+@router_tushare.get("/quote/{ts_code}")
+async def get_stock_quote(ts_code: str):
+    """获取股票最新行情（从本地数据库读取）"""
+    try:
+        # 处理代码格式
+        original_code = ts_code
+        if "." not in ts_code:
+            if ts_code.startswith("6"):
+                ts_code = f"{ts_code}.SH"
+            else:
+                ts_code = f"{ts_code}.SZ"
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 查询最新行情
+        cursor.execute("""
+        SELECT * FROM stock_daily 
+        WHERE ts_code = %s 
+        ORDER BY trade_date DESC 
+        LIMIT 1
+        """, (ts_code,))
+        
+        result = cursor.fetchone()
+        
+        if not result:
+            # 如果没有找到，尝试用不带后缀的代码搜索
+            cursor.execute("""
+            SELECT d.* FROM stock_daily d
+            JOIN stock_basic b ON d.ts_code = b.ts_code
+            WHERE b.symbol = %s
+            ORDER BY d.trade_date DESC
+            LIMIT 1
+            """, (original_code,))
+            result = cursor.fetchone()
+        
+        cursor.close()
+        conn.close()
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="股票数据不存在")
+        
+        # 格式化返回结果
+        return {
+            "symbol": original_code,
+            "ts_code": result.get("ts_code"),
+            "trade_date": result.get("trade_date"),
+            "open": float(result.get("open", 0)) if result.get("open") else 0,
+            "high": float(result.get("high", 0)) if result.get("high") else 0,
+            "low": float(result.get("low", 0)) if result.get("low") else 0,
+            "close": float(result.get("close", 0)) if result.get("close") else 0,
+            "pre_close": float(result.get("pre_close", 0)) if result.get("pre_close") else 0,
+            "change": float(result.get("change", 0)) if result.get("change") else 0,
+            "pct_chg": float(result.get("pct_chg", 0)) if result.get("pct_chg") else 0,
+            "volume": float(result.get("vol", 0)) if result.get("vol") else 0,
+            "amount": float(result.get("amount", 0)) if result.get("amount") else 0,
+            "market": "A股",
+            "currency": "CNY",
+            "source": "Local Database"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取行情失败: {str(e)}")
+
+@router_tushare.get("/search")
+async def search_stocks(q: str = Query(None, description="搜索关键词"), keyword: str = Query(None, description="搜索关键词")):
+    """搜索股票（从本地数据库读取）"""
+    try:
+        search_term = q if q else keyword
+        if not search_term:
+            return {"results": [], "count": 0}
+        
+        search_term = search_term.upper()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 搜索股票代码或名称
+        cursor.execute("""
+        SELECT ts_code, symbol, name, area, industry, market 
+        FROM stocks 
+        WHERE (symbol LIKE %s OR name LIKE %s) 
+        LIMIT 10
+        """, (f"%{search_term}%", f"%{search_term}%"))
+        
+        results = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # 格式化返回结果
+        formatted_results = []
+        for item in results:
+            formatted_results.append({
+                "ts_code": item.get("ts_code"),
+                "symbol": item.get("symbol"),
+                "name": item.get("name"),
+                "area": item.get("area"),
+                "industry": item.get("industry"),
+                "market": item.get("market")
+            })
+        
+        return {
+            "results": formatted_results,
+            "count": len(formatted_results)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+
+@router_tushare.get("/batch")
+async def get_batch_quotes(symbols: str = Query(..., description="逗号分隔的股票代码")):
+    """批量获取股票行情（从本地数据库读取）"""
+    try:
+        symbol_list = [s.strip() for s in symbols.split(",")]
+        results = []
+        
+        for symbol in symbol_list:
+            try:
+                # 调用单个行情接口
+                quote = await get_stock_quote(symbol)
+                results.append(quote)
+            except Exception as e:
+                print(f"获取{symbol}行情失败: {e}")
+                continue
+        
+        return results
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"批量获取行情失败: {str(e)}")

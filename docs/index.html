@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniRock 开发文档中心</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764fa2 100%); color: #333; line-height: 1.6; }
+        .header { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 40px 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 32px; font-weight: 700; color: #333; }
+        .header p { margin: 10px 0 0; font-size: 16px; color: #666; }
+        .container { max-width: 1400px; margin: 40px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .doc-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .doc-card { background: #f8f9fa; padding: 30px; border-radius: 8px; border: 1px solid #e0e0e0; transition: all 0.3s; cursor: pointer; }
+        .doc-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+        .doc-card h3 { margin: 0 0 10px 0; font-size: 20px; color: #333; }
+        .doc-card p { margin: 5px 0; font-size: 14px; color: #666; line-height: 1.6; }
+        .section { margin: 40px 0 20px; }
+        .section h2 { font-size: 28px; color: #333; margin: 0 0 15px 0; border-bottom: 2px solid #eee; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MiniRock 开发文档中心</h1>
+        <p>投资模拟平台 - 版本 v1.2</p>
+    </div>
+    
+    <div class="container">
+        <h2>📚 核心文档</h2>
+        <div class="doc-list">
+            <div class="doc-card" onclick="window.location.href=frontend_api_guide.md">
+                <h3>🔌 前端API对接完整文档</h3>
+                <p>所有接口的详细说明和代码示例，用于前端开发对接</p>
+            </div>
+            <div class="doc-card" onclick="window.location.href=platform_strategy_compliance.md">
+                <h3>🎯 平台战略与合规方案</h3>
+                <p>三阶段发展路线图、商业化方案、合规风险管理</p>
+            </div>
+        </div>
+        
+        <h2>⚡ 最近更新</h2>
+        <div class="doc-list">
+            <div class="doc-card">
+                <h3>✅ 2026-03-15：第二阶段核心功能开发完成</h3>
+                <p>AI分析增强系统、高级组合分析、用户认证系统全部上线</p>
+            </div>
+            <div class="doc-card">
+                <h3>🔧 技部开发技能安装完成</h3>
+                <p>Self-Improving、Code Optimization、Static Debugging，为后续开发提供支持</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>🎯 技术栈</h2>
+            <ul>
+                <li>后端：Python FastAPI + MySQL + Redis</li>
+                <li>前端：HTML + JavaScript + Tailwind CSS</li>
+                <li>AI：火山Coding Plan + Kimi + DeepSeek</li>
+                <li>数据：Tushare Pro + QVeris</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>📱 联系方式</h2>
+            <p>项目地址：43.160.193.165</p>
+            <p>飞书群：oc_f73b335640db79a461ea5565beff6b72</p>
+            <p>代码位置：/root/.openclaw/workspace/a2a-platform/</p>
+        </div>
+    </div>
+    
+    <style>
+        .footer { text-align: center; padding: 30px 0; color: #666; font-size: 14px; }
+    </style>
+    <div class="footer">
+        <p>最后更新：2026-03-15 17:50</p>
+    </div>
+</body>
+</html>
+

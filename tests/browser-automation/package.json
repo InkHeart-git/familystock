@@ -1,0 +1,15 @@
+{
+  "name": "browser-automation",
+  "version": "1.0.0",
+  "description": "**版本**: v1.0   **创建时间**: 2026-03-16   **目标**: 使用 browser-automation-ultra 实现零 Token 回归测试",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}

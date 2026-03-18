@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MiniRock - 我的自选股</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #ff3366;
+      --primary-dark: #ff6b9d;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+    }
+    body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #f1f5f9; }
+    .gradient-header { 
+      background: linear-gradient(135deg, 
+        #0f172a 0%,     /* 深蓝灰 */
+        #1e1b4b 35%,    /* 深紫 */
+        #2d1b1b 70%,    /* 深红棕 */
+        #0f172a 100%    /* 回到深蓝 */
+      );
+      position: relative;
+      overflow: hidden;
+    }
+    .gradient-header::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(255,107,157,0.15) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .stock-card {
+      background: white; border-radius: 16px; padding: 16px; margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stock-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .btn-primary {
+      background: linear-gradient(135deg, #ff6b9d 0%, #ff3366 100%);
+      box-shadow: 0 4px 15px rgba(255, 107, 157, 0.4);
+      color: white; border: none; padding: 12px 24px;
+      border-radius: 12px; font-weight: 600; cursor: pointer;
+    }
+    .btn-secondary {
+      background: #F3F4F6; color: #374151; border: none;
+      padding: 12px 24px; border-radius: 12px; font-weight: 600; cursor: pointer;
+    }
+    .feature-card {
+      background: white; border-radius: 16px; padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;
+      transition: all 0.2s; text-align: center;
+    }
+    .feature-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .feature-icon { font-size: 32px; margin-bottom: 8px; color: #ff3366; }
+  </style>
+</head>
+<body class="pb-20">
+  <!-- 顶部 -->
+  <div class="gradient-header text-white px-5 pt-12 pb-8 rounded-b-3xl">
+    <div class="flex items-center justify-between mb-6">
+      <a href="/minirock-auth.html" class="text-white/80 hover:text-white flex items-center gap-1">
+        <i class="fas fa-home text-lg"></i>
+        <span class="text-sm">首页</span>
+      </a>
+      <span class="text-lg font-semibold">我的自选股</span>
+      <button onclick="refreshData()" class="text-white/80 hover:text-white">
+        <i class="fas fa-sync-alt" id="refreshIcon"></i>
+      </button>
+    </div>
+    
+    <div class="text-center">
+      <div class="text-3xl font-bold" id="watchlistCount">0</div>
+      <div class="text-sm mt-1 opacity-90">关注股票数</div>
+    </div>
+  </div>
+
+  <!-- 功能入口 -->
+  <div class="px-5 -mt-4">
+    <div class="grid grid-cols-3 gap-3">
+      <div class="feature-card" onclick="location.href='/minirock-v2.html'">
+        <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+        <div class="font-medium text-sm">我的持仓</div>
+      </div>
+      <div class="feature-card" onclick="location.href='/portfolio-analysis.html'">
+        <div class="feature-icon"><i class="fas fa-chart-pie"></i></div>
+        <div class="font-medium text-sm">持仓分析</div>
+      </div>
+      <div class="feature-card" onclick="location.href='/stock-detail.html?code=600519'">
+        <div class="feature-icon"><i class="fas fa-robot"></i></div>
+        <div class="font-medium text-sm">AI诊断</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 搜索框 -->
+  <div class="px-5 mt-6">
+    <div class="relative">
+      <input type="text" id="searchInput" placeholder="搜索股票代码或名称..."
+             class="w-full px-4 py-3 pl-12 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+             onkeypress="if(event.key==='Enter')searchStock()">
+      <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+      <button onclick="searchStock()" class="absolute right-2 top-1/2 -translate-y-1/2 btn-primary py-2 px-4 text-sm">
+        搜索
+      </button>
+    </div>
+  </div>
+
+  <!-- 自选股列表 -->
+  <div class="px-5 mt-6">
+    <div class="flex items-center justify-between mb-4">
+      <span class="font-semibold text-gray-800">我的关注</span>
+      <button onclick="clearAll()" class="text-red-500 text-sm"><i class="fas fa-trash"></i> 清空</button>
+    </div>
+    
+    <div id="watchlistContainer">
+      <!-- 动态加载 -->
+      <div class="text-center py-12 text-gray-400">
+        <i class="fas fa-star text-4xl mb-4 block"></i>
+        <p>暂无自选股</p>
+        <p class="text-sm mt-2">点击上方搜索添加股票</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 搜索结果弹窗 -->
+  <div id="searchModal" class="fixed inset-0 bg-black/50 z-50 hidden" onclick="closeSearchModal(event)">
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[70vh] overflow-y-auto" onclick="event.stopPropagation()">
+      <div class="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+        <span class="font-semibold">搜索结果</span>
+        <button onclick="closeSearchModal()" class="w-8 h-8 rounded-full bg-gray-100"><i class="fas fa-times"></i></button>
+      </div>
+      <div id="searchResults" class="p-4"></div>
+    </div>
+  </div>
+
+  <script>
+    // 强制刷新 - 版本号控制
+    const APP_VERSION = '20250315_2215';
+    const currentVer = localStorage.getItem('watchlist_version');
+    if (currentVer !== APP_VERSION) {
+      localStorage.setItem('watchlist_version', APP_VERSION);
+      if (currentVer) location.reload(true);
+    }
+
+    const API_BASE = '/api';
+    let watchlist = [];
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      loadWatchlist();
+    });
+    
+    // 加载自选股
+    function loadWatchlist() {
+      const saved = localStorage.getItem('minirock_watchlist');
+      watchlist = saved ? JSON.parse(saved) : [];
+      document.getElementById('watchlistCount').textContent = watchlist.length;
+      renderWatchlist();
+    }
+    
+    // 渲染自选股列表
+    function renderWatchlist() {
+      const container = document.getElementById('watchlistContainer');
+      
+      if (watchlist.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 text-gray-400">
+            <i class="fas fa-star text-4xl mb-4 block"></i>
+            <p>暂无自选股</p>
+            <p class="text-sm mt-2">点击上方搜索添加股票</p>
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = watchlist.map(stock => `
+        <div class="stock-card" onclick="viewStockDetail('${stock.code}')">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-lg">${stock.name}</div>
+              <div class="text-sm text-gray-500">${stock.code}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-bold text-lg" id="price-${stock.code}">--</div>
+              <div class="text-sm" id="change-${stock.code}">--</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-3">
+            <div class="flex gap-2">
+              <button onclick="event.stopPropagation();viewAIAnalysis('${stock.code}')" 
+                      class="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-medium">
+                <i class="fas fa-robot"></i> AI诊断
+              </button>
+              <button onclick="event.stopPropagation();viewScenario('${stock.code}')" 
+                      class="px-3 py-1 bg-purple-100 text-purple-600 rounded-full text-xs font-medium">
+                <i class="fas fa-chart-area"></i> 情景推演
+              </button>
+            </div>
+            <button onclick="event.stopPropagation();removeStock('${stock.code}')" 
+                    class="text-red-400 hover:text-red-600">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+      
+      // 加载实时价格
+      watchlist.forEach(stock => loadStockPrice(stock.code));
+    }
+    
+    // 加载股票价格
+    async function loadStockPrice(code) {
+      try {
+        const response = await fetch(`${API_BASE}/tushare/quote/${code}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        
+        const priceEl = document.getElementById(`price-${code}`);
+        const changeEl = document.getElementById(`change-${code}`);
+        
+        if (priceEl) {
+          priceEl.textContent = '¥' + data.close.toFixed(2);
+          const changePercent = data.pct_chg || 0;
+          const isUp = changePercent >= 0;
+          changeEl.textContent = (isUp ? '+' : '') + changePercent.toFixed(2) + '%';
+          changeEl.className = 'text-sm ' + (isUp ? 'text-red-500' : 'text-green-500');
+        }
+      } catch (e) {
+        console.error('加载价格失败:', code, e);
+      }
+    }
+    
+    // 搜索股票
+    async function searchStock() {
+      const keyword = document.getElementById('searchInput').value.trim();
+      if (!keyword) {
+        showToast('请输入股票代码或名称', 'warning');
+        return;
+      }
+      
+      showToast('搜索中...', 'info');
+      
+      try {
+        // 使用通用搜索接口，支持代码和中文名称
+        const response = await fetch(`${API_BASE}/stock/search?keyword=${encodeURIComponent(keyword)}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          const results = data.data || [];
+          
+          if (results.length === 0) {
+            showToast('未找到相关股票', 'error');
+            return;
+          }
+          
+          showSearchResult(results.map(item => ({
+            code: item.code,
+            name: item.name
+          })));
+        } else {
+          showToast('未找到该股票', 'error');
+        }
+      } catch (e) {
+        showToast('搜索失败', 'error');
+      }
+    }
+    
+    // 显示搜索结果
+    function showSearchResult(results) {
+      const modal = document.getElementById('searchModal');
+      const container = document.getElementById('searchResults');
+      
+      container.innerHTML = results.map(r => {
+        const isAdded = watchlist.some(s => s.code === r.code);
+        return `
+          <div class="flex items-center justify-between p-3 border-b last:border-0">
+            <div>
+              <div class="font-semibold">${r.name}</div>
+              <div class="text-sm text-gray-500">${r.code}</div>
+            </div>
+            <button onclick="addStock('${r.code}', '${r.name}')" 
+                    class="btn-primary py-2 px-4 text-sm ${isAdded ? 'opacity-50' : ''}"
+                    ${isAdded ? 'disabled' : ''}>
+              ${isAdded ? '已添加' : '添加'}
+            </button>
+          </div>
+        `;
+      }).join('');
+      
+      modal.classList.remove('hidden');
+    }
+    
+    // 关闭搜索弹窗
+    function closeSearchModal() {
+      document.getElementById('searchModal').classList.add('hidden');
+    }
+    
+    // 添加股票
+    function addStock(code, name) {
+      if (watchlist.some(s => s.code === code)) {
+        showToast('该股票已在自选列表中', 'warning');
+        return;
+      }
+      
+      watchlist.push({ code, name, addedAt: new Date().toISOString() });
+      localStorage.setItem('minirock_watchlist', JSON.stringify(watchlist));
+      
+      document.getElementById('watchlistCount').textContent = watchlist.length;
+      renderWatchlist();
+      closeSearchModal();
+      showToast('添加成功', 'success');
+    }
+    
+    // 移除股票
+    function removeStock(code) {
+      if (!confirm('确定要移除这只股票吗？')) return;
+      
+      watchlist = watchlist.filter(s => s.code !== code);
+      localStorage.setItem('minirock_watchlist', JSON.stringify(watchlist));
+      
+      document.getElementById('watchlistCount').textContent = watchlist.length;
+      renderWatchlist();
+      showToast('已移除', 'success');
+    }
+    
+    // 清空所有
+    function clearAll() {
+      if (!confirm('确定要清空所有自选股吗？')) return;
+      watchlist = [];
+      localStorage.setItem('minirock_watchlist', '[]');
+      document.getElementById('watchlistCount').textContent = '0';
+      renderWatchlist();
+      showToast('已清空', 'success');
+    }
+    
+    // 查看股票详情
+    function viewStockDetail(code) {
+      location.href = `/stock-detail.html?code=${code}`;
+    }
+    
+    // 查看AI分析
+    function viewAIAnalysis(code) {
+      location.href = `/stock-detail.html?code=${code}#ai`;
+    }
+    
+    // 查看情景推演
+    function viewScenario(code) {
+      location.href = `/stock-detail.html?code=${code}#scenario`;
+    }
+    
+    // 刷新数据
+    function refreshData() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('fa-spin');
+      loadWatchlist();
+      setTimeout(() => icon.classList.remove('fa-spin'), 1000);
+      showToast('刷新成功', 'success');
+    }
+    
+    // Toast提示
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `fixed top-20 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full text-white z-50 
+        ${type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'}`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+  </script>
+</body>
+</html>

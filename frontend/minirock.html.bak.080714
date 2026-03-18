@@ -1,0 +1,1986 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Ministone - 投资模拟平台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #1a1a2e;
+            --bg-card: #16213e;
+            --text-primary: #ffffff;
+            --text-secondary: #8892b0;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-yellow: #f59e0b;
+            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-danger: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding-bottom: 80px;
+            overflow-x: hidden;
+        }
+
+        /* 登录页 */
+        .login-page {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            text-align: center;
+            background: radial-gradient(ellipse at top, var(--bg-secondary) 0%, var(--bg-primary) 70%);
+        }
+
+        .logo-container {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 64px;
+            animation: float 3s ease-in-out infinite;
+            filter: drop-shadow(0 0 30px rgba(102, 126, 234, 0.5));
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .brand-name {
+            font-size: 32px;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+
+        .tagline {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 50px;
+        }
+
+        .input-group {
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 18px 24px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            color: var(--text-primary);
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            border-color: var(--accent-blue);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .input-field::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .btn {
+            width: 100%;
+            max-width: 320px;
+            padding: 18px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* 加载动画 */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 首页 */
+        .home-page {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .header {
+            padding: 20px;
+            background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-greeting {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .user-name {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .quota-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        /* 总资产卡片 */
+        .asset-card {
+            margin: 20px;
+            padding: 30px;
+            background: var(--gradient-primary);
+            border-radius: 24px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .asset-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .asset-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .asset-value {
+            font-size: 42px;
+            font-weight: 800;
+            color: white;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .asset-change {
+            font-size: 14px;
+            margin-top: 8px;
+            position: relative;
+            z-index: 1;
+            font-weight: 600;
+        }
+
+        .change-up { color: #ff6b6b; }
+        .change-down { color: #51cf66; }
+
+        /* AI体检按钮 */
+        .ai-check-card {
+            margin: 0 20px 20px;
+            padding: 24px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ai-check-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        .ai-check-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(139, 92, 246, 0.4);
+        }
+
+        .ai-check-icon {
+            font-size: 28px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .ai-check-text {
+            font-size: 18px;
+            font-weight: 700;
+            color: #c4b5fd;
+        }
+
+        /* AI分析弹窗 */
+        .ai-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .ai-modal.show {
+            opacity: 1;
+        }
+
+        .ai-modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 24px;
+            width: 100%;
+            max-width: 420px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .ai-modal.show .ai-modal-content {
+            transform: scale(1);
+        }
+
+        .ai-analysis-header {
+            text-align: center;
+            padding: 40px 30px 30px;
+        }
+
+        .ai-avatar {
+            font-size: 64px;
+            margin-bottom: 16px;
+            animation: bounce 1s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .ai-analysis-header h3 {
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .ai-progress-container {
+            padding: 0 30px 30px;
+        }
+
+        .ai-progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .ai-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .ai-progress-text {
+            text-align: center;
+            color: #c4b5fd;
+            font-size: 14px;
+        }
+
+        .ai-analysis-steps {
+            display: flex;
+            justify-content: space-around;
+            padding: 0 20px 30px;
+            gap: 8px;
+        }
+
+        .ai-step {
+            flex: 1;
+            text-align: center;
+            padding: 12px 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            font-size: 12px;
+            color: #8892b0;
+            transition: all 0.3s ease;
+        }
+
+        .ai-step.active {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+            color: #fff;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .ai-step.completed {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        /* AI结果展示 */
+        .ai-result {
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .ai-result-header {
+            position: relative;
+            padding: 30px;
+            text-align: center;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .ai-close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .ai-close-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .ai-score-circle {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            margin: 0 auto 16px;
+        }
+
+        .ai-score-circle svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .score-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 8;
+        }
+
+        .score-fill {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+            transition: stroke-dasharray 1s ease;
+        }
+
+        .score-fill.low { stroke: #ef4444; }
+        .score-fill.medium { stroke: #f59e0b; }
+        .score-fill.high { stroke: #10b981; }
+
+        .score-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .risk-badge.low { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .risk-badge.medium { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+        .risk-badge.high { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+        .analysis-time {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #8892b0;
+        }
+
+        .ai-result-body {
+            padding: 20px;
+        }
+
+        .ai-section {
+            margin-bottom: 20px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+        }
+
+        .ai-section h4 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        .ai-section p {
+            font-size: 13px;
+            color: #8892b0;
+        }
+
+        .ai-score-breakdown {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .score-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .score-label {
+            width: 60px;
+            font-size: 13px;
+            color: #8892b0;
+        }
+
+        .score-bar {
+            flex: 1;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .score-fill-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .score-number {
+            width: 30px;
+            text-align: right;
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .alert-item.danger {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+
+        .alert-item.warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            color: #fcd34d;
+        }
+
+        .suggestion-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 10px 0;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-item.good { color: #86efac; }
+        .suggestion-item.warning { color: #fcd34d; }
+        .suggestion-item.info { color: #93c5fd; }
+
+        .holding-detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .holding-detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .holding-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .holding-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .holding-symbol {
+            font-size: 11px;
+            color: #8892b0;
+            margin-top: 2px;
+        }
+
+        .holding-metrics {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .holding-score {
+            font-size: 12px;
+            padding: 4px 8px;
+            background: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+            border-radius: 4px;
+        }
+
+        .holding-profit {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .holding-profit.up { color: #ff6b6b; }
+        .holding-profit.down { color: #51cf66; }
+
+        .ai-result-footer {
+            display: flex;
+            gap: 12px;
+            padding: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .ai-result-footer .btn {
+            flex: 1;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .ai-error {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* 预警通知 */
+        .alert-notifications-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 340px;
+        }
+
+        .alert-notification {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            animation: slideIn 0.3s ease;
+            transition: all 0.3s ease;
+        }
+
+        .alert-notification.hiding {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .alert-notification.danger {
+            border-left: 4px solid #ef4444;
+        }
+
+        .alert-notification.warning {
+            border-left: 4px solid #f59e0b;
+        }
+
+        .alert-notification-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .alert-notification-content {
+            flex: 1;
+        }
+
+        .alert-notification-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .alert-notification.danger .alert-notification-title {
+            color: #fca5a5;
+        }
+
+        .alert-notification.warning .alert-notification-title {
+            color: #fcd34d;
+        }
+
+        .alert-notification-message {
+            font-size: 13px;
+            color: #8892b0;
+            line-height: 1.4;
+        }
+
+        .alert-notification-time {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 6px;
+        }
+
+        .alert-notification-close {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            transition: color 0.3s ease;
+        }
+
+        .alert-notification-close:hover {
+            color: #fff;
+        }
+
+        /* 导航角标 */
+        .nav-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 18px;
+            height: 18px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            animation: badgePulse 1s ease infinite;
+        }
+
+        @keyframes badgePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .nav-item {
+            position: relative;
+        }
+
+        /* 预警设置 */
+        .alert-settings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .alert-setting-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+        }
+
+        .setting-info {
+            flex: 1;
+        }
+
+        .setting-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .setting-desc {
+            font-size: 12px;
+            color: #8892b0;
+        }
+
+        /* Switch 开关 */
+        .switch {
+            position: relative;
+            width: 52px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .switch-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 28px;
+            transition: 0.3s;
+        }
+
+        .switch-slider::before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .switch input:checked + .switch-slider {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        }
+
+        .switch input:checked + .switch-slider::before {
+            transform: translateX(24px);
+        }
+
+        /* 预警历史 */
+        .alert-history-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .alert-history-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .alert-history-item:last-child {
+            border-bottom: none;
+        }
+
+        .alert-history-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .alert-history-content {
+            flex: 1;
+        }
+
+        .alert-history-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .alert-history-item.danger .alert-history-title {
+            color: #fca5a5;
+        }
+
+        .alert-history-item.warning .alert-history-title {
+            color: #fcd34d;
+        }
+
+        .alert-history-message {
+            font-size: 12px;
+            color: #8892b0;
+            margin-top: 2px;
+        }
+
+        .alert-history-date {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .empty-state-small {
+            text-align: center;
+            padding: 20px;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .loading-text {
+            text-align: center;
+            padding: 20px;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        /* 持仓列表 */
+        .holdings-section {
+            padding: 0 20px 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .section-action {
+            font-size: 13px;
+            color: var(--accent-blue);
+            cursor: pointer;
+        }
+
+        .holding-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .holding-card:hover {
+            border-color: rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .holding-card::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--accent-green);
+        }
+
+        .holding-card.loss::after {
+            background: var(--accent-red);
+        }
+
+        .holding-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .stock-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stock-symbol {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .stock-name {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .ai-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .ai-badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-yellow);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .ai-badge.danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .price-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .price-main {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .current-price {
+            font-size: 28px;
+            font-weight: 800;
+            font-family: 'SF Mono', monospace;
+        }
+
+        .price-change {
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .price-secondary {
+            text-align: right;
+        }
+
+        .usd-price {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .holding-qty {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .add-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px;
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+        }
+
+        .add-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        /* 风险提示弹窗 */
+        .risk-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .risk-modal.show {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .risk-modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 24px;
+            padding: 32px;
+            width: 100%;
+            max-width: 420px;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .risk-modal-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .risk-modal-icon {
+            font-size: 56px;
+            margin-bottom: 16px;
+        }
+
+        .risk-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .risk-modal-subtitle {
+            font-size: 14px;
+            color: #f87171;
+            font-weight: 600;
+        }
+
+        .risk-modal-body {
+            margin-bottom: 24px;
+        }
+
+        .risk-section {
+            margin-bottom: 20px;
+            padding: 16px;
+            background: rgba(239, 68, 68, 0.08);
+            border-radius: 16px;
+            border: 1px solid rgba(239, 68, 68, 0.15);
+        }
+
+        .risk-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #fca5a5;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .risk-section-content {
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.7;
+        }
+
+        .risk-section-content ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .risk-section-content li {
+            margin-bottom: 6px;
+        }
+
+        .risk-modal-footer {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .risk-confirm-btn {
+            width: 100%;
+            padding: 16px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .risk-confirm-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
+        }
+
+        .risk-note {
+            text-align: center;
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 8px;
+        }
+
+        /* 底部导航 */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(22, 33, 62, 0.95);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 0 24px;
+            z-index: 100;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 11px;
+            padding: 8px 20px;
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .nav-icon {
+            font-size: 24px;
+        }
+
+        /* Toast提示 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: var(--bg-card);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            border-color: var(--accent-green);
+        }
+
+        .toast.error {
+            border-color: var(--accent-red);
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.show {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 24px;
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast提示 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- 风险提示弹窗 -->
+    <div class="risk-modal" id="riskModal">
+        <div class="risk-modal-content">
+            <div class="risk-modal-header">
+                <div class="risk-modal-icon">⚠️</div>
+                <div class="risk-modal-title">投资风险提示</div>
+                <div class="risk-modal-subtitle">Ministone 投资模拟平台</div>
+            </div>
+            <div class="risk-modal-body">
+                <div class="risk-section">
+                    <div class="risk-section-title">
+                        <span>🎮</span>
+                        <span>本平台性质</span>
+                    </div>
+                    <div class="risk-section-content">
+                        Ministone 是一个<strong>投资模拟学习平台</strong>，所有资金均为虚拟资金，不涉及真实货币交易。本平台仅供投资学习和模拟演练使用。
+                    </div>
+                </div>
+                <div class="risk-section">
+                    <div class="risk-section-title">
+                        <span>📊</span>
+                        <span>数据声明</span>
+                    </div>
+                    <div class="risk-section-content">
+                        <ul>
+                            <li>平台展示的股票行情数据仅供参考，可能存在延迟</li>
+                            <li>AI分析结果基于公开数据和算法模型，不构成投资建议</li>
+                            <li>历史表现不代表未来收益，模拟交易结果与现实可能存在差异</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="risk-section">
+                    <div class="risk-section-title">
+                        <span>⚡</span>
+                        <span>风险提示</span>
+                    </div>
+                    <div class="risk-section-content">
+                        <ul>
+                            <li><strong style="color: #f87171;">股市有风险，入市需谨慎</strong></li>
+                            <li>模拟交易的盈亏不代表真实投资结果</li>
+                            <li>进行真实投资前请咨询专业人士</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="risk-modal-footer">
+                <button class="risk-confirm-btn" onclick="closeRiskModal()">
+                    我已了解风险，进入平台
+                </button>
+                <div class="risk-note">点击上方按钮即表示您已阅读并理解上述风险提示</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加持仓模态框 -->
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <div class="modal-title">添加持仓</div>
+            <div class="input-group" style="margin-bottom: 12px;">
+                <input type="text" class="input-field" id="stockSymbol" placeholder="股票代码或名称 (如: 600519 或 茅台)" oninput="previewStockNameAsync(this.value)">
+            </div>
+            <div id="stockNamePreview" style="margin-bottom: 12px; padding: 10px 15px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3); display: none;">
+                <span style="color: #64748b; font-size: 12px;">股票名称: </span>
+                <span id="previewName" style="color: #fff; font-weight: 600;">--</span>
+            </div>
+            <div class="input-group" style="margin-bottom: 12px;">
+                <input type="number" class="input-field" id="stockQty" placeholder="持仓数量">
+            </div>
+            <div class="input-group" style="margin-bottom: 20px;">
+                <input type="number" class="input-field" id="stockCost" placeholder="成本价">
+            </div>
+            <button class="btn btn-primary" onclick="addHolding()">确认添加</button>
+            <button class="btn" style="background: transparent; color: var(--text-secondary); margin-top: 10px;" onclick="closeModal()">取消</button>
+        </div>
+    </div>
+
+    <!-- 登录页 -->
+    <div class="login-page" id="loginPage">
+        <div class="logo-container">
+            <div class="logo">🌍</div>
+        </div>
+        <div class="brand-name">Ministone</div>
+        <div class="tagline">投资模拟平台 · 零风险学习投资</div>
+        
+        <div class="input-group">
+            <input type="tel" class="input-field" placeholder="请输入手机号" id="phoneInput" value="18651993693" maxlength="11">
+        </div>
+        
+        <button class="btn btn-primary" id="loginBtn" onclick="login()">
+            立即体验
+        </button>
+    </div>
+
+    <!-- 首页 -->
+    <div class="home-page" id="homePage">
+        <div class="header">
+            <div class="user-info">
+                <div>
+                    <div class="user-greeting">早上好，</div>
+                    <div class="user-name">投资者 👋</div>
+                </div>
+                <span class="quota-badge">剩余额度 2000</span>
+            </div>
+        </div>
+        
+        <div class="asset-card">
+            <div class="asset-label">总资产 (CNY)</div>
+            <div class="asset-value" id="totalAsset">¥0.00</div>
+            <div class="asset-change" id="assetChange">--</div>
+        </div>
+        
+        <div class="ai-check-card" onclick="aiCheck()">
+            <span class="ai-check-icon">🤖</span>
+            <span class="ai-check-text">AI一键体检持仓</span>
+        </div>
+        
+        <div class="holdings-section">
+            <div class="section-header">
+                <span class="section-title">我的持仓</span>
+                <span class="section-action" onclick="showAddModal()">+ 添加</span>
+            </div>
+            
+            <div id="holdingsList">
+                <div class="empty-state">
+                    <div class="empty-icon">📊</div>
+                    <div>暂无持仓，点击添加</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bottom-nav">
+            <a href="#" class="nav-item active" onclick="switchTab('home')">
+                <span class="nav-icon">🏠</span>
+                <span>首页</span>
+            </a>
+            <a href="#" class="nav-item" onclick="switchTab('discover')">
+                <span class="nav-icon">🔍</span>
+                <span>发现</span>
+            </a>
+            <a href="#" class="nav-item" onclick="switchTab('settings')">
+                <span class="nav-icon">⚙️</span>
+                <span>设置</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- MiniRock 股票数据库 -->
+    <script src="stock_database.js?v=2"></script>
+    <!-- MiniRock AI分析引擎 -->
+    <script src="minirock-ai-analysis.js?v=2"></script>
+    <!-- MiniRock 股票服务 -->
+    <script src="minirock-stock-service.js?v=2"></script>
+    <!-- MiniRock AI服务 -->
+    <script src="minirock-ai-service.js?v=2"></script>
+    <!-- MiniRock 预警系统 -->
+    <script src="minirock-alert-system.js?v=2"></script>
+
+    <script>
+        // 全局状态
+        let currentUser = null;
+        let holdings = [];
+        let riskModalShown = false; // 风险提示弹窗是否已显示
+
+        // 显示风险提示弹窗
+        function showRiskModal() {
+            if (!riskModalShown) {
+                document.getElementById('riskModal').classList.add('show');
+            }
+        }
+
+        // 关闭风险提示弹窗
+        function closeRiskModal() {
+            document.getElementById('riskModal').classList.remove('show');
+            riskModalShown = true;
+            // 保存到本地存储，避免重复显示
+            localStorage.setItem('riskModalShown', 'true');
+        }
+
+        // 检查是否需要显示风险提示
+        function checkRiskModal() {
+            const hasShown = localStorage.getItem('riskModalShown');
+            if (!hasShown) {
+                setTimeout(() => {
+                    showRiskModal();
+                }, 500); // 延迟500ms显示，让用户先看到主页
+            }
+        }
+
+        // 显示Toast
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // 登录
+        async function login() {
+            const btn = document.getElementById('loginBtn');
+            const phone = document.getElementById('phoneInput').value;
+            
+            if (!phone || phone.length !== 11) {
+                showToast('请输入正确的手机号', 'error');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>登录中...';
+            
+            // 模拟登录
+            await new Promise(r => setTimeout(r, 1500));
+            
+            currentUser = {
+                phone: phone,
+                name: '投资者'
+            };
+            
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('homePage').style.display = 'block';
+            
+            loadHoldings();
+            checkRiskModal(); // 检查并显示风险提示
+            showToast('登录成功！', 'success');
+        }
+
+        // 加载持仓
+        async function loadHoldings() {
+            try {
+                // 调用真实API获取股票数据
+                const symbols = ['600519', '000858', '300750'];
+                const stocks = await getMultipleStocks(symbols);
+                
+                // 合并持仓数量和成本信息
+                holdings = [
+                    { ...stocks[0], quantity: 100, avgCost: 1450, name: '贵州茅台' },
+                    { ...stocks[1], quantity: 500, avgCost: 140, name: '五粮液' },
+                    { ...stocks[2], quantity: 200, avgCost: 210, name: '宁德时代' }
+                ];
+                
+                renderHoldings();
+                updateTotalAsset();
+                showToast('数据已更新', 'success');
+            } catch (error) {
+                console.error('加载持仓失败:', error);
+                showToast('数据加载失败，使用离线数据', 'error');
+                
+                // Fallback到模拟数据
+                holdings = [
+                    { symbol: '600519', name: '贵州茅台', close: 1487.02, pct_chg: -0.92, aiScore: 65, quantity: 100, avgCost: 1450, market: 'A股', usdPrice: '205.21' },
+                    { symbol: '000858', name: '五粮液', close: 145.80, pct_chg: 1.25, aiScore: 72, quantity: 500, avgCost: 140, market: 'A股', usdPrice: '20.12' },
+                    { symbol: '300750', name: '宁德时代', close: 198.50, pct_chg: -2.15, aiScore: 45, quantity: 200, avgCost: 210, market: 'A股', usdPrice: '27.39' }
+                ];
+                renderHoldings();
+                updateTotalAsset();
+            }
+        }
+
+        // 渲染持仓列表
+        function renderHoldings() {
+            const container = document.getElementById('holdingsList');
+            
+            if (holdings.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📊</div>
+                        <div>暂无持仓，点击添加</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = holdings.map((h, index) => {
+                const profit = (h.close - h.avgCost) * h.quantity;
+                const profitPct = ((h.close - h.avgCost) / h.avgCost * 100).toFixed(2);
+                const isProfit = profit >= 0;
+                const usdPrice = h.usdPrice || (h.close * 0.138).toFixed(2);
+                
+                // 计算AI评分 - 确保是数字
+                let aiScore = 50;
+                if (h.aiScore && typeof h.aiScore === 'number') {
+                    aiScore = h.aiScore;
+                } else if (h.pct_chg !== undefined) {
+                    aiScore = calculateAIScore(h.pct_chg).score;
+                }
+                // 确保是有效数字
+                aiScore = isNaN(aiScore) ? 50 : Math.max(0, Math.min(100, Math.round(aiScore)));
+                
+                let aiClass = '';
+                if (aiScore >= 70) aiClass = '';
+                else if (aiScore >= 50) aiClass = 'warning';
+                else aiClass = 'danger';
+                
+                // 确保名称显示
+                const displayName = h.name || h.symbol || '未知';
+                
+                return `
+                    <div class="holding-card ${isProfit ? '' : 'loss'}" onclick="showStockDetail(${index})" style="cursor: pointer;">
+                        <div class="holding-header">
+                            <div class="stock-info">
+                                <div class="stock-symbol">${displayName}</div>
+                                <div class="stock-name">${h.symbol} · ${h.market || 'A股'} · 点击查看详情</div>
+                            </div>
+                            <div class="ai-badge ${aiClass}">AI ${aiScore}</div>
+                        </div>
+                        <div class="price-display">
+                            <div class="price-main">
+                                <div class="current-price">¥${h.close.toFixed(2)}</div>
+                                <div class="price-change ${isProfit ? 'change-up' : 'change-down'}">
+                                    ${isProfit ? '📈' : '📉'} ${h.pct_chg > 0 ? '+' : ''}${h.pct_chg.toFixed(2)}%
+                                </div>
+                            </div>
+                            <div class="price-secondary">
+                                <div class="usd-price" style="color: #3b82f6; font-weight: 600;">💵 $${usdPrice} USD</div>
+                                <div class="holding-qty">${h.quantity}股 · 盈亏${profit >= 0 ? '+' : ''}¥${profit.toFixed(0)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('') + `
+                <div class="add-btn" onclick="event.stopPropagation(); showAddModal();">
+                    <span>+</span>
+                    <span>添加持仓</span>
+                </div>
+            `;
+        }
+
+        // 更新总资产
+        function updateTotalAsset() {
+            let total = 0;
+            let totalCost = 0;
+            
+            holdings.forEach(h => {
+                total += h.close * h.quantity;
+                totalCost += h.avgCost * h.quantity;
+            });
+            
+            const profit = total - totalCost;
+            const profitPct = totalCost > 0 ? (profit / totalCost * 100).toFixed(2) : 0;
+            
+            document.getElementById('totalAsset').textContent = '¥' + total.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('assetChange').innerHTML = `
+                ${profit >= 0 ? '+' : ''}¥${profit.toLocaleString('zh-CN', {minimumFractionDigits: 0, maximumFractionDigits: 0})} 
+                <span class="${profit >= 0 ? 'change-up' : 'change-down'}">(${profit >= 0 ? '+' : ''}${profitPct}%)</span>
+            `;
+        }
+
+        // 显示添加模态框
+        function showAddModal() {
+            document.getElementById('addModal').classList.add('show');
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('addModal').classList.remove('show');
+            document.getElementById('stockSymbol').value = '';
+            document.getElementById('stockQty').value = '';
+            document.getElementById('stockCost').value = '';
+        }
+
+        // 使用 stock_database.js 中的 STOCK_NAME_MAP
+        // 兼容旧代码：将 stockNameMap 指向 STOCK_NAME_MAP
+        const stockNameMap = typeof STOCK_NAME_MAP !== 'undefined' ? STOCK_NAME_MAP : {};
+        
+        // 兼容旧代码：findStockCodeByName 使用 stock_database.js 的 getStockCodeByName
+        function findStockCodeByName(name) {
+            if (typeof getStockCodeByName === 'function') {
+                return getStockCodeByName(name);
+            }
+            // 备用简单映射
+            const nameToCode = {
+                '茅台': '600519', '贵州茅台': '600519',
+                '五粮液': '000858',
+                '宁德时代': '300750',
+                '平安银行': '000001',
+                '万科': '000002', '万科A': '000002',
+                '泸州老窖': '000568',
+                '格力': '000651', '格力电器': '000651',
+                '京东方': '000725', '京东方A': '000725',
+                '科大讯飞': '002230',
+                '海康威视': '002415',
+                '比亚迪': '002594',
+                '平安': '601318', '中国平安': '601318',
+                '招商银行': '600036',
+                '中国中免': '601888',
+                '恒瑞医药': '600276',
+                '长江电力': '600900',
+                '隆基': '601012', '隆基绿能': '601012',
+                '海天': '603288', '海天味业': '603288'
+            };
+            return nameToCode[name] || null;
+        }
+
+        // 通过API查询股票名称
+        async function fetchStockNameByAPI(symbol) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tushare/quote/${symbol}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.name || null;
+                }
+            } catch (e) {
+                console.error('API查询失败:', e);
+            }
+            return null;
+        }
+
+        // 实时预览股票名称
+        async function previewStockNameAsync(input) {
+            const previewDiv = document.getElementById('stockNamePreview');
+            const previewName = document.getElementById('previewName');
+            
+            if (!input) {
+                previewDiv.style.display = 'none';
+                return;
+            }
+            
+            // 清除非数字字符（如果输入的是代码）
+            const cleanInput = input.replace(/\s/g, '');
+            
+            // 1. 尝试从映射表中查找
+            let name = stockNameMap[cleanInput];
+            
+            // 2. 如果没找到，尝试反向查找（输入的是名称）
+            if (!name) {
+                const code = findStockCodeByName(cleanInput);
+                if (code) {
+                    name = cleanInput + ' (' + code + ')';
+                }
+            }
+            
+            // 3. 如果还是没找到，尝试调用API查询
+            if (!name && /^\d{6}$/.test(cleanInput)) {
+                previewName.textContent = '查询中...';
+                previewDiv.style.display = 'block';
+                name = await fetchStockNameByAPI(cleanInput);
+            }
+            
+            if (name) {
+                previewName.textContent = name;
+                previewDiv.style.display = 'block';
+            } else {
+                previewDiv.style.display = 'none';
+            }
+        }
+
+        // 添加持仓
+        async function addHolding() {
+            let symbol = document.getElementById('stockSymbol').value.trim();
+            const qty = parseFloat(document.getElementById('stockQty').value);
+            const cost = parseFloat(document.getElementById('stockCost').value);
+            
+            if (!symbol || !qty || !cost) {
+                showToast('请填写完整信息', 'error');
+                return;
+            }
+            
+            // 如果输入的是中文名称，尝试转换为代码
+            let inputName = symbol;
+            if (/[\u4e00-\u9fa5]/.test(symbol)) {
+                const code = getStockCodeByName(symbol);
+                if (code) {
+                    symbol = code;
+                    showToast(`已找到: ${inputName} → ${code}`, 'info');
+                } else {
+                    showToast('未找到该股票名称，请尝试输入股票代码', 'error');
+                    return;
+                }
+            }
+            
+            showToast('正在获取股票信息...', 'info');
+            
+            try {
+                // 尝试获取真实股票数据
+                const stockData = await getStockData(symbol);
+                
+                // 调试日志
+                console.log('API返回数据:', stockData);
+                console.log('STOCK_NAME_MAP:', typeof STOCK_NAME_MAP, STOCK_NAME_MAP ? STOCK_NAME_MAP[symbol] : 'undefined');
+                
+                // 获取股票名称（优先使用API返回的，其次用映射表，最后调用API查询）
+                let stockName = stockData?.name || STOCK_NAME_MAP[symbol];
+                console.log('选择的股票名称:', stockName);
+                
+                // 如果还是没有名称，尝试通过API查询
+                if (!stockName) {
+                    stockName = await fetchStockNameByAPI(symbol);
+                    console.log('API查询名称:', stockName);
+                }
+                
+                // 最后还是没有，使用代码作为名称
+                if (!stockName) {
+                    stockName = symbol;
+                }
+                
+                // API数据为null时，使用成本价作为当前价，显示"数据待更新"
+                const useApiData = stockData !== null;
+                const currentPrice = useApiData ? (stockData.close || cost) : cost;
+                const priceChange = useApiData ? (stockData.pct_chg || 0) : 0;
+                
+                holdings.push({
+                    symbol: symbol,
+                    name: stockName,
+                    close: currentPrice,
+                    pct_chg: priceChange,
+                    aiScore: calculateAIScore(priceChange).score,
+                    quantity: qty,
+                    avgCost: cost,
+                    market: 'A股',
+                    usdPrice: useApiData ? (stockData.usdPrice || (currentPrice * 0.138).toFixed(2)) : (cost * 0.138).toFixed(2),
+                    open: useApiData ? (stockData.open || cost) : cost,
+                    high: useApiData ? (stockData.high || cost) : cost,
+                    low: useApiData ? (stockData.low || cost) : cost,
+                    pre_close: useApiData ? (stockData.pre_close || cost) : cost,
+                    volume: useApiData ? (stockData.volume || 0) : 0,
+                    dataStatus: useApiData ? 'live' : 'pending'  // 标记数据状态
+                });
+                
+                renderHoldings();
+                updateTotalAsset();
+                closeModal();
+                showToast(useApiData ? '添加成功！' : '添加成功（股价数据待更新）', 'success');
+            } catch (error) {
+                console.error('获取股票信息失败:', error);
+                showToast('获取股票信息失败', 'error');
+                
+                // API失败时不添加持仓，避免显示错误数据
+                return;
+            }
+        }
+
+        // 显示股票详情 - 使用增强版AI分析
+        function showStockDetail(index) {
+            const h = holdings[index];
+            if (!h) return;
+            
+            // 创建详情弹窗 - 使用增强版分析引擎
+            const modal = document.createElement('div');
+            modal.className = 'ai-modal show';
+            modal.id = 'stockDetailModal';
+            modal.innerHTML = generateEnhancedStockDetailHTML(h, index);
+            
+            document.body.appendChild(modal);
+        }
+
+        // 删除持仓
+        function removeHolding(index) {
+            if (confirm('确定删除这条持仓吗？')) {
+                holdings.splice(index, 1);
+                renderHoldings();
+                updateTotalAsset();
+                showToast('已删除', 'success');
+            }
+        }
+
+        // AI体检 - 使用新的AI分析服务
+        function aiCheck() {
+            if (typeof performAICheckWithAnimation === 'function') {
+                performAICheckWithAnimation();
+            } else {
+                // Fallback到旧版本
+                showToast('AI正在分析您的持仓...', 'info');
+                setTimeout(() => {
+                    showToast('分析完成！您的组合评分: 62分', 'success');
+                }, 2000);
+            }
+        }
+
+        // 切换Tab
+        function switchTab(tab) {
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            event.target.closest('.nav-item').classList.add('active');
+            
+            // 如果点击设置，打开预警设置
+            if (tab === 'settings') {
+                if (typeof showAlertSettings === 'function') {
+                    showAlertSettings();
+                } else {
+                    showToast('设置功能加载中...', 'info');
+                }
+            }
+        }
+
+        // 点击风险提示弹窗外部关闭
+        document.getElementById('riskModal').addEventListener('click', function(e) {
+            if (e.target === this) closeRiskModal();
+        });
+
+        // 点击模态框外部关闭
+        document.getElementById('addModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+    </script>
+</body>
+</html>

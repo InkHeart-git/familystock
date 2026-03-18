@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>灵犀 - 组合分析</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #1E5F8E;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+    }
+    body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #F8FAFC; }
+    .gradient-header { background: linear-gradient(135deg, #1E5F8E 0%, #164A6E 100%); }
+    .health-ring { 
+      width: 100px; height: 100px; border-radius: 50%; 
+      border: 8px solid #10B981; display: flex; 
+      flex-direction: column; align-items: center; justify-content: center; 
+    }
+    .stat-card { 
+      background: white; border-radius: 16px; padding: 20px; 
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .holding-item {
+      background: white; border-radius: 12px; padding: 16px;
+      margin-bottom: 12px; border-left: 4px solid #1E5F8E;
+    }
+    .holding-item.profit { border-left-color: #EF4444; }
+    .holding-item.loss { border-left-color: #10B981; }
+    .recommendation-card {
+      background: linear-gradient(135deg, #E8F4FC 0%, #F0F9FF 100%);
+      border-radius: 12px; padding: 16px;
+      border: 1px solid rgba(30, 95, 142, 0.1);
+    }
+  </style>
+</head>
+<body class="pb-20">
+  <!-- 顶部 -->
+  <div class="gradient-header text-white px-5 pt-12 pb-6 rounded-b-3xl">
+    <div class="flex items-center justify-between mb-4">
+      <a href="/minirock-auth.html" class="text-white/80 hover:text-white flex items-center gap-1">
+        <i class="fas fa-home text-lg"></i>
+        <span class="text-sm">首页</span>
+      </a>
+      <span class="text-lg font-semibold">组合分析</span>
+      <button onclick="refreshAnalysis()" class="text-white/80 hover:text-white">
+        <i class="fas fa-sync-alt" id="refreshIcon"></i>
+      </button>
+    </div>
+    
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-3xl font-bold" id="totalValue">--</div>
+        <div class="text-sm mt-1 opacity-90">总市值</div>
+      </div>
+      <div class="health-ring">
+        <span class="text-2xl font-bold" id="portfolioHealth">--</span>
+        <span class="text-xs">健康度</span>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-6 mt-4">
+      <div>
+        <div class="text-sm opacity-80">总盈亏</div>
+        <div class="text-lg font-semibold mt-1" id="totalProfit">--</div>
+      </div>
+      <div>
+        <div class="text-sm opacity-80">收益率</div>
+        <div class="text-lg font-semibold mt-1" id="profitPercent">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 加载中 -->
+  <div id="loadingState" class="p-10 text-center">
+    <div class="animate-spin w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+    <p class="text-gray-500">正在分析组合数据...</p>
+  </div>
+
+  <!-- 内容区 -->
+  <div id="contentState" class="hidden px-5 -mt-4">
+    
+    <!-- 统计卡片 -->
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="stat-card">
+        <div class="text-gray-500 text-sm mb-1">持仓数量</div>
+        <div class="text-2xl font-bold" id="holdingCount">--</div>
+        <div class="text-xs text-gray-400 mt-1">只股票</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="text-gray-500 text-sm mb-1">风险等级</div>
+        <div class="text-2xl font-bold" id="riskLevel">--</div>
+        <div class="text-xs text-gray-400 mt-1" id="riskDesc">评估</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="text-gray-500 text-sm mb-1">最大持仓</div>
+        <div class="text-lg font-bold truncate" id="topHolding">--</div>
+        <div class="text-xs text-gray-400 mt-1" id="topHoldingPercent">--</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="text-gray-500 text-sm mb-1">盈利股数</div>
+        <div class="text-2xl font-bold text-red-500" id="profitCount">--</div>
+        <div class="text-xs text-gray-400 mt-1" id="lossCount">--</div>
+      </div>
+    </div>
+
+    <!-- AI分析 -->
+    <div class="recommendation-card mb-6">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-xl">🤖</span>
+        <span class="font-semibold text-blue-800">AI 组合诊断</span>
+        <span id="aiSource" class="text-xs text-gray-500 ml-auto"></span>
+      </div>
+      
+      <div id="aiLoading" class="text-center py-4">
+        <div class="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+        <p class="text-sm text-gray-500">AI分析中...</p>
+      </div>
+      
+      <div id="aiContent" class="hidden">
+        <p class="text-gray-700 text-sm leading-relaxed mb-4" id="aiAnalysis"></p>
+        
+        <div class="bg-white rounded-lg p-3 mb-3">
+          <div class="text-sm font-medium text-gray-600 mb-2">调仓建议</div>
+          <ul class="text-sm text-gray-700 space-y-1" id="recommendations">
+            <!-- 动态生成 -->
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 持仓分布 -->
+    <div class="bg-white rounded-xl p-5 mb-6 shadow-sm">
+      <h2 class="font-semibold text-lg mb-4">持仓分布</h2>
+      <div id="holdingsList">
+        <!-- 动态生成 -->
+      </div>
+    </div>
+
+    <!-- 行业分布 -->
+    <div class="bg-white rounded-xl p-5 mb-6 shadow-sm">
+      <h2 class="font-semibold text-lg mb-4">行业分布</h2>
+      <div id="sectorDistribution">
+        <p class="text-gray-500 text-sm">行业分析功能开发中...</p>
+      </div>
+    </div>
+
+    <!-- 风险提示 -->
+    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+      <div class="flex items-start gap-3">
+        <i class="fas fa-exclamation-triangle text-yellow-500 mt-1"></i>
+        <div>
+          <div class="font-medium text-yellow-800 mb-1">风险提示</div>
+          <p class="text-sm text-yellow-700">
+            投资有风险，入市需谨慎。AI分析仅供参考，不构成投资建议。
+            请根据自身风险承受能力做出投资决策。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_CONFIG = { baseURL: '/api', timeout: 10000 };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPortfolioAnalysis();
+    });
+
+    function refreshAnalysis() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('fa-spin');
+      loadPortfolioAnalysis().then(() => {
+        setTimeout(() => icon.classList.remove('fa-spin'), 1000);
+      });
+    }
+
+    async function loadPortfolioAnalysis() {
+      try {
+        document.getElementById('loadingState').classList.remove('hidden');
+        document.getElementById('contentState').classList.add('hidden');
+
+        // 获取当前登录用户
+
+        // 2. 更新顶部统计
+        updateHeaderStats(holdingsData);
+
+        // 3. 更新统计卡片
+        updateStatCards(holdingsData);
+
+        // 4. 渲染持仓列表
+        renderHoldingsList(holdingsData.holdings);
+
+        // 5. 加载AI分析
+        loadAIPortfolioAnalysis(holdingsData);
+
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('contentState').classList.remove('hidden');
+
+      } catch (error) {
+        console.error('加载失败:', error);
+        document.getElementById('loadingState').innerHTML = `
+          <div class="text-center">
+            <i class="fas fa-exclamation-circle text-red-500 text-4xl mb-3"></i>
+            <p class="text-red-500">加载失败</p>
+            <button onclick="loadPortfolioAnalysis()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">重试</button>
+          </div>
+        `;
+      }
+    }
+
+    function updateHeaderStats(data) {
+      document.getElementById('totalValue').textContent = '¥' + data.total_value.toLocaleString();
+      
+      const profit = data.total_profit;
+      const profitClass = profit >= 0 ? 'text-red-500' : 'text-green-500';
+      const profitSign = profit >= 0 ? '+' : '';
+      document.getElementById('totalProfit').innerHTML = `
+        <span class="${profitClass}">${profitSign}¥${profit.toLocaleString()}</span>
+      `;
+      
+      const profitPercent = data.total_profit_percent;
+      document.getElementById('profitPercent').innerHTML = `
+        <span class="${profitClass}">${profitSign}${profitPercent.toFixed(2)}%</span>
+      `;
+      
+      const healthScore = data.health_score;
+      document.getElementById('portfolioHealth').textContent = healthScore;
+      const healthColor = healthScore >= 80 ? '#10B981' : healthScore >= 60 ? '#F59E0B' : '#EF4444';
+      document.querySelector('.health-ring').style.borderColor = healthColor;
+    }
+
+    function updateStatCards(data) {
+      const holdings = data.holdings;
+      document.getElementById('holdingCount').textContent = holdings.length;
+      
+      // 风险等级
+      const riskLevel = data.health_score >= 80 ? '低' : data.health_score >= 60 ? '中' : '高';
+      const riskColor = data.health_score >= 80 ? 'text-green-500' : data.health_score >= 60 ? 'text-yellow-500' : 'text-red-500';
+      document.getElementById('riskLevel').innerHTML = `<span class="${riskColor}">${riskLevel}</span>`;
+      document.getElementById('riskDesc').textContent = 
+        data.health_score >= 80 ? '稳健型' : data.health_score >= 60 ? '平衡型' : '激进型';
+      
+      // 最大持仓
+      if (holdings.length > 0) {
+        const topHolding = holdings.reduce((max, h) => 
+          (h.market_value || 0) > (max.market_value || 0) ? h : max
+        );
+        document.getElementById('topHolding').textContent = topHolding.name;
+        const percent = (topHolding.market_value / data.total_value * 100).toFixed(1);
+        document.getElementById('topHoldingPercent').textContent = `占比 ${percent}%`;
+      }
+      
+      // 盈亏统计
+      const profitStocks = holdings.filter(h => (h.profit || 0) > 0).length;
+      const lossStocks = holdings.filter(h => (h.profit || 0) <= 0).length;
+      document.getElementById('profitCount').textContent = profitStocks;
+      document.getElementById('lossCount').textContent = `${lossStocks}只亏损`;
+    }
+
+    function renderHoldingsList(holdings) {
+      const container = document.getElementById('holdingsList');
+      
+      holdings.sort((a, b) => (b.market_value || 0) - (a.market_value || 0));
+      
+      container.innerHTML = holdings.map(h => {
+        const profit = h.profit || 0;
+        const profitPercent = h.profit_percent || 0;
+        const profitClass = profit >= 0 ? 'profit' : 'loss';
+        const profitSign = profit >= 0 ? '+' : '';
+        const percentOfTotal = ((h.market_value || 0) / holdings.reduce((sum, item) => sum + (item.market_value || 0), 0) * 100).toFixed(1);
+        
+        return `
+          <div class="holding-item ${profitClass}">
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <div class="font-semibold">${h.name}</div>
+                <div class="text-sm text-gray-500">${h.symbol} · ${h.quantity}股</div>
+              </div>
+              <div class="text-right">
+                <div class="font-semibold">¥${(h.market_value || 0).toLocaleString()}</div>
+                <div class="text-sm ${profit >= 0 ? 'text-red-500' : 'text-green-500'}">
+                  ${profitSign}${profitPercent.toFixed(2)}%
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-between items-center text-sm">
+              <span class="text-gray-500">成本 ¥${h.avg_cost.toFixed(2)}</span>
+              <span class="text-gray-500">占比 ${percentOfTotal}%</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function loadAIPortfolioAnalysis(data) {
+      try {
+        document.getElementById('aiLoading').classList.remove('hidden');
+        document.getElementById('aiContent').classList.add('hidden');
+
+        const response = await fetch(`${API_CONFIG.baseURL}/ai/analyze-portfolio`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            holdings: data.holdings,
+            total_value: data.total_value,
+            total_profit: data.total_profit,
+            total_profit_percent: data.total_profit_percent
+          })
+        });
+
+        const result = await response.json();
+
+        document.getElementById('aiAnalysis').textContent = result.analysis;
+        document.getElementById('aiSource').textContent = result.source === 'AI' ? 'AI生成' : '智能分析';
+
+        // 建议列表
+        const recList = document.getElementById('recommendations');
+        if (result.recommendations && result.recommendations.length > 0) {
+          recList.innerHTML = result.recommendations.map(r => `
+            <li class="flex items-start gap-2">
+              <i class="fas fa-check-circle text-blue-500 mt-1 text-xs"></i>
+              <span>${r}</span>
+            </li>
+          `).join('');
+        } else {
+          recList.innerHTML = '<li>建议定期审视持仓结构</li>';
+        }
+
+        document.getElementById('aiLoading').classList.add('hidden');
+        document.getElementById('aiContent').classList.remove('hidden');
+
+      } catch (error) {
+        console.error('AI分析失败:', error);
+        document.getElementById('aiAnalysis').textContent = 
+          '根据当前持仓分析，建议关注组合集中度，适度分散投资以降低风险。';
+        document.getElementById('aiSource').textContent = '默认分析';
+        document.getElementById('recommendations').innerHTML = `
+          <li>关注持仓集中度，避免过度集中</li>
+          <li>定期审视个股基本面</li>
+          <li>根据市场变化适当调整仓位</li>
+        `;
+        document.getElementById('aiLoading').classList.add('hidden');
+        document.getElementById('aiContent').classList.remove('hidden');
+      }
+    }
+  </script>
+</body>
+</html>

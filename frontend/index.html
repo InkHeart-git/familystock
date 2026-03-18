@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MiniRock - AI投资助手</title>
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // 强制刷新 - 版本号控制
+        const APP_VERSION = '20250315_1520';
+        const currentVer = localStorage.getItem('app_version');
+        if (currentVer !== APP_VERSION) {
+            localStorage.setItem('app_version', APP_VERSION);
+            if (currentVer) location.reload(true);
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: #0f172a; 
+            min-height: 100vh;
+            color: #fff;
+        }
+        .home-header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+            padding: 20px;
+            border-radius: 0 0 24px 24px;
+        }
+        .header-title { font-size: 18px; font-weight: 600; }
+        .quick-action-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 20px;
+        }
+        .quick-action-card:hover { transform: translateY(-4px); box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4); }
+        .section-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .market-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 0 20px; margin-bottom: 20px; }
+        .market-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; text-align: center; }
+        .market-name { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+        .market-value { font-size: 18px; font-weight: 600; }
+        .market-change { font-size: 12px; }
+        .up { color: #f87171; }
+        .down { color: #4ade80; }
+        .news-section { padding: 0 20px 80px; }
+        .news-item { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+        .news-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 8px; }
+        .tag-black { background: #7c3aed; }
+        .tag-gray { background: #525252; }
+        .tag-hot { background: #dc2626; }
+        .news-title { font-size: 14px; line-height: 1.5; margin-top: 8px; }
+        .news-source { font-size: 12px; color: #64748b; margin-top: 8px; }
+        .toast {
+            position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); color: #fff; padding: 12px 24px;
+            border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .toast.show { opacity: 1; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <!-- 登录页面 -->
+    <div class="login-page" id="loginPage">
+        <div class="home-header">
+            <div class="header-title">MiniRock投资模拟平台</div>
+        </div>
+        
+        <div style="padding: 40px 20px;">
+            <div style="text-align: center; margin-bottom: 40px;">
+                <h1 style="font-size: 28px; margin-bottom: 8px;">欢迎回来</h1>
+                <p style="color: #64748b;">登录您的账户</p>
+            </div>
+            
+            <form id="loginForm" style="max-width: 320px; margin: 0 auto;">
+                <div style="margin-bottom: 20px;">
+                    <input type="tel" id="loginPhone" placeholder="请输入手机号" 
+                        style="width: 100%; padding: 16px; border: none; border-radius: 12px; 
+                               background: rgba(255,255,255,0.1); color: #fff; font-size: 16px;">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <input type="password" id="loginPassword" placeholder="请输入密码" 
+                        style="width: 100%; padding: 16px; border: none; border-radius: 12px; 
+                               background: rgba(255,255,255,0.1); color: #fff; font-size: 16px;">
+                </div>
+                
+                <button type="submit" 
+                    style="width: 100%; padding: 16px; border: none; border-radius: 12px;
+                           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                           color: #fff; font-size: 16px; font-weight: 600; cursor: pointer;">
+                    立即登录
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 主页 -->
+    <div class="home-page hidden" id="homePage">
+        <div class="home-header">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div class="header-title">MiniRock投资模拟平台</div>
+                <div style="display: flex; gap: 16px;">
+                    <i class="fas fa-bell" style="font-size: 20px;"></i>
+                    <i class="fas fa-sign-out-alt" onclick="logout()" style="font-size: 20px; cursor: pointer;"></i>
+                </div>
+            </div>
+            
+            <div style="text-align: center;">
+                <div style="font-size: 14px; opacity: 0.8; margin-bottom: 8px;">欢迎回来</div>
+                <div style="font-size: 24px; font-weight: 700;" id="userNameDisplay">投资者</div>
+            </div>
+        </div>
+        
+        <!-- 进入投资模拟游戏 -->
+        <div class="quick-action-card" onclick="location.href='/minirock-v2.html'">
+            <div style="font-size: 48px; margin-bottom: 10px;"><i class="fas fa-gamepad"></i></div>
+            <div style="font-size: 20px; font-weight: bold;">进入投资模拟游戏</div>
+        </div>
+        
+        <!-- 自选股预览 -->
+        <div style="padding: 0 20px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div class="section-title" style="margin: 0;">
+                    <i class="fas fa-star" style="color: #f59e0b;"></i>
+                    我的自选股
+                </div>
+                <a href="/watchlist.html" style="color: #667eea; font-size: 14px; text-decoration: none;">
+                    查看全部 <i class="fas fa-chevron-right" style="font-size: 12px;"></i>
+                </a>
+            </div>
+            <div id="miniWatchlist" style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; text-align: center; color: #64748b;">
+                <i class="fas fa-star" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                暂无自选股
+            </div>
+        </div>
+        
+        <!-- 全球市场 -->
+        <div class="section-title" style="padding: 0 20px;">
+            <i class="fas fa-chart-line" style="color: #667eea;"></i>
+            全球市场
+        </div>
+        
+        <div class="market-grid" id="marketGrid">
+            <!-- 动态加载 -->
+        </div>
+        
+        <!-- 市场情报 -->
+        <div class="section-title" style="padding: 0 20px; margin-top: 20px;">
+            <i class="fas fa-newspaper" style="color: #667eea;"></i>
+            市场情报
+        </div>
+        
+        <div class="news-section" id="newsSection">
+            <!-- 动态加载 -->
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        const API_BASE = window.location.origin.includes('localhost') 
+            ? 'http://localhost:8000/api' 
+            : '/api';
+        
+        let currentUser = null;
+        
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+        
+        function enterHome() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('homePage').classList.remove('hidden');
+            if (currentUser?.name) {
+                document.getElementById('userNameDisplay').textContent = currentUser.name;
+            }
+            loadMarketData();
+            loadNewsData();
+        }
+        
+        function logout() {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('currentUser');
+            location.reload();
+        }
+        
+        // 登录
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const phone = document.getElementById('loginPhone').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            if (!/^1[3-9]\d{9}$/.test(phone)) {
+                showToast('请输入正确的手机号');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, password })
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('auth_token', data.token);
+                    localStorage.setItem('currentUser', JSON.stringify(data.user));
+                    currentUser = data.user;
+                    enterHome();
+                } else {
+                    showToast(data.message || '登录失败');
+                }
+            } catch (err) {
+                showToast('登录失败，请重试');
+            }
+        });
+        
+        // 加载市场数据
+        async function loadMarketData() {
+            const markets = [
+                { name: '上证指数', value: '3,428.15', change: '+0.42%', up: true },
+                { name: '深证成指', value: '10,963.85', change: '-0.18%', up: false },
+                { name: '创业板指', value: '2,156.78', change: '+0.65%', up: true },
+                { name: '恒生指数', value: '23,478.32', change: '+1.25%', up: true },
+                { name: '道琼斯', value: '38,714.23', change: '-0.32%', up: false },
+                { name: '纳斯达克', value: '15,995.32', change: '+0.85%', up: true },
+            ];
+            
+            const grid = document.getElementById('marketGrid');
+            grid.innerHTML = markets.map(m => `
+                <div class="market-card">
+                    <div class="market-name">${m.name}</div>
+                    <div class="market-value">${m.value}</div>
+                    <div class="market-change ${m.up ? 'up' : 'down'}">${m.change}</div>
+                </div>
+            `).join('');
+        }
+        
+        // 加载新闻数据
+        async function loadNewsData() {
+            const news = [
+                { tag: '黑天鹅', tagClass: 'tag-black', title: '美联储突发降息50基点，全球金融市场剧烈震荡', source: '财联社' },
+                { tag: '灰犀牛', tagClass: 'tag-gray', title: '美债收益率持续攀升，全球债务风险累积', source: '华尔街见闻' },
+                { tag: '热点', tagClass: 'tag-hot', title: 'AI算力需求爆发，半导体板块集体上涨', source: '证券时报' },
+            ];
+            
+            const section = document.getElementById('newsSection');
+            section.innerHTML = news.map(n => `
+                <div class="news-item">
+                    <span class="news-tag ${n.tagClass}">${n.tag}</span>
+                    <div class="news-title">${n.title}</div>
+                    <div class="news-source">${n.source} · 2小时前</div>
+                </div>
+            `).join('');
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                enterHome();
+            }
+        });
+    </script>
+</body>
+</html>

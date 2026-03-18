@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-03-16T16:53:03.190Z",
+  "tests": [
+    {
+      "name": "用户注册",
+      "status": "FAIL",
+      "detail": "Too many arguments. If you need to pass more than 1 argument to the function wrap them in an object."
+    },
+    {
+      "name": "用户登录",
+      "status": "FAIL",
+      "detail": "Too many arguments. If you need to pass more than 1 argument to the function wrap them in an object."
+    },
+    {
+      "name": "首页加载",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "股票搜索(代码)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "添加持仓",
+      "status": "FAIL",
+      "detail": "Too many arguments. If you need to pass more than 1 argument to the function wrap them in an object."
+    },
+    {
+      "name": "个股详情页",
+      "status": "FAIL",
+      "detail": "页面元素缺失"
+    },
+    {
+      "name": "组合分析页",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "自选股页面",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "中文名称搜索",
+      "status": "FAIL",
+      "detail": "Too many arguments. If you need to pass more than 1 argument to the function wrap them in an object."
+    },
+    {
+      "name": "AI 个股诊断",
+      "status": "PASS",
+      "detail": ""
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 5,
+    "warnings": 0
+  }
+}
