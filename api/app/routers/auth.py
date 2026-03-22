@@ -266,3 +266,52 @@ async def get_profile(phone: str):
             }
     finally:
         conn.close()
+
+
+class ResetPasswordRequest(BaseModel):
+    phone: str
+    name: str
+    new_password: str
+
+@router.post("/reset-password")
+async def reset_password(request: ResetPasswordRequest):
+    """根据手机号和姓名重置密码"""
+    if not re.match(r'^1[3-9]\d{9}$', request.phone):
+        raise HTTPException(status_code=400, detail="手机号格式不正确")
+    
+    if len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="密码长度不能少于6位")
+    
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="数据库连接失败")
+    
+    try:
+        with conn.cursor() as cur:
+            # 验证手机号和姓名是否匹配
+            cur.execute("""
+                SELECT id FROM users 
+                WHERE phone = %s AND name = %s
+            """, (request.phone, request.name))
+            user = cur.fetchone()
+            
+            if not user:
+                return {
+                    "success": False,
+                    "message": "手机号与姓名不匹配，请检查输入信息"
+                }
+            
+            # 更新密码
+            cur.execute("""
+                UPDATE users 
+                SET password_hash = %s, updated_at = NOW()
+                WHERE phone = %s
+            """, (request.new_password, request.phone))
+            conn.commit()
+            
+            return {
+                "success": True,
+                "message": "密码重置成功"
+            }
+    finally:
+        conn.close()

@@ -11,7 +11,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // 强制刷新 - 版本号控制
-        const APP_VERSION = '20250315_1520';
+        const APP_VERSION = '20250319_1130';
         const currentVer = localStorage.getItem('app_version');
         if (currentVer !== APP_VERSION) {
             localStorage.setItem('app_version', APP_VERSION);
@@ -123,7 +123,7 @@
         </div>
         
         <!-- 进入投资模拟游戏 -->
-        <div class="quick-action-card" onclick="location.href='/minirock-v2.html'">
+        <div class="quick-action-card" onclick="location.href='/MiniRock-v2.html'">
             <div style="font-size: 48px; margin-bottom: 10px;"><i class="fas fa-gamepad"></i></div>
             <div style="font-size: 20px; font-weight: bold;">进入投资模拟游戏</div>
         </div>
@@ -231,51 +231,134 @@
         });
         
         // 加载市场数据
+// 加载市场数据
         async function loadMarketData() {
-            const markets = [
-                { name: '上证指数', value: '3,428.15', change: '+0.42%', up: true },
-                { name: '深证成指', value: '10,963.85', change: '-0.18%', up: false },
-                { name: '创业板指', value: '2,156.78', change: '+0.65%', up: true },
-                { name: '恒生指数', value: '23,478.32', change: '+1.25%', up: true },
-                { name: '道琼斯', value: '38,714.23', change: '-0.32%', up: false },
-                { name: '纳斯达克', value: '15,995.32', change: '+0.85%', up: true },
-            ];
-            
             const grid = document.getElementById('marketGrid');
-            grid.innerHTML = markets.map(m => `
-                <div class="market-card">
-                    <div class="market-name">${m.name}</div>
-                    <div class="market-value">${m.value}</div>
-                    <div class="market-change ${m.up ? 'up' : 'down'}">${m.change}</div>
-                </div>
-            `).join('');
+            
+            try {
+                // 从API获取大盘指数数据
+                const response = await fetch(`${API_BASE}/tushare/index`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.length > 0) {
+                        // 添加其他国际市场指数（暂无实时数据）
+                        const otherMarkets = [
+                            { name: '恒生指数', close: 23478.32, pct_chg: 1.25 },
+                            { name: '道琼斯', close: 38714.23, pct_chg: -0.32 },
+                            { name: '纳斯达克', close: 15995.32, pct_chg: 0.85 }
+                        ];
+                        
+                        const allMarkets = [...data, ...otherMarkets];
+                        
+                        grid.innerHTML = allMarkets.map(m => {
+                            const up = m.pct_chg >= 0;
+                            const value = m.close.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            const change = (up ? '+' : '') + m.pct_chg.toFixed(2) + '%';
+                            return `
+                                <div class="market-card">
+                                    <div class="market-name">${m.name}</div>
+                                    <div class="market-value">${value}</div>
+                                    <div class="market-change ${up ? 'up' : 'down'}">${change}</div>
+                                </div>
+                            `;
+                        }).join('');
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('获取市场数据失败:', e);
+            }
+            
+            // API失败时显示错误提示
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 20px; color: #94a3b8;">数据加载中...</div>';
+            console.error('大盘数据加载失败，请检查API');
         }
         
         // 加载新闻数据
         async function loadNewsData() {
+            const section = document.getElementById('newsSection');
+            
+            try {
+                // 从API获取新闻数据
+                const response = await fetch(`${API_BASE}/tushare/news?limit=5`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.length > 0) {
+                        const news = data.map(n => {
+                            // 根据关键词判断标签
+                            let tag = '资讯';
+                            let tagClass = 'tag-gray';
+                            const title = n.title || '';
+                            if (title.includes('降息') || title.includes('危机') || title.includes('崩盘') || title.includes('黑天鹅')) {
+                                tag = '黑天鹅';
+                                tagClass = 'tag-black';
+                            } else if (title.includes('债务') || title.includes('风险') || title.includes('违约') || title.includes('灰犀牛')) {
+                                tag = '灰犀牛';
+                                tagClass = 'tag-gray';
+                            } else if (title.includes('涨') || title.includes('爆发') || title.includes('热潮') || title.includes('热点')) {
+                                tag = '热点';
+                                tagClass = 'tag-hot';
+                            }
+                            
+                            // 格式化时间
+                            const timeAgo = formatTimeAgo(n.published_at);
+                            
+                            return {
+                                tag: tag,
+                                tagClass: tagClass,
+                                title: n.title,
+                                source: n.source || '财经新闻',
+                                time: timeAgo,
+                                url: n.url
+                            };
+                        });
+                        
+                        section.innerHTML = news.map(n => `
+                            <div class="news-item cursor-pointer hover:shadow-md transition-all" onclick="${n.url ? `window.open('${n.url.replace(/'/g, "\\'")}', '_blank')` : `alert('暂无链接')`}">
+                                <span class="news-tag ${n.tagClass}">${n.tag}</span>
+                                <div class="news-title">${n.title}</div>
+                                <div class="news-source">${n.source} · ${n.time}</div>
+                            </div>
+                        `).join('');
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('获取新闻数据失败:', e);
+            }
+            
+            // 降级：使用静态数据
             const news = [
-                { tag: '黑天鹅', tagClass: 'tag-black', title: '美联储突发降息50基点，全球金融市场剧烈震荡', source: '财联社' },
-                { tag: '灰犀牛', tagClass: 'tag-gray', title: '美债收益率持续攀升，全球债务风险累积', source: '华尔街见闻' },
-                { tag: '热点', tagClass: 'tag-hot', title: 'AI算力需求爆发，半导体板块集体上涨', source: '证券时报' },
+                { tag: '黑天鹅', tagClass: 'tag-black', title: '美联储突发降息50基点，全球金融市场剧烈震荡', source: '财联社', time: '2小时前' },
+                { tag: '灰犀牛', tagClass: 'tag-gray', title: '美债收益率持续攀升，全球债务风险累积', source: '华尔街见闻', time: '3小时前' },
+                { tag: '热点', tagClass: 'tag-hot', title: 'AI算力需求爆发，半导体板块集体上涨', source: '证券时报', time: '4小时前' }
             ];
             
-            const section = document.getElementById('newsSection');
             section.innerHTML = news.map(n => `
-                <div class="news-item">
+                <div class="news-item cursor-pointer hover:shadow-md transition-all" onclick="alert('暂无链接')">
                     <span class="news-tag ${n.tagClass}">${n.tag}</span>
                     <div class="news-title">${n.title}</div>
-                    <div class="news-source">${n.source} · 2小时前</div>
+                    <div class="news-source">${n.source} · ${n.time}</div>
                 </div>
             `).join('');
         }
         
-        // 初始化
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedUser = localStorage.getItem('currentUser');
-            if (savedUser) {
-                currentUser = JSON.parse(savedUser);
-                enterHome();
+        // 格式化时间差
+        function formatTimeAgo(dateString) {
+            if (!dateString) return '刚刚';
+            try {
+                const date = new Date(dateString);
+                const now = new Date();
+                const diff = Math.floor((now - date) / 1000 / 60); // 分钟
+                
+                if (diff < 1) return '刚刚';
+                if (diff < 60) return `${diff}分钟前`;
+                if (diff < 1440) return `${Math.floor(diff / 60)}小时前`;
+                return `${Math.floor(diff / 1440)}天前`;
+            } catch (e) {
+                return '刚刚';
             }
+        }
         });
     </script>
 </body>

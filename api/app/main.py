@@ -43,6 +43,17 @@ async def root():
         "docs": "/docs"
     }
 
+
+@app.get("/api/version")
+async def get_version():
+    """获取API版本信息"""
+    return {
+        "version": "v20250321",
+        "environment": "production",
+        "service": "minirock-api",
+        "build_time": "2026-03-21 07:30:00"
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8006)

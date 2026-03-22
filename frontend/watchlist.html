@@ -65,10 +65,13 @@
   <!-- 顶部 -->
   <div class="gradient-header text-white px-5 pt-12 pb-8 rounded-b-3xl">
     <div class="flex items-center justify-between mb-6">
-      <a href="/minirock-auth.html" class="text-white/80 hover:text-white flex items-center gap-1">
+      <button onclick="history.back()" class="text-white/80 hover:text-white" style="background: none; border: none; cursor: pointer;">
+        <i class="fas fa-arrow-left text-lg"></i>
+      </button>
+      <button href="/MiniRock-auth.html" class="text-white/80 hover:text-white flex items-center gap-1" >
         <i class="fas fa-home text-lg"></i>
         <span class="text-sm">首页</span>
-      </a>
+      </button>
       <span class="text-lg font-semibold">我的自选股</span>
       <button onclick="refreshData()" class="text-white/80 hover:text-white">
         <i class="fas fa-sync-alt" id="refreshIcon"></i>
@@ -84,7 +87,7 @@
   <!-- 功能入口 -->
   <div class="px-5 -mt-4">
     <div class="grid grid-cols-3 gap-3">
-      <div class="feature-card" onclick="location.href='/minirock-v2.html'">
+      <div class="feature-card" onclick="location.href='/MiniRock-v2.html'">
         <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
         <div class="font-medium text-sm">我的持仓</div>
       </div>
@@ -150,15 +153,49 @@
     }
 
     const API_BASE = '/api';
+    
+    // 当前用户
+    let currentUser = null;
     let watchlist = [];
     
     // 初始化
     document.addEventListener('DOMContentLoaded', () => {
+      // 检查登录状态
+      const savedUser = localStorage.getItem('currentUser');
+      if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+      }
       loadWatchlist();
     });
     
-    // 加载自选股
-    function loadWatchlist() {
+    // 加载自选股（从持仓API获取）
+    async function loadWatchlist() {
+      // 首先尝试从portfolio API获取持仓数据
+      if (currentUser && currentUser.id) {
+        try {
+          const response = await fetch(`/api/portfolio/holdings?user_id=${currentUser.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.holdings && data.holdings.length > 0) {
+              // 将持仓数据转换为自选股格式
+              watchlist = data.holdings.map(h => ({
+                code: h.symbol.replace(/\.SH|\.SZ|\.BJ/g, ''), // 移除后缀
+                name: h.name,
+                quantity: h.quantity,
+                avgCost: h.avg_cost,
+                addedAt: new Date().toISOString()
+              }));
+              document.getElementById('watchlistCount').textContent = watchlist.length;
+              renderWatchlist();
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('获取持仓数据失败:', e);
+        }
+      }
+      
+      // 降级：从localStorage获取
       const saved = localStorage.getItem('minirock_watchlist');
       watchlist = saved ? JSON.parse(saved) : [];
       document.getElementById('watchlistCount').textContent = watchlist.length;
@@ -319,9 +356,26 @@
     }
     
     // 移除股票
-    function removeStock(code) {
+    async function removeStock(code) {
       if (!confirm('确定要移除这只股票吗？')) return;
       
+      // 如果是从服务器持仓来的，调用API删除
+      if (currentUser && currentUser.phone) {
+        try {
+          const fullCode = watchlist.find(s => s.code === code)?.fullCode || code;
+          const response = await fetch(`${API_BASE}/portfolio/holdings/${code}?user_id=${currentUser.phone}`, {
+            method: 'DELETE'
+          });
+          
+          if (response.ok) {
+            showToast('已从持仓中删除', 'success');
+          }
+        } catch (e) {
+          console.error('删除失败:', e);
+        }
+      }
+      
+      // 无论API结果如何，都更新本地列表
       watchlist = watchlist.filter(s => s.code !== code);
       localStorage.setItem('minirock_watchlist', JSON.stringify(watchlist));
       

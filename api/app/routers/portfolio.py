@@ -62,10 +62,10 @@ def ensure_user_exists(conn, user_id):
             
             # 插入新用户（提供所有必需的列）
             cur.execute("""
-                INSERT INTO users (user_id, name, phone, password_hash) 
-                VALUES (%s, %s, %s, %s) 
+                INSERT INTO users (phone, name, password_hash) 
+                VALUES (%s, %s, %s) 
                 ON CONFLICT DO NOTHING
-            """, (user_id, '投资者', user_id, 'temp_hash'))
+            """, (user_id, '投资者', 'temp_hash'))
             conn.commit()
     except:
         conn.rollback()
@@ -74,13 +74,94 @@ def ensure_user_exists(conn, user_id):
 # ==================== 行情获取 ====================
 
 def get_tushare_quote(symbol: str):
-    """从Tushare获取实时行情"""
+    """从SQLite stock_quotes表获取实时行情"""
+    import sqlite3
+    
     try:
-        if "." not in symbol:
-            ts_code = f"{symbol}.SH" if symbol.startswith("6") else f"{symbol}.SZ"
+        # 确保有交易所后缀
+        if '.' not in symbol:
+            if symbol.startswith('6'):
+                ts_code = f"{symbol}.SH"
+            elif symbol.startswith('0') or symbol.startswith('3'):
+                ts_code = f"{symbol}.SZ"
+            elif symbol.startswith('8') or symbol.startswith('4'):
+                ts_code = f"{symbol}.BJ"
+            else:
+                ts_code = symbol
         else:
             ts_code = symbol
         
+        # 连接SQLite数据库
+        db_path = "/var/www/familystock/api/data/family_stock.db"
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        
+        # 查询最新行情
+        cur.execute("""
+            SELECT ts_code, close, open, high, low, pre_close, 
+                   change, pct_chg, vol, amount
+            FROM stock_quotes 
+            WHERE ts_code = ?
+            ORDER BY trade_date DESC
+            LIMIT 1
+        """, (ts_code,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not row:
+            return None
+        
+        return {
+            "symbol": ts_code,
+            "price": float(row["close"] or 0),
+            "open": float(row["open"] or 0),
+            "high": float(row["high"] or 0),
+            "low": float(row["low"] or 0),
+            "prev_close": float(row["pre_close"] or 0),
+            "change": float(row["change"] or 0),
+            "change_percent": float(row["pct_chg"] or 0),
+            "volume": int(row["vol"] or 0),
+            "amount": float(row["amount"] or 0),
+            "updated_at": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"获取行情失败 {symbol}: {e}")
+        return None
+
+
+def sync_stock_quote(symbol: str):
+    """从Tushare获取行情并保存到SQLite（用于添加持仓时自动同步）"""
+    import sqlite3
+    
+    try:
+        # 确保有交易所后缀
+        if '.' not in symbol:
+            if symbol.startswith('6'):
+                ts_code = f"{symbol}.SH"
+            elif symbol.startswith('0') or symbol.startswith('3'):
+                ts_code = f"{symbol}.SZ"
+            elif symbol.startswith('8') or symbol.startswith('4'):
+                ts_code = f"{symbol}.BJ"
+            else:
+                ts_code = symbol
+        else:
+            ts_code = symbol
+            symbol = ts_code.split('.')[0]
+        
+        # 检查stock_quotes表是否已有数据
+        db_path = "/var/www/familystock/api/data/family_stock.db"
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        
+        cur.execute("SELECT 1 FROM stock_quotes WHERE ts_code = ? LIMIT 1", (ts_code,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return True  # 已有数据，无需同步
+        
+        # 从Tushare获取最新行情
         payload = {
             "api_name": "daily",
             "token": TUSHARE_TOKEN,
@@ -91,27 +172,36 @@ def get_tushare_quote(symbol: str):
         result = response.json()
         
         if result.get("code") != 0 or not result.get("data", {}).get("items"):
-            return None
+            cur.close()
+            conn.close()
+            return False
         
         fields = result["data"]["fields"]
         item = result["data"]["items"][0]
         data = dict(zip(fields, item))
         
-        return {
-            "symbol": symbol,
-            "price": float(data.get("close", 0)),
-            "open": float(data.get("open", 0)),
-            "high": float(data.get("high", 0)),
-            "low": float(data.get("low", 0)),
-            "change": float(data.get("change", 0)),
-            "change_percent": float(data.get("pct_chg", 0)),
-            "volume": int(data.get("vol", 0)),
-            "amount": float(data.get("amount", 0)),
-            "updated_at": datetime.now().isoformat()
-        }
+        # 保存到stock_quotes
+        cur.execute('''
+            INSERT OR REPLACE INTO stock_quotes 
+            (ts_code, symbol, trade_date, open, high, low, close, pre_close, change, pct_chg, vol, amount)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            ts_code, symbol, str(data.get("trade_date", "")),
+            float(data.get("open", 0)), float(data.get("high", 0)),
+            float(data.get("low", 0)), float(data.get("close", 0)),
+            float(data.get("pre_close", 0)), float(data.get("change", 0)),
+            float(data.get("pct_chg", 0)), float(data.get("vol", 0)),
+            float(data.get("amount", 0))
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"✅ 已同步行情数据: {ts_code}")
+        return True
+        
     except Exception as e:
-        print(f"获取行情失败 {symbol}: {e}")
-        return None
+        print(f"❌ 同步行情失败 {symbol}: {e}")
+        return False
 
 
 # ==================== API路由 ====================
@@ -130,14 +220,14 @@ async def get_holdings(user_id: str = Query(default="demo_user", description="�
                     CREATE TABLE IF NOT EXISTS holdings (
                         id SERIAL PRIMARY KEY,
                         user_id VARCHAR(50) NOT NULL,
-                        symbol VARCHAR(20) NOT NULL,
-                        name VARCHAR(100) NOT NULL,
+                        stock_code VARCHAR(20) NOT NULL,
+                        stock_name VARCHAR(100) NOT NULL,
                         quantity INTEGER NOT NULL DEFAULT 0,
                         avg_cost DECIMAL(10, 2) NOT NULL DEFAULT 0,
                         market VARCHAR(20) DEFAULT 'A股',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE(user_id, symbol)
+                        UNIQUE(user_id, stock_code)
                     )
                 """)
                 
@@ -145,22 +235,24 @@ async def get_holdings(user_id: str = Query(default="demo_user", description="�
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS users (
                         id SERIAL PRIMARY KEY,
-                        user_id VARCHAR(50) UNIQUE NOT NULL,
+                        phone VARCHAR(50) UNIQUE NOT NULL,
                         name VARCHAR(100) DEFAULT '投资者',
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        password_hash VARCHAR(255) DEFAULT 'temp',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
                 
                 cur.execute("""
-                    INSERT INTO users (user_id, name) VALUES (%s, %s) ON CONFLICT DO NOTHING
+                    INSERT INTO users (phone, name, password_hash) VALUES (%s, %s, 'temp123') ON CONFLICT DO NOTHING
                 """, (user_id, '投资者'))
                 
                 # 插入初始数据（如果没有）
                 cur.execute("""
-                    INSERT INTO holdings (user_id, symbol, name, quantity, avg_cost, market) VALUES
-                    ('demo_user', '600519', '贵州茅台', 10, 1650.00, 'A股'),
-                    ('demo_user', '300750', '宁德时代', 50, 200.00, 'A股'),
-                    ('demo_user', '002594', '比亚迪', 30, 260.00, 'A股')
+                    INSERT INTO holdings (user_id, stock_code, stock_name, quantity, avg_cost) VALUES
+                    ('demo_user', '600519.SH', '贵州茅台', 10, 1650.00),
+                    ('demo_user', '300750.SZ', '宁德时代', 50, 200.00),
+                    ('demo_user', '002594.SZ', '比亚迪', 30, 260.00)
                     ON CONFLICT DO NOTHING
                 """)
                 
@@ -168,12 +260,22 @@ async def get_holdings(user_id: str = Query(default="demo_user", description="�
                 
                 # 查询持仓
                 cur.execute("""
-                    SELECT symbol, name, quantity, avg_cost, market 
+                    SELECT stock_code, stock_name, quantity, avg_cost 
                     FROM holdings 
                     WHERE user_id = %s 
                     ORDER BY created_at DESC
                 """, (user_id,))
                 holdings = cur.fetchall()
+                # 将元组转换为字典
+                holdings = [
+                    {
+                        "symbol": row["stock_code"],
+                        "name": row["stock_name"],
+                        "quantity": row["quantity"],
+                        "avg_cost": row["avg_cost"]
+                    }
+                    for row in holdings
+                ]
         except Exception as e:
             print(f"数据库错误: {e}")
             holdings = USER_PORTFOLIO_BACKUP.get(user_id, [])
@@ -208,8 +310,8 @@ async def get_holdings(user_id: str = Query(default="demo_user", description="�
         
         if quote:
             current_price = quote["price"]
-            market_value = current_price * holding["quantity"]
-            cost_value = holding["avg_cost"] * holding["quantity"]
+            market_value = current_price * float(holding["quantity"])
+            cost_value = float(holding["avg_cost"]) * float(holding["quantity"])
             profit = market_value - cost_value
             profit_percent = (profit / cost_value * 100) if cost_value > 0 else 0
             
@@ -224,14 +326,14 @@ async def get_holdings(user_id: str = Query(default="demo_user", description="�
                 "health_score": calculate_health_score(profit_percent, quote.get("change_percent", 0))
             }
             
-            total_value += market_value
-            total_cost += cost_value
+            total_value += float(market_value)
+            total_cost += float(cost_value)
         else:
             enriched_holding = {
                 **holding,
                 "current_price": holding["avg_cost"],
-                "market_value": holding["avg_cost"] * holding["quantity"],
-                "cost_value": holding["avg_cost"] * holding["quantity"],
+                "market_value": float(holding["avg_cost"]) * float(holding["quantity"]),
+                "cost_value": float(holding["avg_cost"]) * float(holding["quantity"]),
                 "profit": 0,
                 "profit_percent": 0,
                 "change_percent": 0,
@@ -275,14 +377,14 @@ async def add_holding(request: HoldingRequest, user_id: str = Query(default="dem
                     CREATE TABLE IF NOT EXISTS holdings (
                         id SERIAL PRIMARY KEY,
                         user_id VARCHAR(50) NOT NULL,
-                        symbol VARCHAR(20) NOT NULL,
-                        name VARCHAR(100) NOT NULL,
+                        stock_code VARCHAR(20) NOT NULL,
+                        stock_name VARCHAR(100) NOT NULL,
                         quantity INTEGER NOT NULL DEFAULT 0,
                         avg_cost DECIMAL(10, 2) NOT NULL DEFAULT 0,
                         market VARCHAR(20) DEFAULT 'A股',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE(user_id, symbol)
+                        UNIQUE(user_id, stock_code)
                     )
                 """)
                 conn.commit()
@@ -290,7 +392,7 @@ async def add_holding(request: HoldingRequest, user_id: str = Query(default="dem
                 # 检查是否已存在
                 cur.execute("""
                     SELECT quantity, avg_cost FROM holdings 
-                    WHERE user_id = %s AND symbol = %s
+                    WHERE user_id = %s AND stock_code = %s
                 """, (user_id, request.symbol))
                 existing = cur.fetchone()
                 
@@ -303,13 +405,13 @@ async def add_holding(request: HoldingRequest, user_id: str = Query(default="dem
                     cur.execute("""
                         UPDATE holdings 
                         SET quantity = %s, avg_cost = %s, updated_at = CURRENT_TIMESTAMP
-                        WHERE user_id = %s AND symbol = %s
+                        WHERE user_id = %s AND stock_code = %s
                     """, (total_qty, new_avg_cost, user_id, request.symbol))
                 else:
                     cur.execute("""
-                        INSERT INTO holdings (user_id, symbol, name, quantity, avg_cost, market)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (user_id, request.symbol, request.name, request.quantity, request.avg_cost, 'A股'))
+                        INSERT INTO holdings (user_id, stock_code, stock_name, quantity, avg_cost)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (user_id, request.symbol, request.name, request.quantity, request.avg_cost))
                 
                 conn.commit()
         except Exception as e:
@@ -354,6 +456,12 @@ async def add_holding(request: HoldingRequest, user_id: str = Query(default="dem
                 "market": "A股"
             })
     
+    # 同步行情数据到SQLite（异步执行，不阻塞返回）
+    try:
+        sync_stock_quote(request.symbol)
+    except Exception as e:
+        print(f"同步行情数据失败（非阻塞）: {e}")
+    
     return {"success": True, "message": f"已添加 {request.name} 到持仓"}
 
 
@@ -366,7 +474,7 @@ async def remove_holding(symbol: str, user_id: str = Query(default="demo_user"))
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    DELETE FROM holdings WHERE user_id = %s AND symbol = %s
+                    DELETE FROM holdings WHERE user_id = %s AND stock_code = %s
                 """, (user_id, symbol))
                 deleted = cur.rowcount
                 conn.commit()

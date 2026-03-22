@@ -30,19 +30,19 @@ NEWS_CACHE = {}  # 内存缓存
 
 class StockAnalysisRequest(BaseModel):
     symbol: str
-    name: str
-    current_price: float
-    avg_cost: float
-    quantity: int
-    change_percent: float
-    profit_percent: float
+    name: str = ""
+    current_price: float = 0.0
+    avg_cost: float = 0.0
+    quantity: int = 0
+    change_percent: float = 0.0
+    profit_percent: float = 0.0
     market: str = "A股"
 
 class PortfolioAnalysisRequest(BaseModel):
     holdings: List[dict]
     total_value: float
     total_profit: float
-    total_profit_percent: float
+    total_profit_percent: float = 0.0
 
 
 # ==================== 新闻库操作 ====================
@@ -314,15 +314,57 @@ def generate_stock_analysis_prompt(stock: dict, news_list: List[dict] = None) ->
 
 @router.post("/analyze-stock")
 async def analyze_stock(request: StockAnalysisRequest):
-    """AI个股诊断（已接入新闻库）"""
+    """AI个股诊断（已接入新闻库）- 支持自动获取缺失字段"""
+    import sqlite3
+    
+    symbol = request.symbol
+    
+    # 如果没有提供完整数据，从数据库自动获取
+    if not request.name or request.current_price == 0:
+        try:
+            conn = sqlite3.connect("/var/www/familystock/api/data/family_stock.db")
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # 处理代码格式
+            ts_code = symbol
+            if "." not in symbol:
+                if symbol.startswith("6"):
+                    ts_code = f"{symbol}.SH"
+                else:
+                    ts_code = f"{symbol}.SZ"
+            
+            # 查询最新行情
+            cursor.execute("""
+                SELECT ts_code, close, pct_chg FROM stock_quotes 
+                WHERE ts_code = ? ORDER BY trade_date DESC LIMIT 1
+            """, (ts_code,))
+            row = cursor.fetchone()
+            
+            if row:
+                current_price = float(row["close"] or 0)
+                change_percent = float(row["pct_chg"] or 0)
+            else:
+                current_price = request.current_price
+                change_percent = request.change_percent
+            
+            conn.close()
+        except Exception as e:
+            print(f"获取行情失败: {e}")
+            current_price = request.current_price
+            change_percent = request.change_percent
+    else:
+        current_price = request.current_price
+        change_percent = request.change_percent
+    
     # 构建股票数据
     stock_data = {
-        "symbol": request.symbol,
-        "name": request.name,
-        "current_price": request.current_price,
-        "avg_cost": request.avg_cost,
+        "symbol": symbol,
+        "name": request.name or symbol,
+        "current_price": current_price,
+        "avg_cost": request.avg_cost or current_price,
         "quantity": request.quantity,
-        "change_percent": request.change_percent,
+        "change_percent": change_percent,
         "profit_percent": request.profit_percent,
         "market": request.market
     }

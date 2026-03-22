@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /var/www/familystock/api
+cd /var/www/familystock-test/api
 source venv/bin/activate
-export PYTHONPATH=/var/www/familystock/api
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+export PYTHONPATH=/var/www/familystock-test/api
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload

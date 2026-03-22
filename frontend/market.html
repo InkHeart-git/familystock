@@ -5,11 +5,11 @@
 <meta http-equiv="Expires" content="0">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>minirock</title>
+  <title>MiniRock</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="stock_database.js"></script>
-  <script src="minirock-api.js"></script>
+  <script src="MiniRock-api.js"></script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <style>
     :root {
@@ -699,6 +699,13 @@
   </style>
 </head>
 <body>
+  <!-- 返回导航 -->
+  <div style="position: fixed; top: 10px; left: 10px; z-index: 9999;">
+    <button onclick="history.back()" style="background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;">
+      <i class="fas fa-arrow-left" style="color: #333;"></i>
+    </button>
+  </div>
+
   <!-- 免责声明弹窗 -->
   <div class="disclaimer-modal active" id="disclaimerModal">
     <div class="disclaimer-content">
@@ -749,7 +756,7 @@
     <!-- 顶部蓝色区域 -->
     <div class="home-header">
       <div class="top-nav">
-        <span class="app-title">minirock</span>
+        <span class="app-title">MiniRock</span>
         <div class="nav-actions">
           <i data-lucide="bell" class="nav-icon alert-dot"></i>
           <i data-lucide="settings" class="nav-icon"></i>
@@ -796,7 +803,7 @@
         </div>
         <div class="game-info">
           <div class="game-title">
-            minirock 投资模拟
+            MiniRock 投资模拟
             <span class="game-badge">模拟游戏</span>
           </div>
           <div class="game-desc">零风险体验投资乐趣，虚拟资金实战演练</div>
