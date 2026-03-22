@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>灵犀 - 个股诊断</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #1E5F8E;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+    }
+    body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #F8FAFC; }
+    .health-ring { 
+      width: 80px; height: 80px; border-radius: 50%; border: 6px solid #10B981; 
+      display: flex; flex-direction: column; align-items: center; justify-content: center; 
+    }
+    .ai-card { 
+      background: linear-gradient(135deg, #E8F4FC 0%, #F0F9FF 100%); 
+      border-radius: 16px; padding: 20px; border: 1px solid rgba(30, 95, 142, 0.1); 
+    }
+    .scenario-card { 
+      background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px;
+      border-left: 4px solid var(--success);
+    }
+    .scenario-card.optimistic { border-left-color: var(--success); }
+    .scenario-card.neutral { border-left-color: var(--warning); }
+    .scenario-card.pessimistic { border-left-color: var(--danger); }
+    .news-item { 
+      background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px;
+      border-left: 4px solid #3B82F6;
+    }
+    .news-item.positive { border-left-color: var(--success); }
+    .news-item.negative { border-left-color: var(--danger); }
+    .news-item.neutral { border-left-color: #6B7280; }
+  </style>
+</head>
+<body>
+  <div class="max-w-md mx-auto bg-white min-h-screen pb-20">
+    <!-- 顶部导航 -->
+    <div class="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10">
+      <button onclick="history.back()" class="flex items-center gap-1 text-gray-500 hover:text-gray-700">
+        <i class="fas fa-chevron-left"></i>
+        <span>返回</span>
+      </button>
+      <div class="text-center">
+        <span class="font-semibold text-lg block" id="stockName">加载中...</span>
+        <span class="text-gray-400 text-sm" id="stockCode"></span>
+      </div>
+      <button onclick="refreshData()" class="text-gray-500 hover:text-blue-600">
+        <i class="fas fa-sync-alt" id="refreshIcon"></i>
+      </button>
+    </div>
+
+    <!-- 价格栏 -->
+    <div class="flex items-center justify-between px-5 py-5 border-b-8 border-gray-50">
+      <div>
+        <div class="text-3xl font-bold" id="currentPrice">--</div>
+        <div class="text-sm mt-1" id="priceChange">--</div>
+        <div class="text-xs text-gray-400 mt-1" id="updateTime"></div>
+      </div>
+      <div class="health-ring" id="healthRing">
+        <span class="text-xl font-bold" id="healthScore">--</span>
+        <span class="text-xs text-gray-500">健康度</span>
+      </div>
+    </div>
+
+    <!-- 行情数据栏 - 今开/最高/最低/昨收 -->
+    <div class="grid grid-cols-4 gap-2 px-5 py-4 border-b bg-gray-50">
+      <div class="text-center">
+        <div class="text-xs text-gray-500 mb-1">今开</div>
+        <div class="font-semibold" id="openPrice">--</div>
+      </div>
+      <div class="text-center">
+        <div class="text-xs text-gray-500 mb-1">最高</div>
+        <div class="font-semibold" id="highPrice">--</div>
+      </div>
+      <div class="text-center">
+        <div class="text-xs text-gray-500 mb-1">最低</div>
+        <div class="font-semibold" id="lowPrice">--</div>
+      </div>
+      <div class="text-center">
+        <div class="text-xs text-gray-500 mb-1">昨收</div>
+        <div class="font-semibold" id="prevClose">--</div>
+      </div>
+    </div>
+
+    <!-- 加载中 -->
+    <div id="loadingState" class="p-10 text-center">
+      <div class="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+      <p class="text-gray-500">加载股票数据中...</p>
+    </div>
+
+    <!-- 内容区域 -->
+    <div id="contentState" class="hidden">
+      <!-- 持仓信息 -->
+      <div class="px-5 py-4 bg-gray-50 mx-5 mt-4 rounded-xl">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-gray-600">您的持仓</span>
+          <span class="font-semibold" id="holdingQuantity">--股</span>
+        </div>
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-gray-600">持仓成本</span>
+          <span class="font-semibold" id="holdingCost">¥--</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-gray-600">持仓盈亏</span>
+          <span class="font-semibold" id="holdingProfit">--</span>
+        </div>
+      </div>
+
+      <!-- AI诊断 -->
+      <div class="ai-card mx-5 mt-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xl">🤖</span>
+          <span class="font-semibold text-blue-800">AI 智能诊断</span>
+          <span id="aiSource" class="text-xs text-gray-500 ml-auto"></span>
+        </div>
+        
+        <div id="aiStart" class="text-center py-6">
+          <button onclick="startAIAnalysis()" class="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-3 rounded-xl font-medium hover:shadow-lg transition-all">
+            <i class="fas fa-robot mr-2"></i>开始AI分析
+          </button>
+          <p class="text-sm text-gray-500 mt-2">点击获取AI智能诊断报告</p>
+        </div>
+        
+        <div id="aiLoading" class="text-center py-4 hidden">
+          <div class="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+          <p class="text-sm text-gray-500">AI正在分析中，约需3秒...</p>
+        </div>
+        
+        <div id="aiContent" class="hidden">
+          <div class="bg-white rounded-lg p-4 mb-4">
+            <p class="text-gray-700 leading-relaxed text-sm" id="aiAnalysis"></p>
+          </div>
+          
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-sm text-gray-600">风险等级:</span>
+            <span id="aiRiskLevel" class="px-3 py-1 rounded-full text-sm font-medium"></span>
+          </div>
+          
+          <div class="flex gap-3">
+            <button class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 transition" onclick="showDetailReport()">
+              <i class="fas fa-file-alt mr-2"></i>详细报告
+            </button>
+            <button class="flex-1 bg-white border-2 border-blue-600 text-blue-600 py-3 rounded-xl font-medium hover:bg-blue-50 transition" onclick="showScenario()">
+              <i class="fas fa-chart-line mr-2"></i>情景推演
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 情景推演 -->
+      <div id="scenarioSection" class="hidden mx-5 mt-6">
+        <h2 class="flex items-center gap-2 mb-4 font-semibold text-lg">
+          <span>📊</span>
+          <span>情景推演</span>
+        </h2>
+        <div id="scenarioList">
+          <!-- 动态生成 -->
+        </div>
+      </div>
+
+      <!-- 相关新闻 -->
+      <div id="newsSection" class="mx-5 mt-6">
+        <h2 class="flex items-center gap-2 mb-4 font-semibold text-lg">
+          <span>📰</span>
+          <span>相关新闻</span>
+        </h2>
+        <div id="newsList">
+          <div class="text-center py-8 text-gray-400">
+            <i class="fas fa-newspaper text-4xl mb-3"></i>
+            <p>新闻加载中...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 事件列表 -->
+      <h2 class="flex items-center gap-2 px-5 mt-6 mb-4 font-semibold text-lg">
+        <span>🔥</span>
+        <span>影响该股的 TOP 3 重要事件</span>
+      </h2>
+      <div class="px-5 pb-24" id="eventList">
+        <!-- 动态生成 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部操作 -->
+  <div class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t flex px-5 py-3 gap-3 z-20">
+    <button class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition" onclick="toggleFollow()">
+      <i class="far fa-star"></i>
+      <span>关注</span>
+    </button>
+    <button class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition" onclick="setAlert()">
+      <i class="far fa-bell"></i>
+      <span>预警</span>
+    </button>
+  </div>
+
+  <script>
+    // 获取URL参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const stockCode = urlParams.get('code') || '600519';
+    
+    const API_CONFIG = { baseURL: "" };
+    
+    // 全局存储股票数据
+    let stockData = {};
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStockDetail(stockCode);
+    });
+
+    // 刷新数据
+    function refreshData() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('fa-spin');
+      loadStockDetail(stockCode).then(() => {
+        setTimeout(() => icon.classList.remove('fa-spin'), 1000);
+      });
+    }
+
+    // 加载股票详情
+    async function loadStockDetail(code) {
+      try {
+        document.getElementById('loadingState').classList.remove('hidden');
+        document.getElementById('contentState').classList.add('hidden');
+        
+        // 1. 获取持仓信息
+        const holdingsRes = await fetch(`${API_CONFIG.baseURL}/api/portfolio/holdings?user_id=demo_user`);
+        const holdingsData = await holdingsRes.json();
+        const holding = holdingsData.holdings.find(h => h.symbol === code);
+        
+        // 2. 获取实时行情
+        const suffix = code.startsWith('6') ? '.SH' : '.SZ';
+        const quoteRes = await fetch(`${API_CONFIG.baseURL}/api/tushare/quote/${code}${suffix}`);
+        const quote = await quoteRes.json();
+        
+        // 3. 获取股票名称
+        const stockInfo = await fetchStockInfo(code);
+        
+        // 存储数据
+        stockData = {
+          code,
+          name: stockInfo.name,
+          price: quote.close,
+          open: quote.open,
+          high: quote.high,
+          low: quote.low,
+          prev_close: quote.pre_close,
+          change: quote.change,
+          changePercent: quote.pct_chg,
+          holding: holding || null
+        };
+        
+        // 更新页面
+        updateStockDisplay(stockData);
+        
+        // 显示内容
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('contentState').classList.remove('hidden');
+        
+        // 4. 加载AI分析
+        // loadAIAnalysis(stockData); // 改为手动触发
+        
+        // 5. 加载情景推演
+        loadScenario(stockData);
+        
+        // 6. 加载新闻
+        loadNews(stockData);
+        
+        // 7. 渲染事件
+        renderEvents(stockInfo.name);
+        
+      } catch (error) {
+        console.error('加载失败:', error);
+        document.getElementById('loadingState').innerHTML = `
+          <div class="text-center">
+            <i class="fas fa-exclamation-circle text-red-500 text-4xl mb-3"></i>
+            <p class="text-red-500">加载失败</p>
+            <p class="text-gray-400 text-sm mt-2">${error.message}</p>
+            <button onclick="loadStockDetail('${stockCode}')" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">
+              重试
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    // 更新股票显示
+    function updateStockDisplay(data) {
+      document.getElementById('stockName').textContent = data.name || data.code;
+      document.getElementById('stockCode').textContent = data.code;
+      document.getElementById('currentPrice').textContent = '¥' + data.price.toFixed(2);
+      document.getElementById('updateTime').textContent = '更新于 ' + new Date().toLocaleTimeString();
+      
+      const changePercent = data.changePercent || 0;
+      const changeClass = changePercent >= 0 ? 'text-red-500' : 'text-green-500';
+      const changeSign = changePercent >= 0 ? '+' : '';
+      document.getElementById('priceChange').innerHTML = `
+        <span class="${changeClass} font-medium">${changeSign}${changePercent.toFixed(2)}%</span>
+        <span class="${changeClass} text-sm ml-2">${changeSign}${data.change.toFixed(2)}</span>
+      `;
+      
+      // 更新行情四字段：今开/最高/最低/昨收
+      if (typeof data.open !== 'undefined') {
+        document.getElementById('openPrice').textContent = '¥' + (data.open || 0).toFixed(2);
+        document.getElementById('highPrice').textContent = '¥' + (data.high || 0).toFixed(2);
+        document.getElementById('lowPrice').textContent = '¥' + (data.low || 0).toFixed(2);
+        document.getElementById('prevClose').textContent = '¥' + (data.prev_close || 0).toFixed(2);
+      }
+      
+      // 更新持仓信息
+      if (data.holding) {
+        document.getElementById('holdingQuantity').textContent = data.holding.quantity + '股';
+        document.getElementById('holdingCost').textContent = '¥' + data.holding.avg_cost.toFixed(2);
+        const profit = data.holding.profit || 0;
+        const profitPercent = data.holding.profit_percent || 0;
+        const profitClass = profit >= 0 ? 'text-red-500' : 'text-green-500';
+        const profitSign = profit >= 0 ? '+' : '';
+        document.getElementById('holdingProfit').innerHTML = `
+          <span class="${profitClass}">${profitSign}¥${profit.toFixed(2)} (${profitSign}${profitPercent.toFixed(2)}%)</span>
+        `;
+        
+        // 健康度
+        const healthScore = data.holding.health_score || 70;
+        document.getElementById('healthScore').textContent = healthScore;
+        const healthColor = healthScore >= 80 ? '#10B981' : healthScore >= 60 ? '#F59E0B' : '#EF4444';
+        document.getElementById('healthRing').style.borderColor = healthColor;
+      } else {
+        document.getElementById('holdingQuantity').textContent = '未持仓';
+        document.getElementById('holdingCost').textContent = '--';
+        document.getElementById('holdingProfit').textContent = '--';
+        document.getElementById('healthScore').textContent = '--';
+      }
+    }
+
+    // 加载AI分析
+    async function loadAIAnalysis(data) {
+      try {
+        document.getElementById('aiLoading').classList.remove('hidden');
+        document.getElementById('aiContent').classList.add('hidden');
+        
+        const response = await fetch(`${API_CONFIG.baseURL}/api/ai/analyze-stock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            symbol: data.code,
+            name: data.name,
+            current_price: data.price,
+            avg_cost: data.holding ? data.holding.avg_cost : data.price,
+            quantity: data.holding ? data.holding.quantity : 0,
+            change_percent: data.changePercent,
+            profit_percent: data.holding ? data.holding.profit_percent : 0
+          })
+        });
+        
+        const result = await response.json();
+        
+        document.getElementById('aiAnalysis').textContent = result.analysis;
+        document.getElementById('aiSource').textContent = result.source === 'AI' ? 'AI生成' : '模拟数据';
+        
+        // 风险等级
+        const riskLevel = result.risk_level || '中';
+        const riskElement = document.getElementById('aiRiskLevel');
+        riskElement.textContent = riskLevel + '风险';
+        if (riskLevel === '高') {
+          riskElement.className = 'px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-600';
+        } else if (riskLevel === '中') {
+          riskElement.className = 'px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-600';
+        } else {
+          riskElement.className = 'px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-600';
+        }
+        
+        document.getElementById('aiLoading').classList.add('hidden');
+        document.getElementById('aiContent').classList.remove('hidden');
+        
+      } catch (error) {
+        console.error('AI分析失败:', error);
+        document.getElementById('aiAnalysis').textContent = 'AI分析暂时不可用，请稍后重试。';
+        document.getElementById('aiRiskLevel').textContent = '未知';
+        document.getElementById('aiSource').textContent = '错误';
+        document.getElementById('aiLoading').classList.add('hidden');
+        document.getElementById('aiContent').classList.remove('hidden');
+      }
+    }
+
+    // 加载情景推演
+    async function loadScenario(data) {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/api/ai/scenario/${data.code}?name=${encodeURIComponent(data.name)}&current_price=${data.price}`);
+        const result = await response.json();
+        
+        const scenarioList = document.getElementById('scenarioList');
+        scenarioList.innerHTML = '';
+        
+        const scenarios = result.scenarios || {};
+        const order = ['optimistic', 'neutral', 'pessimistic'];
+        const names = { optimistic: '乐观情景', neutral: '中性情景', pessimistic: '悲观情景' };
+        
+        order.forEach(key => {
+          const s = scenarios[key];
+          if (!s) return;
+          
+          const changeClass = s.change_percent >= 0 ? 'text-red-500' : 'text-green-500';
+          const changeSign = s.change_percent >= 0 ? '+' : '';
+          
+          scenarioList.innerHTML += `
+            <div class="scenario-card ${key} mb-3">
+              <div class="flex justify-between items-start mb-2">
+                <span class="font-semibold">${names[key]}</span>
+                <span class="${changeClass} font-bold">${changeSign}${s.change_percent}%</span>
+              </div>
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-gray-600">预期价格</span>
+                <span class="font-bold">¥${s.projected_price.toFixed(2)}</span>
+              </div>
+              <p class="text-gray-500 text-xs mt-2">${s.description}</p>
+            </div>
+          `;
+        });
+        
+        document.getElementById('scenarioSection').classList.remove('hidden');
+      } catch (error) {
+        console.error('情景推演加载失败:', error);
+      }
+    }
+
+    // 加载新闻
+    async function loadNews(data) {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/api/ai/news-related/${data.code}?name=${encodeURIComponent(data.name)}&limit=5`);
+        const result = await response.json();
+        
+        const newsList = document.getElementById('newsList');
+        newsList.innerHTML = '';
+        
+        const news = result.news || [];
+        if (news.length === 0) {
+          newsList.innerHTML = `
+            <div class="text-center py-8 text-gray-400">
+              <i class="far fa-newspaper text-4xl mb-3"></i>
+              <p>暂无相关新闻</p>
+            </div>
+          `;
+          return;
+        }
+        
+        news.forEach(item => {
+          const sentimentClass = item.sentiment === 'positive' ? 'positive' : 
+                                item.sentiment === 'negative' ? 'negative' : 'neutral';
+          const sentimentEmoji = item.sentiment === 'positive' ? '🟢' : 
+                                item.sentiment === 'negative' ? '🔴' : '⚪';
+          
+          newsList.innerHTML += `
+            <div class="news-item ${sentimentClass} cursor-pointer hover:shadow-md transition" onclick="window.open('#', '_blank')">
+              <div class="flex justify-between items-start mb-2">
+                <span class="font-medium text-sm line-clamp-2">${item.title}</span>
+                <span class="text-xs ml-2 whitespace-nowrap">${sentimentEmoji}</span>
+              </div>
+              <p class="text-gray-600 text-xs line-clamp-2 mb-2">${item.summary || item.description || ''}</p>
+              <div class="flex justify-between items-center text-xs text-gray-400">
+                <span>${item.source}</span>
+                <span>${new Date(item.published_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+          `;
+        });
+      } catch (error) {
+        console.error('新闻加载失败:', error);
+        document.getElementById('newsList').innerHTML = `
+          <div class="text-center py-8 text-gray-400">
+            <i class="far fa-newspaper text-4xl mb-3"></i>
+            <p>新闻加载失败</p>
+          </div>
+        `;
+      }
+    }
+
+    // 获取股票信息
+    async function fetchStockInfo(code) {
+      if (typeof STOCK_NAME_MAP !== 'undefined' && STOCK_NAME_MAP[code]) {
+        return { name: STOCK_NAME_MAP[code], code };
+      }
+      const stockNames = {
+        '600519': '贵州茅台', '300750': '宁德时代', '002594': '比亚迪',
+        '000001': '平安银行', '601318': '中国平安', '600036': '招商银行'
+      };
+      return { name: stockNames[code] || code, code };
+    }
+
+    // 渲染事件列表
+    function renderEvents(stockName) {
+      const events = [
+        { title: '行业政策利好', impact: 'positive', desc: `利好${stockName}所属行业发展，政策支持力度加大`, value: '+8%' },
+        { title: '季度业绩超预期', impact: 'positive', desc: '营收增长稳健，净利润同比大幅提升', value: '+5%' },
+        { title: '市场情绪波动', impact: 'neutral', desc: '大盘震荡调整，短期或面临一定压力', value: '-3%' }
+      ];
+      
+      document.getElementById('eventList').innerHTML = events.map(e => `
+        <div class="px-5 py-4 bg-white rounded-xl mb-3 border-l-4 ${e.impact === 'positive' ? 'border-green-500' : e.impact === 'negative' ? 'border-red-500' : 'border-gray-400'}">
+          <div class="flex justify-between items-start mb-2">
+            <span class="font-medium">${e.title}</span>
+            <span class="text-sm ${e.impact === 'positive' ? 'text-green-600' : e.impact === 'negative' ? 'text-red-600' : 'text-gray-600'}">
+              ${e.impact === 'positive' ? '🟢' : e.impact === 'negative' ? '🔴' : '⚪'} ${e.value}
+            </span>
+          </div>
+          <p class="text-gray-600 text-sm">${e.desc}</p>
+        </div>
+      `).join('');
+    }
+
+    // 按钮功能
+    function showDetailReport() {
+      alert('详细AI分析报告功能开发中...');
+    }
+    
+    function showScenario() {
+      document.getElementById('scenarioSection').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    function toggleFollow() {
+      alert('已添加到关注列表！');
+    }
+    
+    function setAlert() {
+      alert('预警设置功能开发中...');
+    }
+  </script>
+  <script src="/stock_database.js"></script>
+<!-- AI分析展示模块 - 2026-03-13 22:00 添加 --><div id="aiAnalysis" style="margin:20px;padding:20px;background:#f0f9ff;border-radius:16px;">  <h3 style="color:#1e5f8e;margin:0 0 16px 0;">🤖 AI智能诊断</h3>  <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">    <div style="font-weight:600;color:#374151;margin-bottom:8px;">📊 技术面分析 <span style="float:right;background:#d1fae5;color:#065f46;padding:4px 12px;border-radius:20px;">72分</span></div>    <div style="color:#4b5563;">该股近期呈现震荡上行趋势，MACD金叉形成，短期均线多头排列。</div>  </div>  <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">    <div style="font-weight:600;color:#374151;margin-bottom:8px;">🏢 基本面分析 <span style="float:right;background:#fef3c7;color:#92400e;padding:4px 12px;border-radius:20px;">68分</span></div>    <div style="color:#4b5563;">公司营收同比增长15%，净利润率稳定，行业地位领先。</div>  </div>  <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">    <div style="font-weight:600;color:#374151;margin-bottom:8px;">📰 相关新闻</div>    <div style="color:#4b5563;font-size:14px;">• 公司发布Q1财报，营收超预期增长</div>  </div>  <div style="background:linear-gradient(135deg,#1e5f8e 0%,#164a6e 100%);border-radius:12px;padding:16px;color:#fff;">    <div style="font-weight:600;margin-bottom:8px;">💡 AI操作建议</div>    <div><strong>建议持有观望</strong>，技术面和基本面均表现良好，短期有望继续上涨。</div>  </div></div>
+</body>
+</html>

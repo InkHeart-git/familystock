@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MiniRock 智能投资</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="stock_database.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --primary: #ff3366;
+      --primary-dark: #ff6b9d;
+      --primary-light: #ff8fab;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --text-primary: #1F2937;
+      --text-secondary: #6B7280;
+      --text-muted: #9CA3AF;
+      --bg-page: #f1f5f9;
+      --bg-card: #FFFFFF;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", "Inter", sans-serif;
+      background: var(--bg-page);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+    
+    .page-container {
+      max-width: 768px;
+      margin: 0 auto;
+      min-height: 100vh;
+      position: relative;
+    }
+    
+    /* 顶部深色渐变区域 - 新UI风格 */
+    .home-header {
+      background: linear-gradient(135deg, 
+        #0f172a 0%,     /* 深蓝灰 */
+        #1e1b4b 35%,    /* 深紫 */
+        #2d1b1b 70%,    /* 深红棕 */
+        #0f172a 100%    /* 回到深蓝 */
+      );
+      padding: 20px 24px 32px;
+      color: white;
+      border-radius: 0 0 28px 28px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    /* 光晕装饰效果 */
+    .home-header::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(255,107,157,0.15) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    
+    .app-title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    
+    .nav-actions {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    
+    .nav-icon {
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      opacity: 0.9;
+      transition: opacity 0.2s;
+    }
+    
+    .nav-icon:hover {
+      opacity: 1;
+    }
+    
+    .alert-dot {
+      position: relative;
+    }
+    
+    .alert-dot::after {
+      content: '';
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      width: 8px;
+      height: 8px;
+      background: #EF4444;
+      border-radius: 50%;
+      border: 2px solid #1E5F8E;
+    }
+    
+    /* 健康度区域 */
+    .health-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .health-score-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    
+    .health-ring {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 8px solid rgba(255,255,255,0.2);
+      border-top-color: #10B981;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    
+    .health-ring::before {
+      content: '';
+      position: absolute;
+      width: 104px;
+      height: 104px;
+      border-radius: 50%;
+      border: 4px solid #10B981;
+      clip-path: polygon(0 0, 100% 0, 100% 78%, 0 78%);
+    }
+    
+    .health-score-value {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    
+    .health-score-label {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-top: 4px;
+    }
+    
+    .quick-actions {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      justify-content: center;
+    }
+    
+    .quick-action-btn {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex: 1;
+      max-width: 160px;
+      justify-content: center;
+    }
+    
+    .quick-action-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    
+    /* 搜索栏 */
+    .search-section {
+      padding: 0 20px;
+      margin-bottom: 20px;
+    }
+    
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: white;
+      border-radius: 12px;
+      padding: 12px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border: 2px solid transparent;
+      transition: border-color 0.2s;
+    }
+    
+    .search-box:focus-within {
+      border-color: var(--primary-light);
+    }
+    
+    .search-box input {
+      flex: 1;
+      border: none;
+      background: none;
+      font-size: 16px;
+      color: var(--text-primary);
+      outline: none;
+      margin-left: 12px;
+    }
+    
+    .search-box input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    /* 搜索结果 */
+    .search-results {
+      position: absolute;
+      top: 100%;
+      left: 20px;
+      right: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+    }
+    
+    .search-results.active {
+      display: block;
+    }
+    
+    .search-result-item {
+      padding: 16px 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #F1F5F9;
+      transition: background 0.2s;
+    }
+    
+    .search-result-item:hover {
+      background: #F8FAFC;
+    }
+    
+    .search-result-item:last-child {
+      border-bottom: none;
+    }
+    
+    /* 内容区域 */
+    .content-section {
+      padding: 0 20px;
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-primary);
+    }
+    
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, #E5E7EB 0%, transparent 100%);
+      margin-left: 12px;
+    }
+    
+    /* 持仓列表 */
+    .stock-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .stock-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .stock-item:hover {
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+    
+    .stock-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .stock-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .stock-code {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .stock-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .stock-price {
+      text-align: right;
+    }
+    
+    .price-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .price-change {
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .price-change.up {
+      color: var(--danger);
+    }
+    
+    .price-change.down {
+      color: var(--success);
+    }
+    
+    .stock-health {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .health-badge {
+      width: 44px;
+      height: 22px;
+      border-radius: 11px;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .health-badge.good {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+    }
+    
+    .health-badge.warning {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--warning);
+    }
+    
+    .health-badge.danger {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+    
+    .btn-ai {
+      background: var(--primary);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .btn-ai:hover {
+      background: var(--primary-dark);
+    }
+    
+    .btn-delete {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    
+    .btn-delete:hover {
+      opacity: 1;
+    }
+    
+    /* 加载状态 */
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+    }
+    
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #E5E7EB;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* 空状态 */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+    
+    /* 底部留白 */
+    .bottom-spacer {
+      height: 40px;
+    }
+    
+    /* Toast 提示 */
+    .toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #1F2937;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 1000;
+    }
+    
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+  <script>
+    // 强制刷新 - 版本号控制
+    const APP_VERSION = '20250318_1045';
+    const currentVer = localStorage.getItem('minirock_v2_version');
+    if (currentVer !== APP_VERSION) {
+      localStorage.setItem('minirock_v2_version', APP_VERSION);
+      if (currentVer) location.reload(true);
+    }
+  </script>
+</head>
+<body>
+  <div class="page-container">
+    <!-- 顶部蓝色区域 -->
+    <div class="home-header">
+      <div class="top-nav">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <a href="/MiniRock-auth.html" style="color: white; text-decoration: none; display: flex; align-items: center; gap: 4px; font-size: 14px; opacity: 0.9;">
+            <i data-lucide="home" style="width: 20px; height: 20px;"></i>
+            <span>首页</span>
+          </a>
+          <span class="app-title">MiniRock <span style="opacity: 0.8; font-weight: 400;">智能投资</span></span>
+        </div>
+        <div class="nav-actions">
+          <i data-lucide="bell" class="nav-icon alert-dot"></i>
+          <i data-lucide="settings" class="nav-icon"></i>
+        </div>
+      </div>
+
+      <div class="health-section">
+        <div class="health-score-container">
+          <div class="health-ring">
+            <span class="health-score-value" id="portfolioScore">--</span>
+            <span class="health-score-label" id="portfolioLabel">计算中...</span>
+          </div>
+        </div>
+
+        <div class="quick-actions">
+          <button class="quick-action-btn" onclick="showAlerts()">
+            <i data-lucide="alert-triangle" style="width:16px;height:16px;"></i>
+            <span>今日关注: <span id="alertCount">0</span>个预警</span>
+          </button>
+          <button class="quick-action-btn" onclick="window.location.href='/portfolio-analysis.html'">
+            <i data-lucide="pie-chart" style="width:16px;height:16px;"></i>
+            <span>组合分析</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 搜索栏 -->
+    <div class="search-section" style="position:relative;">
+      <div class="search-box">
+        <i data-lucide="search" style="width:20px;height:20px;color:#9CA3AF;"></i>
+        <input type="text" id="searchInput" placeholder="搜索股票名称或代码..." autocomplete="off">
+      </div>
+      <div class="search-results" id="searchResults"></div>
+    </div>
+
+    <!-- 持仓列表 -->
+    <div class="content-section">
+      <h2 class="section-title">
+        <i data-lucide="wallet" style="width:20px;height:20px;"></i>
+        我的持仓
+      </h2>
+
+      <div class="stock-list" id="stockList">
+        <div class="loading">
+          <div class="loading-spinner"></div>
+          <p>正在加载持仓数据...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部留白 -->
+    <div class="bottom-spacer"></div>
+  </div>
+
+  <!-- Toast 提示 -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ============================================
+    // MiniRock 新版主页 - 根据小七设计实现
+    // ============================================
+    
+    // API 配置
+    const API_CONFIG = {
+      baseURL: '/api',
+      timeout: 10000
+    };
+
+    // 模拟持仓数据（实际应从后端获取）
+    let portfolioData = [];
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      await loadPortfolio();
+      setupSearch();
+    });
+
+    // 加载持仓数据 - 接入真实API
+    async function loadPortfolio() {
+      try {
+        const stockList = document.getElementById('stockList');
+        stockList.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>正在加载持仓数据...</p></div>';
+        
+        // 获取用户ID
+        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        const userId = currentUser.phone || 'demo_user';
+        
+        // 调用真实API获取持仓数据
+        const response = await fetch(`${API_CONFIG.baseURL}/portfolio/holdings?user_id=${userId}`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+        
+        // 处理404情况 - 可能是没有持仓数据
+        if (response.status === 404) {
+          showEmptyState();
+          return;
+        }
+        
+        if (!response.ok) {
+          throw new Error('获取持仓数据失败');
+        }
+        
+        const data = await response.json();
+        
+        // 如果没有持仓，显示空状态
+        if (!data.holdings || data.holdings.length === 0) {
+          showEmptyState();
+          return;
+        }
+        
+        // 更新组合健康度显示
+        document.getElementById('portfolioScore').textContent = data.health_score || '--';
+        const label = data.health_score >= 80 ? '整体良好' : 
+                      data.health_score >= 60 ? '整体一般' : '需要关注';
+        document.getElementById('portfolioLabel').textContent = label;
+        
+        // 转换数据格式并渲染
+        portfolioData = data.holdings.map(h => ({
+          code: h.symbol,
+          name: h.name,
+          shares: h.quantity,
+          avgPrice: h.avg_cost
+        }));
+        
+        renderStockListFromAPI(data.holdings);
+        
+        // 加载预警数量
+        loadAlertCount();
+        
+      } catch (error) {
+        console.error('加载持仓失败:', error);
+        // 检查是否是空数据的情况
+        if (error.message.includes('404') || error.message.includes('empty')) {
+          showEmptyState();
+        } else {
+          showErrorState(error.message);
+        }
+      }
+    }
+    
+    // 显示空状态
+    function showEmptyState() {
+      document.getElementById('portfolioScore').textContent = '--';
+      document.getElementById('portfolioLabel').textContent = '暂无数据';
+      document.getElementById('stockList').innerHTML = `
+        <div class="empty-state">
+          <i data-lucide="inbox"></i>
+          <p>暂无持仓</p>
+          <p style="font-size:14px;margin-top:8px;">点击上方搜索添加股票</p>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+    
+    // 显示错误状态
+    function showErrorState(message) {
+      document.getElementById('stockList').innerHTML = `
+        <div class="empty-state">
+          <i data-lucide="alert-circle"></i>
+          <p>加载失败，请刷新重试</p>
+          <p style="font-size:12px;color:#9CA3AF;margin-top:8px;">${message}</p>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+    
+    // 获取认证头
+    function getAuthHeaders() {
+      const token = localStorage.getItem('auth_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      return headers;
+    }
+
+    // 从API数据渲染持仓列表
+    function renderStockListFromAPI(holdings) {
+      const stockList = document.getElementById('stockList');
+      
+      if (holdings.length === 0) {
+        stockList.innerHTML = `
+          <div class="empty-state">
+            <i data-lucide="inbox"></i>
+            <p>暂无持仓</p>
+            <p style="font-size:14px;margin-top:8px;">点击上方搜索添加股票</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+      
+      stockList.innerHTML = holdings.map(holding => {
+        const changeClass = holding.change_percent >= 0 ? 'up' : 'down';
+        const changeSign = holding.change_percent >= 0 ? '+' : '';
+        const healthClass = holding.health_score >= 80 ? 'good' : 
+                           holding.health_score >= 60 ? 'warning' : 'danger';
+        const healthText = holding.health_score >= 80 ? '良好' : 
+                          holding.health_score >= 60 ? '注意' : '风险';
+        
+        return `
+          <div class="stock-item" onclick="viewStockDetail('${holding.symbol}')">
+            <div class="stock-info">
+              <span class="stock-name">${holding.name}</span>
+              <span class="stock-code">${holding.symbol} · ${holding.quantity}股</span>
+            </div>
+
+            <div class="stock-meta">
+              <div class="stock-price">
+                <div class="price-value">¥${holding.current_price ? holding.current_price.toFixed(2) : '--'}</div>
+                <div class="price-change ${changeClass}">${changeSign}${holding.change_percent ? holding.change_percent.toFixed(2) : '0.00'}%</div>
+              </div>
+
+              <div class="stock-health">
+                <span class="health-badge ${healthClass}">${healthText}</span>
+                <button class="btn-ai" onclick="event.stopPropagation();analyzeStock('${holding.symbol}')">AI诊断</button>
+                <button class="btn-delete" onclick="event.stopPropagation();deleteStock('${holding.symbol}', '${holding.name}')" title="删除">🗑️</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      lucide.createIcons();
+    }
+
+    // 加载预警数量
+    async function loadAlertCount() {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/portfolio/alerts?user_id=demo_user`);
+        if (response.ok) {
+          const data = await response.json();
+          document.getElementById('alertCount').textContent = data.alert_count || 0;
+        }
+      } catch (error) {
+        console.error('加载预警失败:', error);
+      }
+    }
+
+    // 获取股票行情
+    async function fetchStockQuote(code) {
+      try {
+        // 先尝试从后端API获取
+        const response = await fetch(`${API_CONFIG.baseURL}/tushare/quote/${code}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            code,
+            price: data.close || data.price || 0,
+            change: data.change || 0,
+            changePercent: data.changePercent || 0
+          };
+        }
+        
+        // API失败返回模拟数据
+        return generateMockQuote(code);
+      } catch (error) {
+        console.warn(`获取${code}行情失败:`, error);
+        return generateMockQuote(code);
+      }
+    }
+
+    // 生成模拟行情
+    function generateMockQuote(code) {
+      const basePrices = {
+        '600519': 1680,
+        '300750': 198,
+        '002594': 268
+      };
+      const basePrice = basePrices[code] || 100;
+      const changePercent = (Math.random() - 0.5) * 4; // -2% ~ +2%
+      const change = basePrice * changePercent / 100;
+      
+      return {
+        code,
+        price: basePrice + change,
+        change: change,
+        changePercent: changePercent
+      };
+    }
+
+    // 渲染持仓列表
+    function renderStockList(stocks, quotes) {
+      const stockList = document.getElementById('stockList');
+      
+      if (stocks.length === 0) {
+        stockList.innerHTML = `
+          <div class="empty-state">
+            <i data-lucide="inbox"></i>
+            <p>暂无持仓</p>
+            <p style="font-size:14px;margin-top:8px;">点击上方搜索添加股票</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+      
+      stockList.innerHTML = stocks.map((stock, index) => {
+        const quote = quotes[index] || generateMockQuote(stock.code);
+        const totalValue = quote.price * stock.shares;
+        const profit = (quote.price - stock.avgPrice) * stock.shares;
+        const profitPercent = ((quote.price - stock.avgPrice) / stock.avgPrice * 100).toFixed(2);
+        
+        // 计算健康度（模拟）
+        const healthScore = Math.floor(60 + Math.random() * 35);
+        const healthClass = healthScore >= 80 ? 'good' : healthScore >= 60 ? 'warning' : 'danger';
+        const healthText = healthScore >= 80 ? '良好' : healthScore >= 60 ? '注意' : '风险';
+        
+        const changeClass = quote.change >= 0 ? 'up' : 'down';
+        const changeSign = quote.change >= 0 ? '+' : '';
+        
+        return `
+          <div class="stock-item" onclick="viewStockDetail('${stock.code}')">
+            <div class="stock-info">
+              <span class="stock-name">${stock.name}</span>
+              <span class="stock-code">${stock.code} · ${stock.shares}股</span>
+            </div>
+
+            <div class="stock-meta">
+              <div class="stock-price">
+                <div class="price-value">¥${quote.price.toFixed(2)}</div>
+                <div class="price-change ${changeClass}">${changeSign}${quote.changePercent.toFixed(2)}%</div>
+              </div>
+
+              <div class="stock-health">
+                <span class="health-badge ${healthClass}">${healthText}</span>
+                <button class="btn-ai" onclick="event.stopPropagation();analyzeStock('${stock.code}')">AI诊断</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      lucide.createIcons();
+    }
+
+    // 计算组合健康度
+    function calculatePortfolioHealth(quotes) {
+      // 简化计算：平均各股票健康度
+      const avgHealth = Math.floor(70 + Math.random() * 15);
+      document.getElementById('portfolioScore').textContent = avgHealth;
+      
+      const label = avgHealth >= 80 ? '整体良好' : avgHealth >= 60 ? '整体一般' : '需要关注';
+      document.getElementById('portfolioLabel').textContent = label;
+      
+      // 计算预警数量
+      const alertCount = Math.floor(Math.random() * 3);
+      document.getElementById('alertCount').textContent = alertCount;
+    }
+
+    // 搜索功能
+    function setupSearch() {
+      const searchInput = document.getElementById('searchInput');
+      const searchResults = document.getElementById('searchResults');
+      let searchTimeout;
+      
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+        
+        if (query.length < 2) {
+          searchResults.classList.remove('active');
+          return;
+        }
+        
+        searchTimeout = setTimeout(() => performSearch(query), 300);
+      });
+      
+      // 点击外部关闭搜索结果
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-section')) {
+          searchResults.classList.remove('active');
+        }
+      });
+    }
+
+    // 执行搜索
+    async function performSearch(query) {
+      const searchResults = document.getElementById('searchResults');
+      
+      try {
+        // 尝试调用搜索API
+        const response = await fetch(`${API_CONFIG.baseURL}/tushare/search?q=${encodeURIComponent(query)}`);
+        
+        let results = [];
+        if (response.ok) {
+          results = await response.json();
+        } else {
+          // 使用本地模拟搜索
+          results = mockSearch(query);
+        }
+        
+        renderSearchResults(results);
+        
+      } catch (error) {
+        // 使用本地模拟搜索
+        const results = mockSearch(query);
+        renderSearchResults(results);
+      }
+    }
+
+    // 模拟搜索 - 使用真实股票数据库
+    function mockSearch(query) {
+      // 从 stock_database.js 加载的真实数据
+      const results = [];
+      const upperQuery = query.toUpperCase();
+      
+      // 搜索A股和ETF
+      if (typeof STOCK_NAME_MAP !== 'undefined') {
+        for (const [code, name] of Object.entries(STOCK_NAME_MAP)) {
+          if (code.includes(upperQuery) || name.includes(query)) {
+            const type = code.startsWith('51') || code.startsWith('15') || code.startsWith('56') || code.startsWith('58') || code.startsWith('50') || code.startsWith('15') ? 'ETF' : '股票';
+            results.push({ code, name, type });
+          }
+          if (results.length >= 10) break;
+        }
+      }
+      
+      // 如果数据库未加载，使用备选数据
+      if (results.length === 0) {
+        const backupStocks = [
+          { code: '600519', name: '贵州茅台', type: '股票' },
+          { code: '300750', name: '宁德时代', type: '股票' },
+          { code: '002594', name: '比亚迪', type: '股票' },
+          { code: '601318', name: '中国平安', type: '股票' },
+          { code: '600036', name: '招商银行', type: '股票' },
+          { code: '000001', name: '平安银行', type: '股票' },
+          { code: '510050', name: '50ETF', type: 'ETF' },
+          { code: '510300', name: '300ETF', type: 'ETF' },
+          { code: '000858', name: '五粮液', type: '股票' },
+          { code: '600276', name: '恒瑞医药', type: '股票' }
+        ];
+        return backupStocks.filter(s => 
+          s.name.includes(query) || s.code.includes(upperQuery)
+        ).slice(0, 5);
+      }
+      
+      return results.slice(0, 10);
+    }
+
+    // 渲染搜索结果
+    function renderSearchResults(results) {
+      const searchResults = document.getElementById('searchResults');
+      
+      if (results.length === 0) {
+        searchResults.innerHTML = '<div class="search-result-item"><span>未找到相关股票</span></div>';
+        searchResults.classList.add('active');
+        return;
+      }
+      
+      searchResults.innerHTML = results.map(stock => `
+        <div class="search-result-item" onclick="addToPortfolio('${stock.code}', '${stock.name}')">
+          <div>
+            <span style="font-weight:600;">${stock.name}</span>
+            <span style="color:#9CA3AF;margin-left:8px;">${stock.code}</span>
+          </div>
+          <span style="color:#6B7280;font-size:12px;">${stock.type}</span>
+        </div>
+      `).join('');
+      
+      searchResults.classList.add('active');
+    }
+
+    // 添加到持仓 - 显示输入弹窗
+    function addToPortfolio(code, name) {
+      // 检查是否已存在
+      if (portfolioData.find(s => s.code === code)) {
+        showToast('该股票已在持仓中');
+        return;
+      }
+      
+      // 显示输入弹窗
+      showAddStockModal(code, name);
+    }
+    
+    // 显示添加股票弹窗
+    function showAddStockModal(code, name) {
+      // 创建弹窗
+      const modal = document.createElement('div');
+      modal.id = 'addStockModal';
+      modal.style.cssText = `
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      `;
+      
+      modal.innerHTML = `
+        <div style="
+          background: white;
+          border-radius: 16px;
+          padding: 24px;
+          width: 90%;
+          max-width: 360px;
+          box-shadow: 0 20px 25px rgba(0,0,0,0.1);
+        ">
+          <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">添加 ${name}</h3>
+          <p style="color: #6B7280; font-size: 14px; margin-bottom: 20px;">${code}</p>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 14px; color: #374151; margin-bottom: 6px;">持股数量</label>
+            <input type="number" id="modalQuantity" value="100" min="1" style="
+              width: 100%;
+              padding: 12px 16px;
+              border: 2px solid #E5E7EB;
+              border-radius: 10px;
+              font-size: 16px;
+              outline: none;
+            " placeholder="输入持股数量">
+          </div>
+          
+          <div style="margin-bottom: 24px;">
+            <label style="display: block; font-size: 14px; color: #374151; margin-bottom: 6px;">持仓成本 (元/股)</label>
+            <input type="number" id="modalCost" value="" step="0.01" min="0" style="
+              width: 100%;
+              padding: 12px 16px;
+              border: 2px solid #E5E7EB;
+              border-radius: 10px;
+              font-size: 16px;
+              outline: none;
+            " placeholder="输入持仓成本">
+          </div>
+          
+          <div style="display: flex; gap: 12px;">
+            <button onclick="closeAddStockModal()" style="
+              flex: 1;
+              padding: 14px;
+              border: 2px solid #E5E7EB;
+              background: white;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 500;
+              color: #6B7280;
+              cursor: pointer;
+            ">取消</button>
+            <button onclick="confirmAddStock('${code}', '${name}')" style="
+              flex: 1;
+              padding: 14px;
+              border: none;
+              background: linear-gradient(135deg, #ff6b9d 0%, #ff3366 100%);
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              color: white;
+              cursor: pointer;
+              box-shadow: 0 4px 15px rgba(255, 107, 157, 0.4);
+            ">确认添加</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      // 清空搜索
+      document.getElementById('searchInput').value = '';
+      document.getElementById('searchResults').classList.remove('active');
+    }
+    
+    // 关闭弹窗
+    function closeAddStockModal() {
+      const modal = document.getElementById('addStockModal');
+      if (modal) modal.remove();
+    }
+    
+    // 确认添加股票
+    async function confirmAddStock(code, name) {
+      const quantity = parseInt(document.getElementById('modalQuantity').value) || 100;
+      const avgCost = parseFloat(document.getElementById('modalCost').value) || 0;
+      
+      if (quantity <= 0) {
+        showToast('持股数量必须大于0');
+        return;
+      }
+      
+      try {
+        // 获取用户ID
+        const currentUserStr = localStorage.getItem('currentUser');
+        console.log('currentUser:', currentUserStr);
+        const currentUser = currentUserStr ? JSON.parse(currentUserStr) : {};
+        const userId = currentUser.phone || 'demo_user';
+        
+        console.log('Adding stock:', {code, name, quantity, avgCost, userId});
+        
+        const response = await fetch(`${API_CONFIG.baseURL}/portfolio/holdings?user_id=${userId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            symbol: code,
+            name: name,
+            quantity: quantity,
+            avg_cost: avgCost
+          })
+        });
+        
+        console.log('Response status:', response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          closeAddStockModal();
+          showToast(data.message || `已添加 ${name} 到持仓`);
+          await loadPortfolio();
+        } else if (response.status === 404) {
+          showToast('API接口不存在(404)，请检查网络连接');
+        } else {
+          const error = await response.text();
+          console.error('Error response:', error);
+          showToast('添加失败: ' + error);
+        }
+      } catch (error) {
+        console.error('添加持仓失败:', error);
+        showToast('添加失败：' + (error.message || '网络错误'));
+      }
+    }
+
+    // 查看股票详情
+    function viewStockDetail(code) {
+      // 跳转到个股诊断页
+      window.location.href = `/stock-detail.html?code=${code}`;
+    }
+
+    // AI诊断
+    function analyzeStock(code) {
+      showToast('AI诊断功能开发中...');
+    }
+
+    // 删除股票
+    async function deleteStock(code, name) {
+      if (!confirm(`确定要删除 ${name}(${code}) 吗？`)) {
+        return;
+      }
+      
+      try {
+        // 获取当前用户ID
+        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        const userId = currentUser.phone || 'demo_user';
+        
+        const response = await fetch(`${API_CONFIG.baseURL}/portfolio/holdings/${code}?user_id=${userId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          showToast(data.message || '删除成功');
+          await loadPortfolio(); // 删除成功后重新加载列表
+        } else {
+          const error = await response.json();
+          showToast(error.detail || '删除失败');
+        }
+      } catch (error) {
+        console.error('删除失败:', error);
+        showToast('删除失败，请重试');
+      }
+    }
+
+    // 组合分析
+    function analyzePortfolio() {
+      showToast('组合分析功能开发中...');
+    }
+
+    // 显示预警
+    function showAlerts() {
+      showToast('暂无预警信息');
+    }
+
+    // 显示Toast
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+  </script>
+</body>
+</html>

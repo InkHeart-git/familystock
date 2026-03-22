@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MiniRock - 组合分析</title>
+  <script>
+    // 强制刷新 - 版本号控制
+    const APP_VERSION = '20250320_1600';
+    const currentVer = localStorage.getItem('portfolio_analysis_version');
+    if (currentVer !== APP_VERSION) {
+      localStorage.setItem('portfolio_analysis_version', APP_VERSION);
+      if (currentVer) location.reload(true);
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root { --primary: #1E5F8E; --success: #10B981; --warning: #F59E0B; --danger: #EF4444; }
+    body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #F8FAFC; }
+    .gradient-header { background: linear-gradient(135deg, #1E5F8E 0%, #164A6E 100%); }
+    .health-ring { width: 100px; height: 100px; border-radius: 50%; border: 8px solid #10B981; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .stat-card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .holding-item { background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #1E5F8E; }
+    .holding-item.profit { border-left-color: #EF4444; }
+    .holding-item.loss { border-left-color: #10B981; }
+    
+    /* ===== 卡片式AI分析样式 ===== */
+    .ai-stream-container { padding: 0; }
+    
+    .analysis-card { 
+      border-radius: 16px; 
+      padding: 20px; 
+      margin: 0 16px 16px; 
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08); 
+      opacity: 0; 
+      transform: translateY(30px); 
+      transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .analysis-card.show { 
+      opacity: 1; 
+      transform: translateY(0); 
+      animation: bounceIn 0.6s ease-out; 
+    }
+    
+    /* 4色分区 */
+    .card-health { 
+      background: linear-gradient(135deg, #EBF8FF 0%, #BEE3F8 100%); 
+      border-left: 5px solid #3182CE; 
+    }
+    .card-health .card-title { color: #2C5282; }
+    .card-health .card-icon { background: rgba(49, 130, 206, 0.15); color: #2C5282; }
+    
+    .card-risk { 
+      background: linear-gradient(135deg, #FFFBEB 0%, #FDE68A 100%); 
+      border-left: 5px solid #D97706; 
+    }
+    .card-risk .card-title { color: #92400E; }
+    .card-risk .card-icon { background: rgba(217, 119, 6, 0.15); color: #92400E; }
+    
+    .card-performance { 
+      background: linear-gradient(135deg, #F3E8FF 0%, #DDD6FE 100%); 
+      border-left: 5px solid #7C3AED; 
+    }
+    .card-performance .card-title { color: #5B21B6; }
+    .card-performance .card-icon { background: rgba(124, 58, 237, 0.15); color: #5B21B6; }
+    
+    .card-optimize { 
+      background: linear-gradient(135deg, #F0FFF4 0%, #C6F6D5 100%); 
+      border-left: 5px solid #38A169; 
+    }
+    .card-optimize .card-title { color: #276749; }
+    .card-optimize .card-icon { background: rgba(56, 161, 105, 0.15); color: #276749; }
+    
+    .card-header { 
+      display: flex; 
+      align-items: center; 
+      gap: 10px; 
+      margin-bottom: 12px; 
+    }
+    
+    .card-icon { 
+      width: 36px; 
+      height: 36px; 
+      border-radius: 50%; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 16px; 
+    }
+    
+    .card-title { 
+      font-size: 18px; 
+      font-weight: 700; 
+      margin: 0; 
+    }
+    
+    .card-content { 
+      font-size: 17px; 
+      line-height: 1.8; 
+      color: #2D3748; 
+      min-height: 60px;
+    }
+    
+    .card-content .typing-text {
+      display: inline;
+    }
+    
+    /* 健康评分样式 */
+    .health-score-circle { 
+      width: 120px; 
+      height: 120px; 
+      border-radius: 50%; 
+      background: linear-gradient(135deg, #3182CE 0%, #2C5282 100%); 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: center; 
+      margin: 15px auto; 
+      box-shadow: 0 8px 25px rgba(49, 130, 206, 0.3); 
+    }
+    
+    .health-score-circle .score-value { 
+      font-size: 42px; 
+      font-weight: 800; 
+      color: white; 
+      line-height: 1; 
+    }
+    
+    .health-score-circle .score-unit { 
+      font-size: 16px; 
+      color: rgba(255,255,255,0.8); 
+    }
+    
+    .health-score-circle .score-rating { 
+      font-size: 18px; 
+      color: white; 
+      margin-top: 5px; 
+      font-weight: 600; 
+    }
+    
+    /* 风险项 */
+    .risk-item { 
+      display: flex; 
+      align-items: flex-start; 
+      gap: 8px; 
+      margin-bottom: 10px; 
+      font-size: 15px; 
+    }
+    
+    .risk-item-dot { 
+      width: 6px; 
+      height: 6px; 
+      border-radius: 50%; 
+      background: #D97706; 
+      margin-top: 10px; 
+      flex-shrink: 0; 
+    }
+    
+    .risk-item-name { 
+      font-weight: 600; 
+      color: #92400E; 
+    }
+    
+    .risk-item-detail { 
+      color: #78350F; 
+      font-size: 14px; 
+      margin-top: 2px; 
+    }
+    
+    /* 绩效统计 */
+    .performance-stats { 
+      display: flex; 
+      justify-content: space-around; 
+      padding: 15px 0; 
+      border-bottom: 1px dashed rgba(124, 58, 237, 0.2); 
+      margin-bottom: 15px; 
+    }
+    
+    .performance-stat { 
+      text-align: center; 
+    }
+    
+    .performance-stat .stat-label { 
+      font-size: 13px; 
+      color: #6B7280; 
+      margin-bottom: 4px; 
+    }
+    
+    .performance-stat .stat-value { 
+      font-size: 20px; 
+      font-weight: 700; 
+      color: #7C3AED; 
+    }
+    
+    .attribution-list { 
+      padding-left: 0; 
+      list-style: none; 
+    }
+    
+    .attribution-item { 
+      display: flex; 
+      justify-content: space-between; 
+      padding: 8px 0; 
+      border-bottom: 1px solid rgba(124, 58, 237, 0.1); 
+      font-size: 15px; 
+    }
+    
+    /* 建议 */
+    .suggestion-item { 
+      background: rgba(56, 161, 105, 0.1); 
+      border-radius: 10px; 
+      padding: 12px; 
+      margin-bottom: 10px; 
+    }
+    
+    .suggestion-title { 
+      font-weight: 700; 
+      color: #276749; 
+      margin-bottom: 5px; 
+      font-size: 15px; 
+    }
+    
+    .suggestion-content { 
+      color: #2F855A; 
+      font-size: 14px; 
+      line-height: 1.6; 
+    }
+    
+    .suggestion-actions { 
+      display: flex; 
+      gap: 10px; 
+      margin-top: 15px; 
+    }
+    
+    .suggestion-btn { 
+      flex: 1; 
+      padding: 10px; 
+      border-radius: 8px; 
+      border: none; 
+      font-size: 14px; 
+      font-weight: 600; 
+      cursor: pointer; 
+      transition: all 0.3s ease;
+    }
+    
+    .suggestion-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .suggestion-btn-primary { 
+      background: linear-gradient(135deg, #38A169 0%, #2F855A 100%); 
+      color: white; 
+    }
+    
+    .suggestion-btn-secondary { 
+      background: white; 
+      color: #38A169; 
+      border: 1px solid #38A169; 
+    }
+    
+    /* 关键词高亮 */
+    .keyword-highlight { 
+      color: #DC2626; 
+      font-weight: 700; 
+      background: linear-gradient(transparent 60%, rgba(254, 202, 202, 0.6) 60%); 
+      padding: 0 2px; 
+      border-radius: 3px; 
+    }
+
+    /* 打字机光标 */
+    .typing-cursor { 
+      display: inline-block; 
+      width: 3px; 
+      height: 1.2em; 
+      background: #3182CE; 
+      margin-left: 2px; 
+      vertical-align: middle; 
+      animation: blink 0.8s infinite; 
+    }
+    
+    @keyframes blink { 
+      0%, 50% { opacity: 1; } 
+      51%, 100% { opacity: 0; } 
+    }
+
+    /* 打字机文本 */
+    .typing-text { display: inline; }
+
+    /* 弹跳动画 */
+    @keyframes bounceIn {
+      0% { 
+        opacity: 0; 
+        transform: translateY(30px) scale(0.9); 
+      }
+      50% { 
+        transform: translateY(-5px) scale(1.02); 
+      }
+      100% { 
+        opacity: 1; 
+        transform: translateY(0) scale(1); 
+      }
+    }
+
+    /* 滑入动画 */
+    @keyframes slideUp {
+      from { 
+        opacity: 0; 
+        transform: translateY(20px); 
+      }
+      to { 
+        opacity: 1; 
+        transform: translateY(0); 
+      }
+    }
+
+    /* 淡入动画 */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    /* 加载动画 */
+    .loading-cards { 
+      text-align: center; 
+      padding: 40px 20px; 
+    }
+    
+    .pulse-dot { 
+      display: inline-block; 
+      width: 12px; 
+      height: 12px; 
+      border-radius: 50%; 
+      background: #3182CE; 
+      margin: 0 4px; 
+      animation: pulse-dot 1.4s infinite ease-in-out both; 
+    }
+    
+    .pulse-dot:nth-child(1) { animation-delay: -0.32s; }
+    .pulse-dot:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes pulse-dot { 
+      0%, 80%, 100% { transform: scale(0); } 
+      40% { transform: scale(1); } 
+    }
+    
+    /* 操作按钮 */
+    .action-buttons { 
+      display: flex; 
+      gap: 12px; 
+      margin: 16px; 
+      flex-wrap: wrap; 
+    }
+    
+    .action-btn { 
+      flex: 1; 
+      min-width: 100px; 
+      padding: 12px 16px; 
+      border-radius: 10px; 
+      border: none; 
+      font-size: 15px; 
+      font-weight: 600; 
+      cursor: pointer; 
+      transition: all 0.3s ease; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      gap: 6px; 
+    }
+    
+    .action-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .btn-retry { 
+      background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%); 
+      color: white; 
+    }
+    
+    .btn-voice { 
+      background: linear-gradient(135deg, #F093FB 0%, #F5576C 100%); 
+      color: white; 
+    }
+    
+    .btn-voice.playing { 
+      animation: pulse 1s infinite; 
+    }
+    
+    @keyframes pulse { 
+      0%, 100% { transform: scale(1); } 
+      50% { transform: scale(1.05); } 
+    }
+    
+    /* 完成状态 */
+    .analysis-complete { 
+      text-align: center; 
+      padding: 16px; 
+      color: #38A169; 
+      font-size: 15px; 
+      font-weight: 600; 
+    }
+    
+    .analysis-complete i {
+      margin-right: 6px;
+    }
+    
+    /* 免责声明 */
+    .disclaimer { 
+      background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%); 
+      border-radius: 12px; 
+      padding: 16px; 
+      margin: 20px 16px; 
+      border-left: 4px solid #9CA3AF; 
+    }
+    
+    .disclaimer-title { 
+      font-size: 14px; 
+      font-weight: 600; 
+      color: #4B5563; 
+      margin-bottom: 8px; 
+      display: flex; 
+      align-items: center; 
+      gap: 6px; 
+    }
+    
+    .disclaimer-content { 
+      font-size: 13px; 
+      color: #6B7280; 
+      line-height: 1.6; 
+    }
+    
+    /* 错误提示 */
+    .error-message {
+      text-align: center;
+      padding: 20px;
+      color: #EF4444;
+    }
+    
+    .error-message i {
+      font-size: 3rem;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body class="pb-20">
+  <!-- 顶部 -->
+  <div class="gradient-header text-white px-5 pt-12 pb-6 rounded-b-3xl">
+    <div class="flex items-center justify-between mb-4">
+      <a href="/MiniRock-auth.html" class="text-white/80 hover:text-white flex items-center gap-1">
+        <i class="fas fa-home text-lg"></i><span class="text-sm">首页</span>
+      </a>
+      <span class="text-lg font-semibold">组合分析</span>
+      <button onclick="refreshAnalysis()" class="text-white/80 hover:text-white"><i class="fas fa-sync-alt" id="refreshIcon"></i></button>
+    </div>
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-3xl font-bold" id="totalValue">--</div>
+        <div class="text-sm mt-1 opacity-90">总市值</div>
+      </div>
+      <div class="health-ring">
+        <span class="text-2xl font-bold" id="portfolioHealth">--</span>
+        <span class="text-xs">健康度</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-6 mt-4">
+      <div>
+        <div class="text-sm opacity-80">总盈亏</div>
+        <div class="text-lg font-semibold mt-1" id="totalProfit">--</div>
+      </div>
+      <div>
+        <div class="text-sm opacity-80">收益率</div>
+        <div class="text-lg font-semibold mt-1" id="profitPercent">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 加载中 -->
+  <div id="loadingState" class="p-10 text-center">
+    <div class="animate-spin w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+    <p class="text-gray-500">正在分析组合数据...</p>
+  </div>
+
+  <!-- 内容区 -->
+  <div id="contentState" class="hidden px-5 -mt-4">
+    <!-- 统计卡片 -->
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="stat-card">
+        <div class="text-gray-500 text-sm mb-1">持仓数量</div>
+        <div class="text-2xl font-bold" id="holdingCount">--</div>
+        <div class="text-xs text-gray-400 mt-1">只股票</div>
+      </div>
+      <div class="stat-card">
+        <div class="text-gray-500 text-sm mb-1">风险等级</div>
+        <div class="text-2xl font-bold" id="riskLevel">--</div>
+        <div class="text-xs text-gray-400 mt-1" id="riskDesc">评估</div>
+      </div>
+      <div class="stat-card">
+        <div class="text-gray-500 text-sm mb-1">最大持仓</div>
+        <div class="text-lg font-bold truncate" id="topHolding">--</div>
+        <div class="text-xs text-gray-400 mt-1" id="topHoldingPercent">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="text-gray-500 text-sm mb-1">盈利股数</div>
+        <div class="text-2xl font-bold text-red-500" id="profitCount">--</div>
+        <div class="text-xs text-gray-400 mt-1" id="lossCount">--</div>
+      </div>
+    </div>
+
+    <!-- AI分析入口 -->
+    <div id="aiEntrySection" class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-5 mb-6 border border-blue-100">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+          <span class="text-xl">🤖</span>
+        </div>
+        <div>
+          <div class="font-bold text-gray-800">AI 智能组合诊断</div>
+          <div class="text-sm text-gray-500">深度分析您的投资组合</div>
+        </div>
+      </div>
+      <button onclick="startAnalysis()" class="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold hover:opacity-90 transition-all shadow-lg">
+        <i class="fas fa-magic mr-2"></i>开始AI分析
+      </button>
+    </div>
+
+    <!-- 流式分析结果区域 -->
+    <div id="aiStreamSection" class="hidden ai-stream-container -mx-5">
+      <!-- 加载状态 -->
+      <div id="aiLoadingState" class="loading-cards">
+        <div class="pulse-dot"></div>
+        <div class="pulse-dot"></div>
+        <div class="pulse-dot"></div>
+        <p class="text-gray-500 mt-3 text-base">AI正在分析组合数据...</p>
+      </div>
+      
+      <!-- 卡片容器 -->
+      <div id="aiCardsContainer"></div>
+      
+      <!-- 完成状态 -->
+      <div id="aiCompleteState" class="analysis-complete hidden">
+        <i class="fas fa-check-circle"></i> AI分析完成
+      </div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div id="aiActionButtons" class="action-buttons hidden">
+      <button onclick="startAnalysis()" class="action-btn btn-retry">
+        <i class="fas fa-redo"></i>重新分析
+      </button>
+      <button onclick="toggleVoice()" id="voiceBtn" class="action-btn btn-voice">
+        <i class="fas fa-volume-up"></i><span>语音播报</span>
+      </button>
+    </div>
+
+    <!-- 持仓分布 -->
+    <div class="bg-white rounded-xl p-5 mb-6 shadow-sm">
+      <h2 class="font-semibold text-lg mb-4">持仓分布</h2>
+      <div id="holdingsList"></div>
+    </div>
+
+    <!-- 免责声明 -->
+    <div class="disclaimer">
+      <div class="disclaimer-title">
+        <i class="fas fa-info-circle"></i>免责声明
+      </div>
+      <div class="disclaimer-content">
+        本页面展示的投资组合分析仅供参考，不构成投资建议。AI分析结果基于历史数据和算法模型，无法预测未来市场走势。投资者应根据自身风险承受能力，独立做出投资决策。股市有风险，投资需谨慎。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_CONFIG = { baseURL: '/api', timeout: 10000 };
+    let portfolioData = {};
+    let isSpeaking = false;
+    let analysisCardsData = [];
+    let speechUtterance = null;
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPortfolioData();
+    });
+
+    // 刷新分析
+    function refreshAnalysis() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('fa-spin');
+      loadPortfolioData().then(() => {
+        setTimeout(() => icon.classList.remove('fa-spin'), 1000);
+      });
+    }
+
+    // 加载组合数据
+    async function loadPortfolioData() {
+      try {
+        document.getElementById('loadingState').classList.remove('hidden');
+        document.getElementById('contentState').classList.add('hidden');
+
+        const currentUserStr = localStorage.getItem('currentUser');
+        const currentUser = currentUserStr ? JSON.parse(currentUserStr) : {};
+        const userId = currentUser.phone || 'demo_user';
+
+        const holdingsRes = await fetch(`${API_CONFIG.baseURL}/portfolio/holdings?user_id=${userId}`);
+        if (!holdingsRes.ok) throw new Error('获取持仓数据失败');
+        const holdingsData = await holdingsRes.json();
+        portfolioData = holdingsData;
+
+        updateHeaderStats(holdingsData);
+        updateStatCards(holdingsData);
+        renderHoldingsList(holdingsData.holdings);
+
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('contentState').classList.remove('hidden');
+      } catch (error) {
+        console.error('加载失败:', error);
+        document.getElementById('loadingState').innerHTML = `
+          <div class="error-message">
+            <i class="fas fa-exclamation-circle"></i>
+            <p>加载失败</p>
+            <p class="text-gray-400 text-sm mt-2">${error.message}</p>
+            <button onclick="loadPortfolioData()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">重试</button>
+          </div>`;
+      }
+    }
+
+    // 更新顶部统计
+    function updateHeaderStats(data) {
+      document.getElementById('totalValue').textContent = '¥' + data.total_value.toLocaleString();
+      
+      const profit = data.total_profit;
+      const profitClass = profit >= 0 ? 'text-red-500' : 'text-green-500';
+      const profitSign = profit >= 0 ? '+' : '';
+      document.getElementById('totalProfit').innerHTML = `<span class="${profitClass}">${profitSign}¥${profit.toLocaleString()}</span>`;
+      
+      const profitPercent = data.total_profit_percent;
+      document.getElementById('profitPercent').innerHTML = `<span class="${profitClass}">${profitSign}${profitPercent.toFixed(2)}%</span>`;
+      
+      const healthScore = data.health_score;
+      document.getElementById('portfolioHealth').textContent = healthScore;
+      
+      const healthColor = healthScore >= 80 ? '#10B981' : healthScore >= 60 ? '#F59E0B' : '#EF4444';
+      document.querySelector('.health-ring').style.borderColor = healthColor;
+    }
+
+    // 更新统计卡片
+    function updateStatCards(data) {
+      const holdings = data.holdings;
+      document.getElementById('holdingCount').textContent = holdings.length;
+      
+      const riskLevel = data.health_score >= 80 ? '低' : data.health_score >= 60 ? '中' : '高';
+      const riskColor = data.health_score >= 80 ? 'text-green-500' : data.health_score >= 60 ? 'text-yellow-500' : 'text-red-500';
+      document.getElementById('riskLevel').innerHTML = `<span class="${riskColor}">${riskLevel}</span>`;
+      document.getElementById('riskDesc').textContent = data.health_score >= 80 ? '稳健型' : data.health_score >= 60 ? '平衡型' : '激进型';
+      
+      if (holdings.length > 0) {
+        const topHolding = holdings.reduce((max, h) => (h.market_value || 0) > (max.market_value || 0) ? h : max);
+        document.getElementById('topHolding').textContent = topHolding.name;
+        const percent = (topHolding.market_value / data.total_value * 100).toFixed(1);
+        document.getElementById('topHoldingPercent').textContent = `占比 ${percent}%`;
+      }
+      
+      const profitStocks = holdings.filter(h => (h.profit || 0) > 0).length;
+      const lossStocks = holdings.filter(h => (h.profit || 0) <= 0).length;
+      document.getElementById('profitCount').textContent = profitStocks;
+      document.getElementById('lossCount').textContent = `${lossStocks}只亏损`;
+    }
+
+    // 渲染持仓列表
+    function renderHoldingsList(holdings) {
+      const container = document.getElementById('holdingsList');
+      holdings.sort((a, b) => (b.market_value || 0) - (a.market_value || 0));
+      
+      const totalValue = holdings.reduce((sum, item) => sum + (item.market_value || 0), 0);
+      
+      container.innerHTML = holdings.map(h => {
+        const profit = h.profit || 0;
+        const profitPercent = h.profit_percent || 0;
+        const profitClass = profit >= 0 ? 'profit' : 'loss';
+        const profitSign = profit >= 0 ? '+' : '';
+        const percentOfTotal = ((h.market_value || 0) / totalValue * 100).toFixed(1);
+        
+        return `
+          <div class="holding-item ${profitClass}">
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <div class="font-semibold">${h.name}</div>
+                <div class="text-sm text-gray-500">${h.symbol} · ${h.quantity}股</div>
+              </div>
+              <div class="text-right">
+                <div class="font-semibold">¥${(h.market_value || 0).toLocaleString()}</div>
+                <div class="text-sm ${profit >= 0 ? 'text-red-500' : 'text-green-500'}">${profitSign}${profitPercent.toFixed(2)}%</div>
+              </div>
+            </div>
+            <div class="flex justify-between items-center text-sm">
+              <span class="text-gray-500">成本 ¥${h.avg_cost.toFixed(2)}</span>
+              <span class="text-gray-500">占比 ${percentOfTotal}%</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // 开始AI分析
+    async function startAnalysis() {
+      // 停止任何正在进行的语音播报
+      if (isSpeaking) {
+        window.speechSynthesis.cancel();
+        isSpeaking = false;
+        updateVoiceBtn();
+      }
+      
+      document.getElementById('aiEntrySection').classList.add('hidden');
+      document.getElementById('aiStreamSection').classList.remove('hidden');
+      document.getElementById('aiLoadingState').classList.remove('hidden');
+      document.getElementById('aiCardsContainer').innerHTML = '';
+      document.getElementById('aiActionButtons').classList.add('hidden');
+      document.getElementById('aiCompleteState').classList.add('hidden');
+      
+      analysisCardsData = [];
+      startPortfolioStream();
+    }
+
+    // SSE流式分析
+    function startPortfolioStream() {
+      const currentUserStr = localStorage.getItem('currentUser');
+      const currentUser = currentUserStr ? JSON.parse(currentUserStr) : {};
+      const userId = currentUser.phone || 'demo_user';
+      
+      const url = `${API_CONFIG.baseURL}/ai/analyze-portfolio/stream?user_id=${encodeURIComponent(userId)}&total_value=${portfolioData.total_value}&total_profit=${portfolioData.total_profit}&total_profit_percent=${portfolioData.total_profit_percent}`;
+      
+      const eventSource = new EventSource(url);
+      let cardCount = 0;
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('SSE message:', message);
+          
+          switch (message.type) {
+            case 'start':
+              console.log('AI分析开始');
+              break;
+              
+            case 'card':
+              cardCount++;
+              analysisCardsData.push(message.data);
+              
+              if (cardCount === 1) {
+                document.getElementById('aiLoadingState').classList.add('hidden');
+              }
+              
+              createCard(message.card_id, message.data);
+              break;
+              
+            case 'complete':
+              eventSource.close();
+              document.getElementById('aiActionButtons').classList.remove('hidden');
+              document.getElementById('aiCompleteState').classList.remove('hidden');
+              break;
+              
+            case 'error':
+              eventSource.close();
+              showError(message.message);
+              break;
+          }
+        } catch (e) {
+          console.error('解析SSE消息失败:', e);
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error('SSE连接错误:', error);
+        eventSource.close();
+        if (cardCount === 0) {
+          showError('连接失败，请检查网络后重试');
+        }
+      };
+      
+      // 30秒超时
+      setTimeout(() => {
+        if (cardCount === 0) {
+          eventSource.close();
+          showError('分析超时，请稍后重试');
+        }
+      }, 30000);
+    }
+
+    // 显示错误
+    function showError(msg) {
+      document.getElementById('aiLoadingState').innerHTML = `
+        <div class="error-message">
+          <i class="fas fa-exclamation-circle"></i>
+          <p>${msg}</p>
+          <button onclick="startAnalysis()" class="mt-3 px-4 py-2 bg-blue-500 text-white rounded-lg">重新分析</button>
+        </div>`;
+    }
+
+    // 创建分析卡片
+    function createCard(cardId, data) {
+      const container = document.getElementById('aiCardsContainer');
+      const typeClass = `card-${data.type}`;
+      
+      const iconMap = { 
+        health: 'fa-heartbeat', 
+        risk: 'fa-exclamation-triangle', 
+        performance: 'fa-chart-line', 
+        optimize: 'fa-lightbulb' 
+      };
+      const icon = iconMap[data.type] || 'fa-info-circle';
+      
+      let contentHtml = '';
+      
+      switch (data.type) {
+        case 'health':
+          contentHtml = `
+            <div class="health-score-circle">
+              <div class="score-value">${data.score || 75}</div>
+              <div class="score-unit">分</div>
+              <div class="score-rating">${data.rating || '良好'}</div>
+            </div>
+            <div class="typing-container">
+              <span id="card-text-${cardId}" class="typing-text"></span>
+              <span class="typing-cursor" id="cursor-${cardId}"></span>
+            </div>`;
+          break;
+          
+        case 'risk':
+          if (data.risk_items && data.risk_items.length > 0) {
+            contentHtml = `
+              <div id="card-text-${cardId}" class="typing-text">
+                ${data.risk_items.map(item => `
+                  <div class="risk-item">
+                    <div class="risk-item-dot"></div>
+                    <div class="risk-item-content">
+                      <span class="risk-item-name">${item.name}: ${item.value}</span>
+                      <span style="color: ${item.status === '正常' ? '#059669' : '#DC2626'}"> ${item.status === '正常' ? '✓' : '!'}</span>
+                      <div class="risk-item-detail">${item.suggest}</div>
+                    </div>
+                  </div>`).join('')}
+              </div>`;
+          } else {
+            contentHtml = `
+              <div class="typing-container">
+                <span id="card-text-${cardId}" class="typing-text"></span>
+                <span class="typing-cursor" id="cursor-${cardId}"></span>
+              </div>`;
+          }
+          break;
+          
+        case 'performance':
+          const profit = data.profit_percent || 0;
+          contentHtml = `
+            <div class="performance-stats">
+              <div class="performance-stat">
+                <div class="stat-label">组合收益</div>
+                <div class="stat-value" style="color: ${profit >= 0 ? '#059669' : '#DC2626'};">${profit >= 0 ? '+' : ''}${profit.toFixed(2)}%</div>
+              </div>
+              <div class="performance-stat">
+                <div class="stat-label">基准对比</div>
+                <div class="stat-value" style="font-size: 14px;">沪深300 ${data.benchmark || '+2.1%'}</div>
+              </div>
+            </div>
+            <div style="font-size: 14px; color: #6B7280; margin-bottom: 10px;">收益归因：</div>`;
+          if (data.attribution && data.attribution.length > 0) {
+            contentHtml += `<ul class="attribution-list">${data.attribution.map((item, i) => `
+              <li class="attribution-item">
+                <span>${['①','②','③'][i] || (i+1)} ${item.factor}</span>
+                <span style="color: ${item.value.includes('-') ? '#DC2626' : '#059669'}; font-weight: 700;">${item.value}</span>
+              </li>`).join('')}</ul>`;
+          }
+          break;
+          
+        case 'optimize':
+          if (data.suggestions && data.suggestions.length > 0) {
+            contentHtml = `<div id="card-text-${cardId}" class="typing-text">
+              ${data.suggestions.map((s, i) => `
+                <div class="suggestion-item">
+                  <div class="suggestion-title">建议${['一','二','三'][i] || (i+1)}</div>
+                  <div class="suggestion-content">${s}</div>
+                </div>`).join('')}
+              <div class="suggestion-actions">
+                <button class="suggestion-btn suggestion-btn-primary" onclick="showFeatureComingSoon('调仓方案')">查看调仓方案</button>
+                <button class="suggestion-btn suggestion-btn-secondary" onclick="showFeatureComingSoon('专家咨询')">咨询专家</button>
+              </div>
+            </div>`;
+          } else {
+            contentHtml = `
+              <div class="typing-container">
+                <span id="card-text-${cardId}" class="typing-text"></span>
+                <span class="typing-cursor" id="cursor-${cardId}"></span>
+              </div>`;
+          }
+          break;
+      }
+      
+      const cardHtml = `
+        <div id="card-${cardId}" class="analysis-card ${typeClass}">
+          <div class="card-header">
+            <div class="card-icon"><i class="fas ${icon}"></i></div>
+            <h3 class="card-title">${data.title}</h3>
+          </div>
+          <div class="card-content">${contentHtml}</div>
+        </div>`;
+      
+      container.insertAdjacentHTML('beforeend', cardHtml);
+      
+      // 触发显示动画和打字机效果
+      setTimeout(() => {
+        const card = document.getElementById(`card-${cardId}`);
+        card.classList.add('show');
+        
+        // 对纯文本内容启用打字机效果
+        const textElement = document.getElementById(`card-text-${cardId}`);
+        const cursorElement = document.getElementById(`cursor-${cardId}`);
+        const textToType = data.content || '';
+        
+        if ((data.type === 'health' && !data.score) || 
+            (data.type === 'risk' && (!data.risk_items || data.risk_items.length === 0)) || 
+            (data.type === 'optimize' && (!data.suggestions || data.suggestions.length === 0))) {
+          typeWriter(textElement, cursorElement, textToType, data.keywords || [], 40);
+        }
+      }, 100);
+    }
+
+    // 打字机效果
+    function typeWriter(textElement, cursorElement, text, keywords, speed = 40) {
+      if (!text || !textElement) return;
+      
+      let i = 0;
+      let currentText = '';
+      
+      function type() {
+        if (i < text.length) {
+          currentText += text.charAt(i);
+          
+          // 高亮关键词
+          let displayText = currentText;
+          if (keywords && keywords.length > 0) {
+            keywords.forEach(keyword => {
+              if (keyword && keyword.length > 0) {
+                const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                displayText = displayText.replace(regex, '<span class="keyword-highlight">$1</span>');
+              }
+            });
+          }
+          
+          textElement.innerHTML = displayText;
+          i++;
+          
+          if (i >= text.length) {
+            // 隐藏光标
+            if (cursorElement) {
+              cursorElement.style.display = 'none';
+            }
+            // 确保最终文本完全高亮
+            let finalText = text;
+            if (keywords && keywords.length > 0) {
+              keywords.forEach(keyword => {
+                if (keyword && keyword.length > 0) {
+                  const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                  finalText = finalText.replace(regex, '<span class="keyword-highlight">$1</span>');
+                }
+              });
+            }
+            textElement.innerHTML = finalText;
+          } else {
+            setTimeout(type, speed);
+          }
+        }
+      }
+      
+      type();
+    }
+
+    // 语音播报
+    function toggleVoice() {
+      if (isSpeaking) {
+        window.speechSynthesis.cancel();
+        isSpeaking = false;
+      } else {
+        if (analysisCardsData.length === 0) { 
+          alert('暂无分析内容'); 
+          return; 
+        }
+        
+        let text = 'AI投资组合分析结果：';
+        analysisCardsData.forEach((card, i) => {
+          text += `第${['一','二','三','四'][i] || (i+1)}部分，${card.title}。`;
+          if (card.type === 'health' && card.score) {
+            text += `健康评分${card.score}分，评级${card.rating || '良好'}。`;
+          }
+          if (card.content) {
+            text += `${card.content}。`;
+          }
+          if (card.suggestions && card.suggestions.length > 0) {
+            text += '优化建议：' + card.suggestions.join('；') + '。';
+          }
+        });
+        text += '以上分析仅供参考，投资有风险，入市需谨慎。';
+        
+        speechUtterance = new SpeechSynthesisUtterance(text);
+        speechUtterance.lang = 'zh-CN';
+        speechUtterance.rate = 0.9;
+        speechUtterance.pitch = 1;
+        
+        speechUtterance.onstart = () => { 
+          isSpeaking = true; 
+          updateVoiceBtn(); 
+        };
+        
+        speechUtterance.onend = () => { 
+          isSpeaking = false; 
+          updateVoiceBtn(); 
+        };
+        
+        speechUtterance.onerror = (e) => { 
+          console.error('语音播报错误:', e);
+          isSpeaking = false; 
+          updateVoiceBtn(); 
+        };
+        
+        window.speechSynthesis.speak(speechUtterance);
+      }
+      updateVoiceBtn();
+    }
+
+    // 更新语音按钮状态
+    function updateVoiceBtn() {
+      const btn = document.getElementById('voiceBtn');
+      if (isSpeaking) {
+        btn.classList.add('playing');
+        btn.innerHTML = '<i class="fas fa-stop"></i><span>停止播报</span>';
+      } else {
+        btn.classList.remove('playing');
+        btn.innerHTML = '<i class="fas fa-volume-up"></i><span>语音播报</span>';
+      }
+    }
+
+    // 显示功能开发中提示
+    function showFeatureComingSoon(featureName) {
+      alert(`${featureName}功能开发中，敬请期待！`);
+    }
+  </script>
+</body>
+</html>
