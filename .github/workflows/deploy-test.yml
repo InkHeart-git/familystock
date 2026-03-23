@@ -1,0 +1,24 @@
+name: Deploy to Test Environment
+
+on:
+  push:
+    branches: [ test ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploy to TenClaw Test
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_KEY }}
+        script: |
+          cd ${{ secrets.DEPLOY_PATH_TEST }}
+          git pull origin test
+          cd api && (pm2 restart minirock-api-test 2>/dev/null || nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8001 &)
+          echo "[$(date)] Test deployed"
