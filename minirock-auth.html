@@ -10,7 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // 强制刷新 - 版本号控制
-        const APP_VERSION = '20250319_1145';
+        const APP_VERSION = '20250323_2040_NEWS_SORT';
         const currentVer = localStorage.getItem('app_version');
         if (currentVer !== APP_VERSION) {
             localStorage.setItem('app_version', APP_VERSION);
@@ -608,22 +608,152 @@
         }
         
         // 加载新闻数据
-        async function loadNewsData() {
-            const news = [
-                { tag: '黑天鹅', tagClass: 'tag-black', title: '美联储突发降息50基点，全球金融市场剧烈震荡', source: '财联社' },
-                { tag: '灰犀牛', tagClass: 'tag-gray', title: '美债收益率持续攀升，全球债务风险累积', source: '华尔街见闻' },
-                { tag: '热点', tagClass: 'tag-hot', title: 'AI算力需求爆发，半导体板块集体上涨', source: '证券时报' },
-            ];
-            
-            const section = document.getElementById('newsSection');
-            section.innerHTML = news.map(n => `
-                <div class="news-item">
-                    <span class="news-tag ${n.tagClass}">${n.tag}</span>
-                    <div class="news-title">${n.title}</div>
-                    <div class="news-source">${n.source} · 2小时前</div>
-                </div>
-            `).join('');
+        // 新闻优先级配置
+const NEWS_PRIORITY = {
+    '黑天鹅': { priority: 1, stickyDays: 30, color: 'black-swan', emoji: '🔴' },
+    '灰犀牛': { priority: 2, stickyDays: 30, color: 'gray-rhino', emoji: '🟠' },
+    '热点':   { priority: 3, stickyDays: 3,  color: 'hot',       emoji: '🔥' },
+    '利好':   { priority: 4, stickyDays: 1,  color: 'bullish',   emoji: '🟢' },
+    '普通':   { priority: 5, stickyDays: 0,  color: 'normal',    emoji: '🔘' },
+    '市场':   { priority: 5, stickyDays: 0,  color: 'normal',    emoji: '🔘' }
+};
+
+// 智能分类新闻
+function classifyNews(title, content = '') {
+    const text = (title + ' ' + content).toLowerCase();
+    
+    // 黑天鹅：突发重大风险
+    const blackSwanKeywords = ['暴跌', '崩盘', '危机', '战争', '冲突', '制裁', '黑天鹅', 
+                               '股灾', '熔断', '爆雷', '破产', '违约', '查封', '调查'];
+    if (blackSwanKeywords.some(kw => text.includes(kw))) {
+        return '黑天鹅';
+    }
+    
+    // 灰犀牛：累积性风险
+    const grayRhinoKeywords = ['债务', '泡沫', '风险', '预警', '灰犀牛', '累积', '恶化', 
+                               '通胀', '紧缩', '衰退', '下滑', '萎缩'];
+    if (grayRhinoKeywords.some(kw => text.includes(kw))) {
+        return '灰犀牛';
+    }
+    
+    // 热点：市场热点
+    const hotKeywords = ['热点', 'ai', '算力', '芯片', '新能源', '光伏', '锂电', 
+                        '储能', '特斯拉', '比亚迪', '华为', '苹果', '谷歌'];
+    if (hotKeywords.some(kw => text.includes(kw))) {
+        return '热点';
+    }
+    
+    // 利好：积极信号
+    const bullishKeywords = ['利好', '上涨', '增长', '盈利', '突破', '涨停', '创新高', 
+                            '预增', '分红', '增持', '回购', '合作', '订单'];
+    if (bullishKeywords.some(kw => text.includes(kw))) {
+        return '利好';
+    }
+    
+    return '普通';
+}
+
+// 格式化时间
+function formatTime(isoString) {
+    if (!isoString) return '刚刚';
+    try {
+        const date = new Date(isoString);
+        const now = new Date();
+        const diff = (now - date) / 1000;
+        
+        if (diff < 60) return '刚刚';
+        if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+        if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+        if (diff < 2592000) return Math.floor(diff / 86400) + '天前';
+        return date.toLocaleDateString('zh-CN');
+    } catch (e) {
+        return '刚刚';
+    }
+}
+
+// 主加载函数
+async function loadNewsData() {
+    const section = document.getElementById('newsSection');
+    section.innerHTML = '<div style="text-align: center; padding: 40px; color: #6B7280;">加载中...</div>';
+    
+    try {
+        const response = await fetch('/api/news/?limit=50');
+        const data = await response.json();
+        let news = data.news || data.data || [];
+        
+        if (!news || news.length === 0) {
+            section.innerHTML = '<div style="text-align: center; padding: 40px; color: #6B7280;">暂无新闻数据</div>';
+            return;
         }
+        
+        // 处理每条新闻：分类、计算优先级、判断是否置顶
+        const now = new Date();
+        const processedNews = news.map((item, index) => {
+            // 智能分类
+            const tag = classifyNews(item.title, item.content);
+            const config = NEWS_PRIORITY[tag] || NEWS_PRIORITY['普通'];
+            
+            // 计算发布时间
+            const publishedAt = item.published_at ? new Date(item.published_at) : now;
+            const daysSincePublished = (now - publishedAt) / (1000 * 60 * 60 * 24);
+            
+            // 判断是否仍在置顶期内
+            const isSticky = config.stickyDays > 0 && daysSincePublished <= config.stickyDays;
+            
+            return {
+                id: item.id || index + 1,
+                title: item.title || '无标题',
+                source: item.source || '新浪财经',
+                tag: tag,
+                priority: config.priority,
+                color: config.color,
+                emoji: config.emoji,
+                isSticky: isSticky,
+                publishedAt: publishedAt,
+                daysOld: daysSincePublished
+            };
+        });
+        
+        // 排序：置顶新闻优先 > 按优先级 > 按时间（新的在前）
+        processedNews.sort((a, b) => {
+            if (a.isSticky && !b.isSticky) return -1;
+            if (!a.isSticky && b.isSticky) return 1;
+            if (a.priority !== b.priority) return a.priority - b.priority;
+            return b.publishedAt - a.publishedAt;
+        });
+        
+        // 只显示前15条
+        const displayNews = processedNews.slice(0, 15);
+        
+        // 渲染
+        section.innerHTML = displayNews.map((n, index) => {
+            const stickyBadge = n.isSticky ? 
+                `<span style="background: #F59E0B; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px;">置顶${Math.ceil(n.daysOld)}天</span>` : '';
+            
+            return `
+                <div class="news-card-s3f ${n.color}" onclick="viewNewsDetail(${n.id})" 
+                     style="${n.isSticky ? 'border: 3px solid #F59E0B; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);' : ''}">
+                    <div class="news-tag-s3f ${n.color}">
+                        <span>${n.emoji}</span>
+                        <span>${n.tag}</span>
+                        ${stickyBadge}
+                    </div>
+                    <div class="news-title-s3f">${n.title}</div>
+                    <div class="news-meta-s3f">
+                        <span>${n.source}</span>
+                        <span>·</span>
+                        <span>${formatTime(n.publishedAt.toISOString())}</span>
+                    </div>
+                    <div class="news-arrow">›</div>
+                </div>
+            `;
+        }).join('');
+        
+    } catch (e) {
+        console.error('获取新闻失败:', e);
+        section.innerHTML = '<div style="text-align: center; padding: 40px; color: #EF4444;">加载失败，请刷新重试</div>';
+    }
+}
         
         // 加载自选股预览 - 使用统一的 minirock_watchlist key
         function loadMiniWatchlist() {
