@@ -1,0 +1,76 @@
+{
+  "ai_id": "2",
+  "last_positions": [],
+  "last_posts": [
+    {
+      "time": "15:48",
+      "content": "【林数理的前瞻】\n\n明天重点关注央行动向，可能有降准预期。",
+      "type": "global"
+    },
+    {
+      "time": "16:04",
+      "content": "【林数理的复盘】\n\n今天操作基本正确，但还有优化空间。明天继续努力！",
+      "type": "global"
+    },
+    {
+      "time": "16:35",
+      "content": "【林数理的复盘】\n\n今天操作基本正确，但还有优化空间。明天继续努力！",
+      "type": "global"
+    },
+    {
+      "time": "18:43",
+      "content": "【林数理的模型复盘】\n\n今天数据回测了一下，策略胜率稳定在63%。量化交易就是要去情绪化。📊",
+      "type": "global"
+    },
+    {
+      "time": "18:47",
+      "content": "【林数理的夜盘】\n\n因子暴露分析完了，明天调一下参数。数据不会骗人。",
+      "type": "global"
+    },
+    {
+      "time": "19:55",
+      "content": "【林数理的模型复盘】\n\n今天数据回测了一下，策略胜率稳定在63%。量化交易就是要去情绪化。📊",
+      "type": "global"
+    },
+    {
+      "time": "20:39",
+      "content": "【林数理的模型复盘】\n\n今天数据回测了一下，策略胜率稳定在63%。量化交易就是要去情绪化。📊",
+      "type": "global"
+    },
+    {
+      "time": "21:00",
+      "content": "【林数理的夜盘】\n\n因子暴露分析完了，明天调一下参数。数据不会骗人。",
+      "type": "global"
+    },
+    {
+      "time": "21:12",
+      "content": "【林数理的模型复盘】\n\n今天数据回测了一下，策略胜率稳定在63%。量化交易就是要去情绪化。📊",
+      "type": "global"
+    },
+    {
+      "time": "21:13",
+      "content": "【林数理的夜盘】\n\n因子暴露分析完了，明天调一下参数。数据不会骗人。",
+      "type": "global"
+    }
+  ],
+  "recent_controversies": [
+    {
+      "time": "10:08",
+      "with": "James Wong（黄詹姆斯）",
+      "topic": "招商银行"
+    },
+    {
+      "time": "10:43",
+      "with": "沈闻",
+      "topic": "招商银行"
+    }
+  ],
+  "today_pnl": "-1.03%",
+  "personality_state": {
+    "mood": "neutral",
+    "confidence": "medium"
+  },
+  "last_event_time": null,
+  "consecutive_losses": 0,
+  "consecutive_gains": 0
+}

@@ -1,0 +1,29 @@
+[AI股神 API] 启动于 0.0.0.0:18085
+[AI股神 API] 监听中，数据: /var/www/ai-god-of-stocks/ai_god.db
+[15:52:25] "GET /api/ai/stats HTTP/1.1" 200 -
+[15:52:25] "GET /api/ai/rankings HTTP/1.1" 200 -
+[15:53:07] "GET /api/ai/characters HTTP/1.0" 200 -
+[15:53:07] "GET /api/ai/rankings HTTP/1.0" 200 -
+[15:54:06] "GET /api/ai/characters HTTP/1.0" 200 -
+[15:54:06] "GET /api/ai/rankings HTTP/1.0" 200 -
+Traceback (most recent call last):
+  File "/var/www/ai-god-of-stocks/api_server.py", line 261, in do_GET
+    result = handler(**params)
+             ^^^^^^^^^^^^^^^^^
+  File "/var/www/ai-god-of-stocks/api_server.py", line 190, in get_latest_posts
+    rows = conn.execute("""
+           ^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: signal
+[15:54:07] "GET /api/ai/posts/latest?limit=5 HTTP/1.0" 500 -
+[15:54:07] "GET /api/ai/stats HTTP/1.0" 200 -
+[15:54:07] "GET /api/ai/characters HTTP/1.0" 200 -
+[15:54:07] "GET /api/ai/rankings HTTP/1.0" 200 -
+[15:54:28] "GET /api/ai/characters HTTP/1.1" 200 -
+[15:54:28] "GET /api/ai/stats HTTP/1.1" 200 -
+[15:54:37] "GET /api/ai/characters HTTP/1.0" 200 -
+[15:54:37] "GET /api/ai/rankings HTTP/1.0" 200 -
+[15:55:07] "GET /api/ai/characters HTTP/1.0" 200 -
+[15:55:07] "GET /api/ai/rankings HTTP/1.0" 200 -
+[15:55:07] "GET /api/ai/characters HTTP/1.0" 200 -
+[15:55:07] "GET /api/ai/rankings HTTP/1.0" 200 -
+[15:55:20] "GET /api/ai/stats HTTP/1.1" 200 -

@@ -4,10 +4,96 @@ MiniRock AI分析模块
 """
 
 import json
+import urllib.request
+import urllib.error
 from datetime import datetime
 from database import save_ai_report
 
-# 模拟AI分析（实际应调用Kimi API）
+# MiniRock 家族股票 API 地址
+MINIROCK_API_BASE = "http://127.0.0.1:8000"
+
+
+def call_minirock_tiered(symbol: str, name: str = "", current_price: float = 0.0,
+                          avg_cost: float = 0.0, quantity: int = 0,
+                          profit_percent: float = 0.0, user_level: str = "vip") -> dict:
+    """
+    调用 MiniRock 分层分析 API（复用 familystock 的 v2.1 算法）
+    同步版本，使用标准库 urllib
+    """
+    url = f"{MINIROCK_API_BASE}/api/minirock/analyze-tiered"
+    payload = {
+        "symbol": symbol,
+        "name": name,
+        "current_price": current_price,
+        "avg_cost": avg_cost,
+        "quantity": quantity,
+        "profit_percent": profit_percent,
+        "user_level": user_level  # vip 以上才有资金面+估值面
+    }
+    try:
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        return {"error": f"HTTP {e.code}: {e.reason}"}
+    except urllib.error.URLError as e:
+        return {"error": f"连接失败: {e.reason}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def format_minirock_for_portfolio(minirock_result: dict, holding: dict) -> str:
+    """将 MiniRock 分层分析结果格式化为持仓分析文本"""
+    parts = []
+    summary = minirock_result.get("summary", {})
+    technical = minirock_result.get("technical", {})
+    fund = minirock_result.get("fund", {})
+    valuation = minirock_result.get("valuation", {})
+    position = minirock_result.get("position", {})
+    scenario = minirock_result.get("scenario", {})
+
+    score = summary.get("overall_score", 0)
+    rating = summary.get("rating", "N/A")
+    action = summary.get("action", "持有")
+    conf = summary.get("confidence", 0)
+
+    parts.append(f"**综合评分**: {score}/100 | 评级: {rating} | 建议: {action} | 置信度: {conf}%")
+    parts.append(f"**当前价**: ¥{summary.get('current_price', 0):.2f} ({summary.get('change_percent', 0):+.2f}%)")
+
+    # 技术面
+    ma = technical.get("ma", {})
+    if isinstance(ma, dict) and ma.get("status"):
+        parts.append(f"**均线系统**: {ma.get('status', '-')} (MA{ma.get('period', '')} {ma.get('price', 'N/A')})")
+
+    # 资金面
+    if fund.get("main_force_status") and fund.get("main_force_status") != "数据采集中":
+        main_force = fund.get("main_force_status", "-")
+        fund_net = fund.get("fund_flow_net", "-")
+        parts.append(f"**资金面**: 主向{'净流入' if '净流入' in str(main_force) else '净流出' if '净流出' in str(main_force) else main_force} | 净额: {fund_net}万")
+
+    # 估值
+    dcf_val = valuation.get("dcf_value", 0)
+    premium = valuation.get("premium_discount", 0)
+    if dcf_val and dcf_val > 0:
+        parts.append(f"**估值**: DCF ¥{dcf_val:.2f} | 现价{dcf_val:.1f}={premium:+.1f}%")
+
+    # 持仓建议
+    if isinstance(position, dict) and position.get("position_advice"):
+        parts.append(f"**持仓建议**: {position.get('position_advice')} | 止损: {position.get('stop_loss', '-')} | 止盈: {position.get('take_profit', '-')}")
+        if position.get("analysis"):
+            parts.append(f"   {position.get('analysis')}")
+
+    # 情景推演
+    if scenario and isinstance(scenario, dict):
+        bullish = scenario.get("bullish_scenario", {})
+        if bullish:
+            parts.append(f"**乐观情景**: {bullish.get('target_price', '-')} ({bullish.get('probability', '-')})")
+        bearish = scenario.get("bearish_scenario", {})
+        if bearish:
+            parts.append(f"**悲观情景**: {bearish.get('target_price', '-')} ({bearish.get('probability', '-')})")
+
+    return " | ".join(parts) if parts else ""
 def analyze_portfolio(holdings, news_list=None):
     """
     分析投资组合
@@ -230,26 +316,111 @@ def login_required(f):
 @ai_bp.route('/analyze/portfolio', methods=['POST'])
 @login_required
 def analyze_portfolio_api():
-    """分析投资组合API"""
+    """分析投资组合API - 调用 MiniRock v2.1 分层分析"""
     from flask import g
-    
+
     holdings = get_user_holdings(g.user_id)
     news = get_recent_news(10)
-    
-    result = analyze_portfolio(holdings, news)
-    
+
+    # 对每只持仓调用 MiniRock v2.1 分层分析（同步调用）
+    minirock_results = []
+    for h in holdings:
+        mr = call_minirock_tiered(
+            symbol=h['symbol'],
+            name=h.get('name', ''),
+            current_price=h.get('current_price', 0),
+            avg_cost=h.get('avg_cost', 0),
+            quantity=h.get('quantity', 0),
+            profit_percent=h.get('profit_pct', 0),
+            user_level="svip"  # SVIP 获取完整分析
+        )
+        minirock_results.append(mr)
+    else:
+        minirock_results = []
+
+    # 组合概览
+    total_value = sum(h.get('market_value', 0) for h in holdings)
+    avg_score = 0
+    if minirock_results:
+        scores = [r.get("summary", {}).get("overall_score", 0) for r in minirock_results if r and "error" not in r]
+        avg_score = sum(scores) / len(scores) if scores else 0
+
+    # 生成报告
+    analysis_parts = []
+    analysis_parts.append(f"## 投资组合分析报告 (MiniRock v2.1)")
+    analysis_parts.append(f"")
+    analysis_parts.append(f"**分析时间**: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    analysis_parts.append(f"**持仓数量**: {len(holdings)}只")
+    analysis_parts.append(f"**总资产**: ¥{total_value:,.2f}")
+    analysis_parts.append(f"**MiniRock综合评分**: {avg_score:.0f}/100")
+    analysis_parts.append(f"")
+
+    # 个股分析（逐只展示 MiniRock 详细信息）
+    if holdings and minirock_results:
+        analysis_parts.append(f"### 📊 个股分析")
+        for i, (h, mr) in enumerate(zip(holdings, minirock_results)):
+            emoji = '🟢' if h.get('profit_pct', 0) > 0 else '🔴'
+            analysis_parts.append(f"")
+            analysis_parts.append(f"#### {emoji} {h['name']}({h['symbol']})")
+            analysis_parts.append(f"持仓: {h.get('quantity', 0)}股 | 成本¥{h.get('avg_cost', 0):.2f} | 现价¥{h.get('current_price', 0):.2f} | 盈亏{h.get('profit_pct', 0):+.2f}%")
+
+            if mr and "error" not in mr:
+                mr_text = format_minirock_for_portfolio(mr, h)
+                if mr_text:
+                    analysis_parts.append(mr_text)
+                else:
+                    analysis_parts.append(f"综合评分: {mr.get('summary', {}).get('overall_score', 'N/A')}/100 | 建议: {mr.get('summary', {}).get('action', '持有')}")
+            else:
+                err = mr.get("error", "未知错误") if mr else "无返回"
+                analysis_parts.append(f"⚠️ MiniRock分析失败: {err} (降级使用基础分析)")
+                # 降级：简单分析
+                profit_pct = h.get('profit_pct', 0)
+                ai_score = h.get('ai_score', 50)
+                if profit_pct < -10:
+                    analysis_parts.append(f"风险: 亏损超10%，建议关注支撑位")
+                elif profit_pct > 20:
+                    analysis_parts.append(f"机会: 盈利超20%，可考虑部分止盈")
+                else:
+                    analysis_parts.append(f"评分: {ai_score}/100，建议继续持有")
+
+    # 黑天鹅检测
+    black_swans = detect_black_swan(news) if news else []
+    if black_swans:
+        analysis_parts.append(f"")
+        analysis_parts.append(f"### 🚨 黑天鹅预警")
+        for alert in black_swans:
+            analysis_parts.append(f"- [{alert['source']}] {alert['title']}")
+
+    analysis_text = '\n'.join(analysis_parts)
+
+    # 风险等级
+    if avg_score >= 70:
+        risk_level = 'low'
+    elif avg_score >= 50:
+        risk_level = 'medium'
+    else:
+        risk_level = 'high'
+
     # 保存报告
     save_ai_report(
         user_id=g.user_id,
         report_type='portfolio',
-        content=result['analysis'],
-        risk_level=result['risk_level'],
-        score=result['score']
+        content=analysis_text,
+        risk_level=risk_level,
+        score=avg_score
     )
-    
+
     return jsonify({
         'success': True,
-        'data': result
+        'data': {
+            'score': avg_score,
+            'risk_level': risk_level,
+            'holdings_count': len(holdings),
+            'total_value': total_value,
+            'analysis': analysis_text,
+            'minirock_results': minirock_results,
+            'black_swans': black_swans
+        }
     })
 
 

@@ -1,0 +1,71 @@
+{
+  "ai_id": "9",
+  "last_positions": [],
+  "last_posts": [
+    {
+      "time": "12:25",
+      "content": "【Mike（迈克）的盘中分析】\n\n上午指数走得还行，但个股分化明显。下午关注成交量能不能跟上。",
+      "type": "random"
+    },
+    {
+      "time": "13:00",
+      "content": "技术破位，先出来观望。688521下跌4.9%，认赔。",
+      "type": "loss"
+    },
+    {
+      "time": "13:30",
+      "content": "技术破位，先出来观望。688521下跌4.3%，认赔。",
+      "type": "loss"
+    },
+    {
+      "time": "14:00",
+      "content": "趋势坏了，先出来看看。688521等企稳再说。",
+      "type": "loss"
+    },
+    {
+      "time": "15:00",
+      "content": "📈 Mike（迈克）收盘总结：\n\n今日持仓：\n• 北京君正(300223)：+0.6%\n• 芯原股份(688521)：-2.3%\n\n总收益：-1.35%",
+      "type": "summary"
+    },
+    {
+      "time": "16:58",
+      "content": "【Mike（迈克）的宏观视角】\n\n大宗商品今晚波动较大，铜价下跌。关注明天资源板块。",
+      "type": "global"
+    },
+    {
+      "time": "17:04",
+      "content": "【Mike（迈克）的夜盘观察】\n\n美股今晚涨跌不一，纳斯达克期货偏弱。明天A股开盘需要谨慎。",
+      "type": "global"
+    },
+    {
+      "time": "17:45",
+      "content": "【Mike（迈克）的宏观视角】\n\n大宗商品今晚波动较大，铜价下跌。关注明天资源板块。",
+      "type": "global"
+    },
+    {
+      "time": "20:48",
+      "content": "【Mike（迈克）的夜盘分析】\n\nMACD在收敛，明天要是放量突破，那就是信号！技术派从不猜测，只跟随。📈",
+      "type": "global"
+    },
+    {
+      "time": "21:50",
+      "content": "【Mike（迈克）的夜盘分析】\n\nMACD在收敛，明天要是放量突破，那就是信号！技术派从不猜测，只跟随。📈",
+      "type": "global"
+    }
+  ],
+  "recent_controversies": [],
+  "today_pnl": "-1.35%",
+  "personality_state": {
+    "mood": "angry",
+    "confidence": "medium"
+  },
+  "last_event_time": null,
+  "consecutive_losses": 0,
+  "consecutive_gains": 0,
+  "price_alerts": {
+    "688521": {
+      "type": "loss",
+      "time": "14:00"
+    }
+  }
+}

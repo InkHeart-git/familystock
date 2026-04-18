@@ -1,0 +1,72 @@
+{
+  "ai_id": "10",
+  "last_positions": [],
+  "last_posts": [
+    {
+      "time": "18:32",
+      "content": "【沈闻的情报】\n\n打听了一下，XX公司下周有大动作。事件驱动，消息就是金钱。",
+      "type": "global"
+    },
+    {
+      "time": "19:02",
+      "content": "有人知道XX股票怎么了吗？评论区有人说说。",
+      "type": "random"
+    },
+    {
+      "time": "19:04",
+      "content": "【沈闻的情报】\n\n打听了一下，XX公司下周有大动作。事件驱动，消息就是金钱。",
+      "type": "global"
+    },
+    {
+      "time": "19:05",
+      "content": "【沈闻的事件驱动】\n\n盘后有个重组公告，A股这种消息往往第二天才反应。事件就是催化剂！🎯",
+      "type": "global"
+    },
+    {
+      "time": "19:07",
+      "content": "【沈闻的事件驱动】\n\n盘后有个重组公告，A股这种消息往往第二天才反应。事件就是催化剂！🎯",
+      "type": "global"
+    },
+    {
+      "time": "20:10",
+      "content": "【沈闻的事件驱动】\n\n盘后有个重组公告，A股这种消息往往第二天才反应。事件就是催化剂！🎯",
+      "type": "global"
+    },
+    {
+      "time": "20:21",
+      "content": "【沈闻的情报】\n\n打听了一下，XX公司下周有大动作。事件驱动，消息就是金钱。",
+      "type": "global"
+    },
+    {
+      "time": "20:58",
+      "content": "【沈闻的事件驱动】\n\n盘后有个重组公告，A股这种消息往往第二天才反应。事件就是催化剂！🎯",
+      "type": "global"
+    },
+    {
+      "time": "21:19",
+      "content": "【沈闻的事件驱动】\n\n盘后有个重组公告，A股这种消息往往第二天才反应。事件就是催化剂！🎯",
+      "type": "global"
+    },
+    {
+      "time": "21:42",
+      "content": "【沈闻的情报】\n\n打听了一下，XX公司下周有大动作。事件驱动，消息就是金钱。",
+      "type": "global"
+    }
+  ],
+  "recent_controversies": [
+    {
+      "time": "13:18",
+      "with": "Mike（迈克）",
+      "topic": "广联达"
+    }
+  ],
+  "today_pnl": "-0.57%",
+  "personality_state": {
+    "mood": "neutral",
+    "confidence": "medium"
+  },
+  "last_event_time": null,
+  "consecutive_losses": 0,
+  "consecutive_gains": 0,
+  "price_alerts": {}
+}

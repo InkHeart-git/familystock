@@ -1,0 +1,926 @@
+# AI 股神争霸赛 - API 服务
+
+def calculate_win_streak(portfolio) -> int:
+    """计算连胜天数（基于持仓浮动盈亏）"""
+    if not portfolio.holdings:
+        return 0
+    total_pnl = sum(h.unrealized_pnl for h in portfolio.holdings)
+    if total_pnl > 5000:
+        return 3
+    elif total_pnl > 1000:
+        return 2
+    elif total_pnl > 0:
+        return 1
+    else:
+        return 0
+
+# 整合 WebSocket 和 HTTP API
+
+import sys
+import os
+from pathlib import Path
+
+# 添加项目根目录到路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import asyncio
+from typing import Dict, List, Optional
+from datetime import datetime
+import logging
+logger = logging.getLogger(__name__)
+import random
+
+from core.characters import get_all_characters, get_character, AI_CHARACTERS
+
+# 初始资金常量（五虎100万，小五10万）
+WUXIA_INITIAL = 1000000.0
+XIAOWU_INITIAL = 100000.0
+from core.bbs import BBSSystem, Post, PostType
+from engine.trading import PortfolioManager, TradeDecision, Portfolio
+from data.preprocessor import DataPreprocessor
+from data.db_manager import DatabaseManager
+    
+
+# 全局回复存储 {post_id: [replies]}
+replies_store: Dict[int, List[Dict]] = {}
+
+app = FastAPI(title="AI股神争霸赛 API", version="1.0.0")
+
+# 添加CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 全局状态
+import os
+bbs_system = BBSSystem()
+bbs_system._db_path = "/var/www/ai-god-of-stocks/data/ai_god.db"
+bbs_system.posts = []  # 清空旧数据
+bbs_system._load_posts_from_db()  # 立即加载已有帖子
+db_manager = DatabaseManager()
+portfolio_manager = PortfolioManager(db_manager)
+preprocessor = DataPreprocessor()
+ai_posts_cache: List[Dict] = []
+
+# 初始化时连接数据库
+@app.on_event("startup")
+async def startup_event():
+    """启动时连接数据库"""
+    await db_manager.connect()
+    logger.info("API服务启动，数据库已连接")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """关闭时断开数据库"""
+    await db_manager.close()
+    logger.info("API服务关闭，数据库已断开")
+
+# WebSocket 连接管理
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        logger.info(f"WebSocket 连接建立，当前连接数: {len(self.active_connections)}")
+    
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+        logger.info(f"WebSocket 连接断开，当前连接数: {len(self.active_connections)}")
+    
+    async def broadcast(self, message: dict):
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except:
+                disconnected.append(connection)
+        
+        for conn in disconnected:
+            self.disconnect(conn)
+
+manager = ConnectionManager()
+
+
+@app.get("/")
+async def root():
+    """返回直播页面"""
+    return FileResponse("/var/www/familystock/ai-god-of-stocks/frontend/live.html")
+
+
+@app.get("/api/health")
+async def health_check():
+    """健康检查"""
+    return {
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "service": "AI股神争霸赛 API"
+    }
+
+
+# ============ 兼容旧版API ============
+
+@app.get("/api/ai/characters")
+async def get_ai_characters():
+    """获取AI角色列表（兼容旧版）"""
+    characters = []
+    
+    # 映射新角色ID到旧版ID
+    id_mapping = {
+        "trend_chaser": 1,
+        "quant_queen": 2,
+        "value_veteran": 3,
+        "scalper_fairy": 4,
+        "macro_master": 5,
+        "tech_whiz": 6,
+        "dividend_hunter": 7,
+        "turnaround_pro": 8,
+        "momentum_kid": 9,
+        "event_driven": 10
+    }
+    
+    avatar_mapping = {
+        "trend_chaser": "🚀",
+        "quant_queen": "📊",
+        "value_veteran": "🦉",
+        "scalper_fairy": "⚡",
+        "macro_master": "🌍",
+        "tech_whiz": "💻",
+        "dividend_hunter": "💰",
+        "turnaround_pro": "🔄",
+        "momentum_kid": "🌪️",
+        "event_driven": "📰"
+    }
+    
+    nickname_mapping = {
+        "trend_chaser": "追风少年",
+        "quant_queen": "量化女王",
+        "value_veteran": "价值老炮",
+        "scalper_fairy": "短线精灵",
+        "macro_master": "宏观大佬",
+        "tech_whiz": "科技小神童",
+        "dividend_hunter": "分红小能手",
+        "turnaround_pro": "困境反转小高手",
+        "momentum_kid": "动量小旋风",
+        "event_driven": "事件驱动小灵通"
+    }
+    
+    catchphrase_mapping = {
+        "trend_chaser": "强者恒强，趋势为王！",
+        "quant_queen": "数据说话，算法致胜。",
+        "value_veteran": "时间是朋友，复利是武器。",
+        "scalper_fairy": "快进快出，绝不恋战！",
+        "macro_master": "顺势而为，把握周期。",
+        "tech_whiz": "科技创新，芯片先行！",
+        "dividend_hunter": "股息收益，稳稳当当！",
+        "turnaround_pro": "困境反转，逆境翻盘！",
+        "momentum_kid": "追逐动量，顺势而动！",
+        "event_driven": "闻风而动，消息灵通！"
+    }
+    
+    for char_id, char in get_all_characters().items():
+        # 从数据库加载投资组合
+        portfolio = await portfolio_manager.load_portfolio(char_id)
+        
+        # 使用预设的起始资金（五虎100万，小五10万）
+        initial_capital = WUXIA_INITIAL if char_id in ["trend_chaser", "quant_queen", "value_veteran", "scalper_fairy", "macro_master"] else XIAOWU_INITIAL
+        
+        current_value = portfolio.total_value
+        total_return_pct = ((current_value - initial_capital) / initial_capital) * 100
+        
+        # 构建持仓明细
+        holdings_detail = []
+        total_unrealized_pnl = 0
+        daily_return_pct = 0  # 默认日收益为0
+        
+        for h in portfolio.holdings:
+            unrealized_pnl = h.unrealized_pnl
+            unrealized_pnl_pct = h.unrealized_pnl_pct
+            total_unrealized_pnl += unrealized_pnl
+            holdings_detail.append({
+                "symbol": h.symbol,
+                "name": h.name,
+                "quantity": h.quantity,
+                "buy_price": h.buy_price,
+                "current_price": h.current_price,
+                "market_value": h.market_value,
+                "unrealized_pnl": unrealized_pnl,
+                "unrealized_pnl_pct": unrealized_pnl_pct
+            })
+        
+        # 如果有持仓，基于浮动盈亏计算日收益（简化）
+        if portfolio.holdings:
+            stock_value = sum(h.market_value for h in portfolio.holdings)
+            if stock_value > 0:
+                # 日收益 = 浮动盈亏 / 股票市值 * 100
+                daily_return_pct = (total_unrealized_pnl / stock_value) * 100
+        
+        characters.append({
+            "id": id_mapping.get(char_id, 1),
+            "name": char.name,
+            "nickname": nickname_mapping.get(char_id, char.name),
+            "avatar_emoji": avatar_mapping.get(char_id, char.avatar),
+            "style": char.style,
+            "catchphrase": catchphrase_mapping.get(char_id, ""),
+            "portfolio": {
+                "initial_capital": initial_capital,
+                "cash": portfolio.cash,
+                "stock_value": sum(h.market_value for h in portfolio.holdings),
+                "total_value": current_value,
+                "daily_return": daily_return_pct,
+                "total_return": total_return_pct,
+                "holdings_count": len(portfolio.holdings),
+                "is_winning": daily_return_pct > 0,
+                "win_streak": calculate_win_streak(portfolio),
+                "total_unrealized_pnl": total_unrealized_pnl,
+                "holdings": holdings_detail
+            }
+        })
+    
+    return {"success": True, "data": characters}
+
+
+@app.get("/api/ai/rankings")
+async def get_ai_rankings():
+    """获取AI排行榜 - 基于真实持仓计算"""
+    rankings = []
+    
+    # AI ID和头像映射
+    id_mapping = {
+        "trend_chaser": 1, "quant_queen": 2, "value_veteran": 3,
+        "scalper_fairy": 4, "macro_master": 5, "tech_whiz": 6,
+        "dividend_hunter": 7, "turnaround_pro": 8, "momentum_kid": 9, "event_driven": 10
+    }
+    
+    avatar_mapping = {
+        "trend_chaser": "🚀", "quant_queen": "📊", "value_veteran": "🦉",
+        "scalper_fairy": "⚡", "macro_master": "🌍", "tech_whiz": "💻",
+        "dividend_hunter": "💰", "turnaround_pro": "🔄", "momentum_kid": "🌪️", "event_driven": "📰"
+    }
+    
+    # 从真实持仓数据库计算
+    db_path = Path(__file__).parent.parent / "data" / "ai_god.db"
+    import sqlite3
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+    
+    # 获取每个AI的持仓数据
+    for char_id, char in get_all_characters().items():
+        ai_num = id_mapping.get(char_id, 1)
+        initial_capital = WUXIA_INITIAL if ai_num <= 5 else XIAOWU_INITIAL
+        
+        # 从真实持仓表读取
+        cursor.execute("""
+            SELECT symbol, name, quantity, avg_cost, current_price 
+            FROM ai_holdings WHERE ai_id = ?
+        """, (str(ai_num),))
+        
+        holdings = cursor.fetchall()
+        total_cost = 0
+        total_value = 0
+        total_pnl = 0
+        
+        for symbol, name, qty, cost, current_price in holdings:
+            cost_val = qty * cost
+            value_val = qty * current_price
+            pnl = value_val - cost_val
+            total_cost += cost_val
+            total_value += value_val
+            total_pnl += pnl
+        
+        # 计算收益率（基于4月3日建仓）
+        total_return_pct = ((total_value - total_cost) / total_cost * 100) if total_cost > 0 else 0
+        daily_return_pct = total_return_pct  # 今天建仓，当天收益率=总收益率
+        
+        # 现金=初始资金-持仓成本
+        cash = initial_capital - total_cost
+        
+        rankings.append({
+            "id": ai_num,
+            "name": char.name,
+            "avatar_emoji": avatar_mapping.get(char_id, char.avatar),
+            "style": char.style,
+            "nickname": char.name,
+            "total_return": round(total_return_pct, 2),
+            "daily_return": round(daily_return_pct, 2),
+            "win_rate": 0,
+            "total_trades": 1,  # 今天建仓
+            "portfolio": {
+                "initial_capital": initial_capital,
+                "cash": round(cash, 2),
+                "stock_value": round(total_value, 2),
+                "total_value": round(total_value + cash, 2),
+                "daily_return": round(daily_return_pct, 2),
+                "total_return": round(total_return_pct, 2),
+                "holdings_count": len(holdings),
+                "is_winning": total_pnl > 0,
+                "win_streak": 0,
+                "total_unrealized_pnl": round(total_pnl, 2)
+            }
+        })
+    
+    conn.close()
+    
+    # 按总收益排序
+    rankings.sort(key=lambda x: x["total_return"], reverse=True)
+    
+    return {"success": True, "data": rankings}
+
+
+@app.get("/api/ai/posts/latest")
+async def get_latest_posts(limit: int = 10):
+    """获取最新帖子（从BBS系统读取）"""
+    try:
+        # 从 bbs_system 读取帖子（已加载 SQLite 数据）
+        bbs_posts = bbs_system.get_all_posts(limit)
+        
+        # 转换为前端期望的格式
+        posts = []
+        for post in bbs_posts:
+            posts.append({
+                "id": post.get('id'),
+                "ai_id": post.get('ai_id'),
+                "ai_name": post.get('ai_name'),
+                "avatar_emoji": post.get('ai_avatar'),
+                "ai_avatar": post.get('ai_avatar'),
+                "post_type": post.get('post_type'),
+                "title": post.get('content', '')[:50],
+                "content": post.get('content', ''),
+                "created_at": post.get('timestamp'),
+                "reply_count": post.get('replies', 0),
+                "likes": post.get('likes', 0),
+                "views": 0
+            })
+        
+        return {
+            "success": True,
+            "data": posts
+        }
+    except Exception as e:
+        logger.error(f"获取最新帖子失败: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/ai/stats")
+async def get_ai_stats():
+    """获取统计信息"""
+    try:
+        import sqlite3
+        from datetime import datetime
+        
+        db_path = Path(__file__).parent.parent / "data" / "ai_god.db"
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        # 总帖子数
+        cursor.execute("SELECT COUNT(*) FROM ai_posts")
+        total_posts = cursor.fetchone()[0]
+        
+        # 今日帖子数
+        today = datetime.now().date()
+        cursor.execute("SELECT COUNT(*) FROM ai_posts WHERE date(created_at) = ?", (str(today),))
+        today_posts = cursor.fetchone()[0]
+        
+        # 活跃AI数（有帖子的AI数量）
+        cursor.execute("SELECT COUNT(DISTINCT ai_id) FROM ai_posts")
+        active_ais = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            "success": True,
+            "data": {
+                "today_posts": today_posts,
+                "total_posts": total_posts,
+                "active_ais": active_ais,
+                "total_users": 1,
+                "match_status": "比赛中"
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取统计信息失败: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def generate_mock_posts():
+    """生成模拟帖子数据"""
+    global ai_posts_cache
+    
+    ai_names = ["追风少年", "量化女王", "价值老炮", "短线精灵", "宏观大佬"]
+    avatars = ["🚀", "📊", "🦉", "⚡", "🌍"]
+    
+    post_templates = [
+        "刚刚买入{stock}，看好{reason}！",
+        "{stock}今天表现不错，继续持有。",
+        "市场波动加大，减仓{stock}避险。",
+        "{stock}突破关键阻力位，加仓！",
+        "今天收益{return_val}%，{mood}！"
+    ]
+    
+    stocks = ["平安银行", "比亚迪", "宁德时代", "贵州茅台", "腾讯控股"]
+    reasons = ["业绩超预期", "政策利好", "技术突破", "资金流入", "行业景气"]
+    moods = ["继续加油", "保持谨慎", "信心满满", "稳扎稳打", "灵活应对"]
+    
+    for i in range(20):
+        ai_idx = random.randint(0, 4)
+        template = random.choice(post_templates)
+        stock = random.choice(stocks)
+        reason = random.choice(reasons)
+        mood = random.choice(moods)
+        ret = random.uniform(-5, 8)
+        
+        content = template.format(stock=stock, reason=reason, mood=mood, return_val=f"{ret:+.2f}")
+        
+        ai_posts_cache.append({
+            "id": i + 1,
+            "ai_id": ai_idx + 1,
+            "ai_name": ai_names[ai_idx],
+            "avatar_emoji": avatars[ai_idx],
+            "content": content,
+            "created_at": datetime.now().isoformat(),
+            "likes": random.randint(5, 50),
+            "comments": random.randint(0, 10)
+        })
+
+
+# ============ 新版API ============
+
+@app.get("/api/characters")
+async def get_characters():
+    """获取所有AI角色（新版）"""
+    characters = []
+    for char_id, char in get_all_characters().items():
+        portfolio = await portfolio_manager.load_portfolio(char_id)
+        characters.append({
+            "id": char_id,
+            "name": char.name,
+            "avatar": char.avatar,
+            "style": char.style,
+            "description": char.description,
+            "risk_level": char.risk_level.value,
+            "keywords": char.keywords,
+            "portfolio": {
+                "total_value": portfolio.total_value,
+                "cash": portfolio.cash,
+                "holdings_count": len(portfolio.holdings)
+            }
+        })
+    return {"characters": characters}
+
+
+@app.get("/api/ai/characters/{char_id}")
+async def get_character_detail(char_id: str):
+    """获取AI角色详情 - 基于SQLite真实持仓"""
+    # 支持数字ID映射
+    id_to_char = {
+        "1": "trend_chaser", "2": "quant_queen", "3": "value_veteran",
+        "4": "scalper_fairy", "5": "macro_master", "6": "tech_whiz",
+        "7": "dividend_hunter", "8": "turnaround_pro", "9": "momentum_kid", "10": "event_driven"
+    }
+    char_to_id = {v: k for k, v in id_to_char.items()}
+
+    # 如果是数字ID，转换为字符ID
+    actual_char_id = char_id
+    if char_id in id_to_char:
+        actual_char_id = id_to_char[char_id]
+
+    character = get_character(actual_char_id)
+    if not character:
+        return {"error": "Character not found"}, 404
+
+    # 从SQLite读取真实持仓
+    db_path = Path(__file__).parent.parent / "data" / "ai_god.db"
+    import sqlite3
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+
+    ai_num = int(char_id) if char_id.isdigit() else char_to_id.get(actual_char_id, 1)
+    initial_capital = WUXIA_INITIAL if ai_num <= 5 else XIAOWU_INITIAL
+
+    cursor.execute("""
+        SELECT symbol, name, quantity, avg_cost, current_price
+        FROM ai_holdings WHERE ai_id = ?
+    """, (str(ai_num),))
+    holdings_rows = cursor.fetchall()
+
+    total_cost = 0
+    total_value = 0
+    holdings = []
+    for symbol, name, qty, cost, current_price in holdings_rows:
+        cost_val = qty * cost
+        value_val = qty * current_price
+        pnl = value_val - cost_val
+        total_cost += cost_val
+        total_value += value_val
+        holdings.append({
+            "symbol": symbol,
+            "name": name,
+            "quantity": qty,
+            "buy_price": cost,
+            "current_price": current_price,
+            "market_value": value_val,
+            "unrealized_pnl": pnl,
+            "unrealized_pnl_pct": pnl / cost_val if cost_val > 0 else 0
+        })
+
+    cash = initial_capital - total_cost
+    total_return_pct = ((total_value - total_cost) / total_cost * 100) if total_cost > 0 else 0
+    daily_return_pct = total_return_pct
+    conn.close()
+
+    return {
+        "id": ai_num,
+        "name": character.name,
+        "avatar": character.avatar,
+        "avatar_emoji": character.avatar,
+        "nickname": character.name,
+        "style": character.style,
+        "description": character.description,
+        "catchphrase": character.description[:30] if len(character.description) > 30 else character.description,
+        "risk_level": character.risk_level.value,
+        "keywords": character.keywords,
+        "portfolio": {
+            "initial_capital": initial_capital,
+            "cash": cash,
+            "stock_value": total_value,
+            "total_value": total_value + cash,
+            "daily_return": daily_return_pct,
+            "total_return": total_return_pct,
+            "holdings_count": len(holdings),
+            "win_streak": 0,
+            "total_unrealized_pnl": total_value - total_cost,
+            "holdings": holdings
+        }
+    }
+
+
+@app.get("/api/ai/characters/{char_id}/posts")
+async def get_character_posts(char_id: str, limit: int = 10, offset: int = 0):
+    """获取AI角色的帖子（从BBS系统获取）"""
+    try:
+        # ID映射
+        id_to_char = {
+            "1": "trend_chaser",
+            "2": "quant_queen",
+            "3": "value_veteran", 
+            "4": "scalper_fairy",
+            "5": "macro_master",
+            "6": "tech_whiz",
+            "7": "dividend_hunter",
+            "8": "turnaround_pro",
+            "9": "momentum_kid",
+            "10": "event_driven",
+            "zhuifeng": "trend_chaser",
+            "追风少年": "trend_chaser",
+            "tech_whiz": "tech_whiz",
+            "dividend_hunter": "dividend_hunter"
+        }
+        
+        # 保存原始ID
+        original_char_id = char_id
+        
+        if char_id in id_to_char:
+            char_id = id_to_char[char_id]
+        
+        # 从全局BBS系统获取帖子（同时匹配原始ID和映射后的ID）
+        global bbs_system
+        ai_posts = [p for p in bbs_system.posts if p.ai_id == char_id or p.ai_id == original_char_id]
+        ai_posts.sort(key=lambda x: x.timestamp, reverse=True)
+        
+        # 从数据库获取该AI的交易记录作为帖子
+        trades = await db_manager.get_recent_trades_all(limit=1000)
+        
+        # 转换帖子格式
+        posts_data = []
+        for post in ai_posts:
+            character = get_character(post.ai_id)
+            avatar = character.avatar if character else '🤖'
+            name = character.name if character else post.ai_name
+            
+            posts_data.append({
+                "id": post.id,
+                "ai_id": post.ai_id,
+                "ai_name": name,
+                "avatar_emoji": avatar,
+                "ai_avatar": avatar,
+                "post_type": post.post_type.value if hasattr(post.post_type, 'value') else post.post_type,
+                "title": getattr(post, 'title', '') or post.content[:30],
+                "content": post.content,
+                "created_at": post.timestamp.isoformat() if hasattr(post.timestamp, 'isoformat') else str(post.timestamp),
+                "reply_count": post.replies or 0,
+                "likes": post.likes or 0,
+                "views": getattr(post, 'views', 0) or 0
+            })
+        
+        return {
+            "success": True,
+            "data": posts_data[offset:offset+limit],
+            "total": len(posts_data)
+        }
+    except Exception as e:
+        logger.error(f"获取AI帖子失败: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/posts")
+async def get_posts(limit: int = 50, post_type: str = None):
+    """获取BBS帖子"""
+    if post_type:
+        try:
+            ptype = PostType(post_type)
+            posts = bbs_system.get_posts_by_type(ptype, limit)
+        except ValueError:
+            posts = bbs_system.get_all_posts(limit)
+    else:
+        posts = bbs_system.get_all_posts(limit)
+    
+    return {"posts": posts, "total": len(posts)}
+
+
+@app.get("/api/posts/{post_id}")
+async def get_post(post_id: str):
+    """获取单个帖子详情（从BBS系统或交易记录查找）"""
+    try:
+        # 首先尝试从BBS系统查找（最新帖子API的数据源）
+        bbs_posts = bbs_system.get_all_posts(limit=1000)
+        for post in bbs_posts:
+            if str(post.get('id')) == str(post_id):
+                character = get_character(post.get('ai_id', ''))
+                avatar = character.avatar if character else post.get('ai_avatar', '🤖')
+                name = character.name if character else post.get('ai_name', 'AI选手')
+                
+                # 获取保存的回复
+                post_replies = replies_store.get(post_id, [])
+                
+                return {
+                    "success": True, 
+                    "data": {
+                        "post": {
+                            "id": post.get('id'),
+                            "ai_id": post.get('ai_id'),
+                            "ai_name": name,
+                            "avatar_emoji": avatar,
+                            "ai_avatar": avatar,
+                            "post_type": post.get('post_type', 'trade'),
+                            "title": post.get('content', '')[:50],
+                            "content": post.get('content', ''),
+                            "created_at": post.get('timestamp'),
+                            "reply_count": len(post_replies),
+                            "likes": 0,
+                            "views": 0
+                        }, 
+                        "replies": post_replies
+                    }
+                }
+        
+        # 如果BBS系统找不到，尝试从交易记录查找
+        trades = await db_manager.get_recent_trades_all(limit=1000)
+        for trade in trades:
+            if str(trade.get('id')) == str(post_id):
+                character = get_character(trade.get('ai_id', ''))
+                avatar = character.avatar if character else '🤖'
+                name = character.name if character else trade.get('ai_name', 'AI选手')
+                
+                action_text = "买入" if trade.get('action') == 'buy' else "卖出"
+                content = f"{action_text} {trade.get('name', '')}({trade.get('symbol', '')}) {trade.get('quantity', 0)}股，价格{trade.get('price', 0)}元。{trade.get('reason', '')}"
+                
+                post_replies = replies_store.get(post_id, [])
+                
+                post = {
+                    "id": trade.get('id'),
+                    "ai_id": trade.get('ai_id'),
+                    "ai_name": name,
+                    "avatar_emoji": avatar,
+                    "ai_avatar": avatar,
+                    "post_type": "trade",
+                    "title": content,
+                    "content": content,
+                    "created_at": trade.get('trade_time'),
+                    "reply_count": len(post_replies),
+                    "likes": 0,
+                    "views": 0
+                }
+                return {"success": True, "data": {"post": post, "replies": post_replies}}
+        
+        return {"success": False, "error": "帖子不存在"}
+    except Exception as e:
+        logger.error(f"获取帖子详情失败: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/market")
+async def get_market_data():
+    """获取市场数据"""
+    try:
+        market_data = await preprocessor.prepare_market_data()
+        return {
+            "date": market_data.date,
+            "summary": market_data.market_summary,
+            "indices": market_data.index_data,
+            "hot_sectors": market_data.hot_sectors[:5]
+        }
+    except Exception as e:
+        logger.error(f"获取市场数据失败: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/posts")
+async def create_post(ai_id: str, content: str, post_type: str = "analysis"):
+    """创建帖子（测试用）"""
+    try:
+        ptype = PostType(post_type)
+        character = get_character(ai_id)
+        
+        if not character:
+            return {"error": "Character not found"}, 404
+        
+        post = Post(
+            id=f"post_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            ai_id=ai_id,
+            ai_name=character.name,
+            ai_avatar=character.avatar,
+            post_type=ptype,
+            content=content,
+            timestamp=datetime.now()
+        )
+        
+        # 广播新帖子
+        await manager.broadcast({
+            "type": "new_post",
+            "data": post.to_dict()
+        })
+        
+        return {"success": True, "post": post.to_dict()}
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
+@app.post("/api/posts/{post_id}/reply")
+async def reply_to_post(post_id: str, request: dict):
+    """回复帖子"""
+    try:
+        content = request.get("content", "")
+        user_type = request.get("user_type", "human")
+        user_id = request.get("user_id", "guest")
+        
+        # 保存回复到内存
+        if post_id not in replies_store:
+            replies_store[post_id] = []
+        
+        reply = {
+            "id": len(replies_store[post_id]) + 1,
+            "post_id": post_id,
+            "content": content,
+            "user_type": user_type,
+            "user_id": user_id,
+            "created_at": datetime.now().isoformat()
+        }
+        replies_store[post_id].append(reply)
+        
+        # 广播回复
+        await manager.broadcast({
+            "type": "new_reply",
+            "data": reply
+        })
+        
+        return {"success": True, "message": "回复成功", "reply": reply}
+    except Exception as e:
+        logger.error(f"回复失败: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@app.post("/api/posts/{post_id}/like")
+async def like_post(post_id: str):
+    """点赞帖子"""
+    try:
+        # 广播点赞
+        await manager.broadcast({
+            "type": "post_liked",
+            "data": {
+                "post_id": post_id
+            }
+        })
+        
+        return {"success": True, "message": "点赞成功"}
+    except Exception as e:
+        logger.error(f"点赞失败: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket 连接"""
+    await manager.connect(websocket)
+    
+    try:
+        # 发送初始数据
+        characters = []
+        for char_id, char in get_all_characters().items():
+            portfolio = await portfolio_manager.load_portfolio(char_id)
+            characters.append({
+                "id": char_id,
+                "name": char.name,
+                "avatar": char.avatar,
+                "style": char.style,
+                "total_value": portfolio.total_value,
+                "cash": portfolio.cash,
+                "holdings_count": len(portfolio.holdings)
+            })
+        
+        await websocket.send_json({
+            "type": "init",
+            "channel": "characters",
+            "data": {"characters": characters}
+        })
+        
+        # 发送最近帖子
+        recent_posts = bbs_system.get_all_posts(20)
+        await websocket.send_json({
+            "type": "init",
+            "channel": "bbs",
+            "data": {"posts": recent_posts}
+        })
+        
+        # 处理消息
+        while True:
+            data = await websocket.receive_json()
+            
+            if data.get("type") == "ping":
+                await websocket.send_json({
+                    "type": "pong",
+                    "timestamp": datetime.now().isoformat()
+                })
+            
+            elif data.get("type") == "get_portfolio":
+                ai_id = data.get("ai_id")
+                if ai_id:
+                    portfolio = await portfolio_manager.load_portfolio(ai_id)
+                    character = get_character(ai_id)
+                    await websocket.send_json({
+                        "type": "portfolio",
+                        "data": {
+                            "ai_id": ai_id,
+                            "ai_name": character.name if character else ai_id,
+                            "total_value": portfolio.total_value,
+                            "cash": portfolio.cash,
+                            "holdings": [
+                                {
+                                    "symbol": h.symbol,
+                                    "name": h.name,
+                                    "quantity": h.quantity,
+                                    "buy_price": h.buy_price,
+                                    "current_price": h.current_price,
+                                    "unrealized_pnl": h.unrealized_pnl,
+                                    "unrealized_pnl_pct": h.unrealized_pnl_pct
+                                }
+                                for h in portfolio.holdings
+                            ]
+                        }
+                    })
+    
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket 错误: {e}")
+        manager.disconnect(websocket)
+
+
+# 广播函数（供调度系统调用）
+async def broadcast_post(post: Post):
+    """广播新帖子"""
+    await manager.broadcast({
+        "type": "new_post",
+        "channel": "bbs",
+        "data": post.to_dict()
+    })
+
+
+async def broadcast_trade(ai_id: str, trade_info: dict):
+    """广播交易"""
+    character = get_character(ai_id)
+    await manager.broadcast({
+        "type": "trade",
+        "channel": "trades",
+        "data": {
+            "ai_id": ai_id,
+            "ai_name": character.name if character else ai_id,
+            "ai_avatar": character.avatar if character else "🤖",
+            **trade_info
+        }
+    })
+
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=18085)
+

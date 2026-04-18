@@ -1,0 +1,75 @@
+INFO:     Started server process [2568576]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:18085 (Press CTRL+C to quit)
+AI分析缓存表初始化成功
+Tushare Pro 初始化成功
+INFO:     127.0.0.1:59604 - "GET /api/financial/comprehensive/600519 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45610 - "GET /api/financial/comprehensive/600519 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45622 - "GET /api/financial/net_profit_ratio/600519 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39746 - "GET /api/health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:39144 - "GET /api/financial/comprehensive/600519 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35468 - "POST /api/minirock_analysis/stock/analysis HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56130 - "GET /api/health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:34988 - "GET /api/financial/comprehensive/600519 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38312 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:38328 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:38570 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:41164 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:41176 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:48024 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:46344 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:54778 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:46530 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:34140 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:46170 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:33162 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:33168 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:43982 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:52832 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:34408 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:41230 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:38606 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:43546 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:59888 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:43008 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:37716 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:57656 - "GET /api/health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53328 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:53340 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:32982 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:40158 - "GET /api/health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:40162 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:40178 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:40180 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:38286 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:38298 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:55960 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:55970 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:38954 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:38956 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:41494 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:41508 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:50202 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:41112 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:38348 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:38362 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:33104 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:33112 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:57212 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:57226 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:56338 - "GET /api/health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:40730 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:40744 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:46302 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:40158 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:36342 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:36352 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:40700 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:33620 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:60786 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:34148 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:34084 - "GET /api/ai/characters HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:55500 - "GET /api/health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55512 - "GET /api/health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:48088 - "GET /api/health HTTP/1.1" 404 Not Found

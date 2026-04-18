@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.log
+logs/
+venv/
+.graphify_*
+graphify-out/
+backup_old/
+backup_*/
+data/*.db
+*.py.bak*

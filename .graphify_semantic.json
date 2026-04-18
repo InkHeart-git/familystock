@@ -1,0 +1,464 @@
+{
+  "nodes": [
+    {
+      "id": "project_ai_god_of_stocks",
+      "label": "AI\u80a1\u795e\u4e89\u9738\u7cfb\u7edf",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": null
+    },
+    {
+      "id": "ai_role_trend_chaser",
+      "label": "\u8ffd\u98ce\u5c11\u5e74 (\u8d8b\u52bf\u8ddf\u8e2a)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "ai_role_quant_queen",
+      "label": "\u91cf\u5316\u5973\u738b (\u91cf\u5316\u5206\u6790)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "ai_role_value_veteran",
+      "label": "\u4ef7\u503c\u8001\u70ae (\u4ef7\u503c\u6295\u8d44)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "ai_role_scalper_fairy",
+      "label": "\u77ed\u7ebf\u7cbe\u7075 (\u8d85\u77ed\u6253\u677f)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "ai_role_macro_master",
+      "label": "\u5b8f\u89c2\u5927\u4f6c (\u5b8f\u89c2\u914d\u7f6e)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "ai_role_tech_whiz",
+      "label": "\u79d1\u6280\u5c0f\u795e\u7ae5 (\u79d1\u6280\u6210\u957f)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "ai_role_dividend_hunter",
+      "label": "\u5206\u7ea2\u5c0f\u80fd\u624b (\u9ad8\u5206\u7ea2)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "ai_role_turnaround_pro",
+      "label": "\u56f0\u5883\u53cd\u8f6c\u5c0f\u9ad8\u624b (\u56f0\u5883\u53cd\u8f6c)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "ai_role_momentum_kid",
+      "label": "\u52a8\u91cf\u5c0f\u65cb\u98ce (\u52a8\u91cf\u4ea4\u6613)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "ai_role_event_driven",
+      "label": "\u4e8b\u4ef6\u9a71\u52a8\u5c0f\u7075\u901a (\u4e8b\u4ef6\u9a71\u52a8)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "id": "tech_fastapi",
+      "label": "FastAPI",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "id": "tech_websocket",
+      "label": "WebSocket",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "id": "tech_postgresql",
+      "label": "PostgreSQL",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "id": "tech_kimi_api",
+      "label": "Kimi API",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "id": "tech_asyncio",
+      "label": "asyncio",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "id": "tech_tailwind_css",
+      "label": "Tailwind CSS",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "id": "bbs_trigger_\u4ea4\u6613\u6267\u884c",
+      "label": "BBS\u89e6\u53d1:\u4ea4\u6613\u6267\u884c",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "id": "bbs_trigger_\u5f00\u76d8",
+      "label": "BBS\u89e6\u53d1:\u5f00\u76d8",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "id": "bbs_trigger_\u6536\u76d8",
+      "label": "BBS\u89e6\u53d1:\u6536\u76d8",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "id": "bbs_trigger_\u56de\u590d\u7528\u6237",
+      "label": "BBS\u89e6\u53d1:\u56de\u590d\u7528\u6237",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "id": "bbs_trigger_\u6311\u8845AI",
+      "label": "BBS\u89e6\u53d1:\u6311\u8845AI",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "id": "bbs_trigger_\u5e02\u573a\u5206\u6790",
+      "label": "BBS\u89e6\u53d1:\u5e02\u573a\u5206\u6790",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "id": "module_core_characters_py",
+      "label": "AI\u89d2\u8272\u5b9a\u4e49",
+      "file_type": "code",
+      "source_file": "core/characters.py",
+      "source_location": null
+    },
+    {
+      "id": "module_core_bbs_py",
+      "label": "BBS\u53d1\u5e16\u7cfb\u7edf",
+      "file_type": "code",
+      "source_file": "core/bbs.py",
+      "source_location": null
+    },
+    {
+      "id": "module_engine_selector_py",
+      "label": "\u9009\u80a1\u5f15\u64ce",
+      "file_type": "code",
+      "source_file": "engine/selector.py",
+      "source_location": null
+    },
+    {
+      "id": "module_engine_trading_py",
+      "label": "\u4ea4\u6613\u51b3\u7b56\u5f15\u64ce",
+      "file_type": "code",
+      "source_file": "engine/trading.py",
+      "source_location": null
+    },
+    {
+      "id": "module_api_main_py",
+      "label": "FastAPI\u670d\u52a1",
+      "file_type": "code",
+      "source_file": "api/main.py",
+      "source_location": null
+    },
+    {
+      "id": "module_scheduler_main_py",
+      "label": "\u8c03\u5ea6\u7cfb\u7edf",
+      "file_type": "code",
+      "source_file": "scheduler/main.py",
+      "source_location": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_trend_chaser",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_quant_queen",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_value_veteran",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_scalper_fairy",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_macro_master",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_tech_whiz",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_dividend_hunter",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_turnaround_pro",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_momentum_kid",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "ai_role_event_driven",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "AI\u89d2\u8272\u8868"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "tech_fastapi",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "tech_websocket",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "tech_postgresql",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "tech_kimi_api",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "tech_asyncio",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "tech_tailwind_css",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u6280\u672f\u6808"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "bbs_trigger_\u4ea4\u6613\u6267\u884c",
+      "relation": "supports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "bbs_trigger_\u5f00\u76d8",
+      "relation": "supports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "bbs_trigger_\u6536\u76d8",
+      "relation": "supports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "bbs_trigger_\u56de\u590d\u7528\u6237",
+      "relation": "supports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "bbs_trigger_\u6311\u8845AI",
+      "relation": "supports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "bbs_trigger_\u5e02\u573a\u5206\u6790",
+      "relation": "supports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "BBS\u53d1\u5e16\u89e6\u53d1\u6761\u4ef6"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "module_core_characters_py",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u9879\u76ee\u7ed3\u6784"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "module_core_bbs_py",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u9879\u76ee\u7ed3\u6784"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "module_engine_selector_py",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u9879\u76ee\u7ed3\u6784"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "module_engine_trading_py",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u9879\u76ee\u7ed3\u6784"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "module_api_main_py",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u9879\u76ee\u7ed3\u6784"
+    },
+    {
+      "source": "project_ai_god_of_stocks",
+      "target": "module_scheduler_main_py",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": "\u9879\u76ee\u7ed3\u6784"
+    }
+  ],
+  "hyperedges": [],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

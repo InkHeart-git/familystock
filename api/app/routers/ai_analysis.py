@@ -45,6 +45,100 @@ class PortfolioAnalysisRequest(BaseModel):
     total_profit_percent: float = 0.0
 
 
+# ==================== MiniRock v2.1 集成 ====================
+
+MINIROCK_API = "http://127.0.0.1:8000"
+
+
+def call_minirock_tiered(symbol: str, name: str = "", current_price: float = 0.0,
+                          avg_cost: float = 0.0, quantity: int = 0,
+                          profit_percent: float = 0.0, user_level: str = "svip") -> dict:
+    """
+    调用 MiniRock 分层分析 API（复用 familystock 的 v2.1 算法）
+    """
+    url = f"{MINIROCK_API}/api/minirock/analyze-tiered"
+    payload = {
+        "symbol": symbol,
+        "name": name,
+        "current_price": current_price,
+        "avg_cost": avg_cost,
+        "quantity": quantity,
+        "profit_percent": profit_percent,
+        "user_level": user_level
+    }
+    try:
+        resp = requests.post(url, json=payload, timeout=15)
+        if resp.status_code == 200:
+            return resp.json()
+        return {"error": f"HTTP {resp.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def format_minirock_result(mr: dict, holding: dict) -> str:
+    """将 MiniRock 结果格式化为持仓分析文本"""
+    if "error" in mr:
+        return f"⚠️ MiniRock分析失败: {mr['error']}"
+
+    data = mr.get("data", {})
+    if not data:
+        return "⚠️ MiniRock返回空数据"
+
+    summary = data.get("summary", {}).get("data", {})
+    technical = data.get("technical", {}).get("data", {})
+    fund = data.get("fund", {}).get("data", {})
+    valuation = data.get("valuation", {}).get("data", {})
+    position = data.get("position", {}).get("data", {})
+    scenario = data.get("scenario", {}).get("data", {})
+
+    score = summary.get("overall_score", 0)
+    rating = summary.get("rating", "N/A")
+    action = summary.get("action", "持有")
+    conf = summary.get("confidence", 0)
+    price = summary.get("current_price", 0)
+    pct_chg = summary.get("change_percent", 0)
+
+    parts = [
+        f"**评分**: {score}/100 | {rating} | {action} | 置信度{conf}%",
+        f"现价¥{price:.2f} ({pct_chg:+.2f}%)"
+    ]
+
+    # 技术面
+    ma_status = technical.get("ma", {}).get("status") if isinstance(technical.get("ma"), dict) else None
+    if ma_status:
+        parts.append(f"均线: {ma_status}")
+    trend = technical.get("trend", "")
+    if trend:
+        parts.append(f"趋势: {trend}")
+
+    # 资金面
+    main_force = fund.get("main_force", "")
+    main_amount = fund.get("main_amount", "")
+    if main_force and main_force not in ("数据采集中", ""):
+        parts.append(f"资金: {main_force}{main_amount}")
+
+    # 估值
+    dcf = valuation.get("dcf_value", 0)
+    premium = valuation.get("premium_discount", 0)
+    if dcf and dcf > 0:
+        parts.append(f"DCF¥{dcf:.2f} (现价{premium:+.1f}%)")
+
+    # 持仓建议
+    pos_advice = position.get("position_advice", "")
+    stop_loss = position.get("stop_loss", "")
+    take_profit = position.get("take_profit", "")
+    if pos_advice:
+        parts.append(f"建议: {pos_advice} | 止损{stop_loss} | 止盈{take_profit}")
+
+    # 情景
+    scenarios = scenario.get("scenarios", []) if isinstance(scenario, dict) else []
+    if scenarios:
+        top = scenarios[0]
+        parts.append(f"情景: {top.get('name','-')} {top.get('probability','-')} → ¥{top.get('price_target','-')}")
+
+    return " | ".join(parts)
+
+
 # ==================== 新闻库操作 ====================
 
 def get_related_news_from_db(symbol: str, name: str, limit: int = 3) -> List[dict]:
@@ -464,45 +558,97 @@ def generate_portfolio_analysis_prompt(portfolio: dict, news_summary: str = "") 
 
 @router.post("/analyze-portfolio")
 async def analyze_portfolio(request: PortfolioAnalysisRequest):
-    """AI组合分析（可选接入新闻）"""
+    """
+    AI组合分析 - 已集成 MiniRock v2.1 分层分析算法
+    对每只持仓调用 MiniRock，复用 familystock 的完整分析能力
+    """
     portfolio_data = {
         "holdings": request.holdings,
         "total_value": request.total_value,
         "total_profit": request.total_profit,
         "total_profit_percent": request.total_profit_percent
     }
-    
-    # 计算基础指标
+
+    # 风险和集中度
     risk_level = calculate_portfolio_risk(portfolio_data)
     concentration = calculate_concentration(portfolio_data)
-    
-    # 获取持仓相关新闻摘要
+
+    # === 核心改动：对每只持仓调用 MiniRock v2.1 ===
+    minirock_details = []
+    total_score = 0
+    scored_count = 0
+
+    for h in request.holdings:
+        mr = call_minirock_tiered(
+            symbol=h.get('symbol', ''),
+            name=h.get('name', ''),
+            current_price=h.get('current_price', 0),
+            avg_cost=h.get('avg_cost', 0),
+            quantity=h.get('quantity', 0),
+            profit_percent=h.get('profit_percent', 0),
+            user_level="svip"
+        )
+        mr_text = format_minirock_result(mr, h)
+        mr_score = mr.get("data", {}).get("summary", {}).get("data", {}).get("overall_score", 0) if "error" not in mr else 0
+        if mr_score > 0:
+            total_score += mr_score
+            scored_count += 1
+        minirock_details.append({
+            "symbol": h.get('symbol'),
+            "name": h.get('name'),
+            "minirock_analysis": mr_text,
+            "score": mr_score
+        })
+
+    avg_minirock_score = total_score / scored_count if scored_count > 0 else 0
+
+    # 组合概览
+    summary_parts = [
+        f"## 组合分析报告 (MiniRock v2.1)",
+        f"",
+        f"**时间**: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"**持仓**: {len(request.holdings)}只 | **总市值**: ¥{request.total_value:,.2f}",
+        f"**整体评分**: {avg_minirock_score:.0f}/100 | **风险等级**: {risk_level}",
+        f"**集中度**: top1 {concentration.get('top1',0):.1f}% | top3 {concentration.get('top3',0):.1f}%",
+        "",
+        "---",
+    ]
+
+    # 个股详情
+    for detail in minirock_details:
+        emoji = '🟢' if detail.get('profit_percent', 0) > 0 else '🔴'
+        summary_parts.append(f"### {emoji} {detail['name']}({detail['symbol']})")
+        summary_parts.append(detail['minirock_analysis'])
+        summary_parts.append("")
+
+    # 新闻摘要（保留原有逻辑）
     news_summary = ""
-    for holding in request.holdings[:3]:  # 只取前3大持仓的新闻
+    for holding in request.holdings[:3]:
         news = get_related_news_from_db(holding.get('symbol', ''), holding.get('name', ''), limit=1)
         if news:
             news_summary += f"- {holding.get('name')}: {news[0].get('title', '')}\n"
-    
-    # 生成AI提示词
+
+    # AI综合点评
     prompt = generate_portfolio_analysis_prompt(portfolio_data, news_summary)
-    
-    # 调用AI
     ai_response = call_ai_api(prompt)
-    
     if ai_response:
-        return {
-            "total_value": request.total_value,
-            "total_profit": request.total_profit,
-            "total_profit_percent": request.total_profit_percent,
-            "risk_level": risk_level,
-            "concentration": concentration,
-            "analysis": ai_response,
-            "recommendations": parse_recommendations(ai_response),
-            "timestamp": datetime.now().isoformat(),
-            "source": "AI"
-        }
-    else:
-        return generate_mock_portfolio_analysis(portfolio_data)
+        summary_parts.append("---")
+        summary_parts.append("### AI综合点评")
+        summary_parts.append(ai_response)
+
+    return {
+        "total_value": request.total_value,
+        "total_profit": request.total_profit,
+        "total_profit_percent": request.total_profit_percent,
+        "risk_level": risk_level,
+        "concentration": concentration,
+        "minirock_score": avg_minirock_score,
+        "analysis": "\n".join(summary_parts),
+        "recommendations": parse_recommendations(ai_response) if ai_response else [],
+        "timestamp": datetime.now().isoformat(),
+        "source": "MiniRock v2.1",
+        "minirock_details": minirock_details
+    }
 
 
 def calculate_portfolio_risk(portfolio: dict) -> str:

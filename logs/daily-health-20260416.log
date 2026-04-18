@@ -1,0 +1,35 @@
+==========================================
+
+【进程状态】
+root        1093  0.0  0.4 240604 16812 ?        Ssl  Apr14   1:44 /var/www/familystock/api/venv/bin/python3 /var/www/familystock/api/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8020
+ubuntu     43026  0.0  1.1 560416 43032 ?        Ssl  Apr14   1:41 /var/www/familystock/api/venv/bin/python3 /var/www/familystock-test/api/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+ubuntu    471314  0.0  0.5 640956 21432 ?        Ssl  Apr15   0:59 /var/www/familystock/api/venv/bin/python3 /var/www/familystock/api/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+root      623478  0.0  0.0   8324  2656 ?        S    Apr15   0:00 /usr/bin/bash -c source /tmp/hermes-snap-c5b32c12a207.sh 2>/dev/null || true cd /root || exit 126 eval 'sudo kill 596131 596132 && sleep 1 && cd /var/www/ai-god-of-stocks/api && source ../venv/bin/activate && nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 18085 > ../api_18085.log 2>&1 & echo "PID: $!"' __hermes_ec=$? export -p > /tmp/hermes-snap-c5b32c12a207.sh 2>/dev/null || true pwd -P > /tmp/hermes-cwd-c5b32c12a207.txt 2>/dev/null || true printf '\n__HERMES_CWD_c5b32c12a207__%s__HERMES_CWD_c5b32c12a207__\n' "$(pwd -P)" exit $__hermes_ec
+root      623485  0.1  0.3 233076 13000 ?        Sl   Apr15   0:52 python3 -m uvicorn main:app --host 0.0.0.0 --port 18085
+
+【端口监听】
+tcp        0      0 0.0.0.0:18085           0.0.0.0:*               LISTEN      623485/python3      
+tcp        0      0 0.0.0.0:8085            0.0.0.0:*               LISTEN      1236/nginx: master  
+tcp        0      0 0.0.0.0:8001            0.0.0.0:*               LISTEN      43026/python3       
+
+【API健康检查】
+{"message":"MiniRock API Service","version":"2.0.0","docs":"/docs"}
+【数据库检查】
+  ⚠️ 数据库文件不存在
+
+【WAL状态】
+  ✅ WAL文件存在
+  AI数量: 1
+  - trend_chaser: unknown
+
+【磁盘空间】
+/dev/vda2        59G   38G   19G  67% /
+
+【内存使用】
+               total        used        free      shared  buff/cache   available
+Mem:           3.6Gi       2.6Gi       349Mi       4.2Mi       1.0Gi       1.1Gi
+Swap:          9.9Gi       1.4Gi       8.6Gi
+
+==========================================
+  健康检查完成: 2026-04-16 01:39:28
+==========================================
