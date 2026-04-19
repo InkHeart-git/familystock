@@ -9,8 +9,50 @@ import sqlite3
 import logging
 import sys
 import os
+import signal
 from datetime import datetime, time
 from pathlib import Path
+
+# ========== PID File + SIGUSR1 单例控制 ==========
+PID_FILE = Path("/var/run/pm-market-monitor.pid")
+
+def write_pid():
+    """写入当前 PID 到 PID file"""
+    PID_FILE.write_text(str(os.getpid()))
+
+def read_pid():
+    """读取 PID file 中的 PID"""
+    try:
+        return int(PID_FILE.read_text().strip())
+    except (FileNotFoundError, ValueError):
+        return None
+
+def remove_pid():
+    """删除 PID file"""
+    try:
+        PID_FILE.unlink()
+    except FileNotFoundError:
+        pass
+
+def setup_signal_handler():
+    """设置 SIGUSR1 信号处理器：收到信号后优雅退出，让 cron 启动新进程"""
+    def sigusr1_handler(signum, frame):
+        logger.info("收到 SIGUSR1 信号，准备重启...")
+        remove_pid()
+        sys.exit(0)
+    signal.signal(signal.SIGUSR1, sigusr1_handler)
+
+def am_i_the_running_instance():
+    """检查是否已经是运行中的实例（通过 PID file）"""
+    existing_pid = read_pid()
+    if existing_pid is None:
+        return False
+    # 检查进程是否真实存在
+    try:
+        os.kill(existing_pid, 0)
+        return True  # 进程存在，当前是重复启动
+    except OSError:
+        return False  # 进程不存在，PID file 是 stale
 
 # 配置日志
 LOG_DIR = Path("/var/www/ai-god-of-stocks/logs")
@@ -282,18 +324,33 @@ def run_once():
 
 def main():
     """持续运行，每5分钟检查一次"""
-    logger.info("PM Market Monitor 服务启动，持续运行中...")
-    logger.info(f"检查间隔: {TRADING_DAY_CONFIG['check_interval']}秒")
+    # 单例检查：防止重复启动
+    if am_i_the_running_instance():
+        logger.warning(f"检测到已有实例运行中 (PID={read_pid()})，当前启动被拒绝")
+        logger.warning("如需重启，请先: kill -USR1 $(cat /var/run/pm-market-monitor.pid)")
+        sys.exit(1)
     
-    while True:
-        try:
-            run_once()
-        except Exception as e:
-            logger.error(f"执行出错: {e}")
-        
-        logger.info(f"休眠 {TRADING_DAY_CONFIG['check_interval']} 秒后再次检查...")
-        import time
-        time.sleep(TRADING_DAY_CONFIG['check_interval'])
+    # 设置 SIGUSR1 信号处理器（支持 cron 热重启）
+    setup_signal_handler()
+    
+    # 写入 PID file
+    write_pid()
+    logger.info(f"PM Market Monitor 服务启动 (PID={os.getpid()})，持续运行中...")
+    logger.info(f"检查间隔: {TRADING_DAY_CONFIG['check_interval']}秒")
+    logger.info(f"SIGUSR1 → 优雅退出重启 | PID file: {PID_FILE}")
+    
+    try:
+        while True:
+            try:
+                run_once()
+            except Exception as e:
+                logger.error(f"执行出错: {e}")
+            
+            logger.info(f"休眠 {TRADING_DAY_CONFIG['check_interval']} 秒后再次检查...")
+            import time
+            time.sleep(TRADING_DAY_CONFIG['check_interval'])
+    finally:
+        remove_pid()
 
 if __name__ == "__main__":
     main()
