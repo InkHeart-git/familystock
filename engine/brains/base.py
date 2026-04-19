@@ -1,0 +1,647 @@
+"""
+AI 股神争霸 - 统一智能大脑
+Base Brain - 所有AI大脑的抽象基类
+
+每个AI都有独立的:
+- Memory (记忆): 持仓历史、盈亏曲线、帖子记录、市场印象
+- TradingDecisionEngine (交易决策): 根据性格 + 数据生成决策
+- ContentGenerator (内容生成): 生成拟人化发帖
+- SocialEngine (社交引擎): 与其他AI互动
+
+设计原则:
+1. 每个AI大脑是自治的，不共享状态（通过SharedContext偶尔通信）
+2. 交易决策基于: 性格参数 + 实时行情 + 持仓状态 + 记忆上下文
+3. 发帖内容必须与持仓一致（这是铁律）
+4. 社交互动是事件驱动，不是定时广播
+"""
+
+import asyncio
+import json
+import logging
+import random
+import time
+import uuid
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field, asdict
+from datetime import datetime, date, time as dtime
+from enum import Enum
+from typing import Dict, List, Optional, Any, Set
+from pathlib import Path
+
+import sys
+sys.path.insert(0, '/var/www/ai-god-of-stocks')
+
+from engine.memory.ai_memory import AIMemory, MemoryItem
+from engine.memory.ai_memory import SharedContext
+from engine.posting.content_generator import ContentGenerator, PostType
+from engine.posting.post_coordinator import PostCoordinator
+from engine.social.interaction_engine import InteractionEngine
+from engine.trading.decision_engine import TradingDecision, DecisionSignal, Action
+
+logger = logging.getLogger("Brain")
+
+
+# ==================== 时间窗口配置 ====================
+
+class Session(Enum):
+    PRE_MARKET = "pre_market"      # 08:00-09:25
+    OPENING = "opening"            # 09:25-09:35
+    MORNING = "morning"           # 09:30-11:30
+    NOON = "noon"                 # 11:30-13:00
+    AFTERNOON = "afternoon"        # 13:00-14:55
+    CLOSING = "closing"            # 14:55-15:05
+    AFTER_HOURS = "after_hours"   # 15:05-22:00
+    CLOSED = "closed"              # 22:00-08:00
+
+
+SESSION_TIMES = {
+    Session.PRE_MARKET:  (dtime(8, 0),  dtime(9, 25)),
+    Session.OPENING:    (dtime(9, 25), dtime(9, 35)),
+    Session.MORNING:    (dtime(9, 30), dtime(11, 30)),
+    Session.NOON:       (dtime(11, 30), dtime(13, 0)),
+    Session.AFTERNOON:  (dtime(13, 0), dtime(14, 55)),
+    Session.CLOSING:    (dtime(14, 55), dtime(15, 5)),
+    Session.AFTER_HOURS: (dtime(15, 5), dtime(22, 0)),
+}
+
+
+def get_current_session() -> Session:
+    now = datetime.now()
+    current_t = now.time()
+    weekday = now.weekday()
+    
+    if weekday >= 5:
+        return Session.CLOSED
+    
+    for session, (start, end) in SESSION_TIMES.items():
+        if start <= current_t < end:
+            return session
+    
+    return Session.CLOSED
+
+
+def is_trading_day() -> bool:
+    return datetime.now().weekday() < 5
+
+
+# ==================== 人设配置 ====================
+
+@dataclass
+class Personality:
+    """AI人设核心参数"""
+    expressiveness: int      # 表现欲 0-100
+    talkativeness: int       # 话痨度 0-100（发帖频率参考）
+    aggressiveness: int      # 攻击性 0-100（嘲讽/反驳倾向）
+    emotional_stability: int # 情绪稳定性 0-100
+    conformity: int          # 从众性 0-100（是否跟随热点）
+    
+    # 交易风格
+    holding_days_min: int
+    holding_days_max: int
+    position_max_pct: float   # 单票最大仓位比例
+    total_position_max_pct: float  # 总仓位上限
+    stop_loss_pct: float      # 止损线 (负数)
+    take_profit_pct: float    # 止盈线
+    risk_appetite: int        # 风险偏好 0-100
+    
+    # 人设语言特征
+    vocab_set: Set[str]       # 常用词汇集
+    speech_pattern: str       # 说话模式: "热血", "理性", "老练", "幽默"
+    post_frequency_cap: int  # 每小时最多发帖数（防刷屏）
+    social_enabled: bool = True  # 是否参与社交互动（嘲讽/回复其他AI）
+    
+    @classmethod
+    def from_dict(cls, d: Dict) -> "Personality":
+        d = d.copy()
+        d.pop('vocab_set', None)
+        return cls(**d)
+
+
+@dataclass 
+class CharacterConfig:
+    """AI角色完整配置"""
+    ai_id: str
+    name: str
+    emoji: str
+    style: str
+    group: str           # "风云五虎" / "灵动小五"
+    initial_capital: float
+    description: str
+    
+    # 人设
+    personality: Personality
+    
+    # 系统提示词（用于LLM生成）
+    system_prompt: str
+    
+    # 发帖模板关键词（用于快速生成）
+    post_keywords: List[str]
+    
+    # 持仓冷却（防止频繁换股）
+    min_holding_hours: int = 4
+    
+    # 是否启用社交互动
+    social_enabled: bool = True
+
+
+# ==================== Brain 基类 ====================
+
+class BaseBrain(ABC):
+    """
+    AI大脑抽象基类
+    子类只需实现: get_config(), think_like_human()
+    其余逻辑（调度/发帖/决策）由基类统一处理
+    """
+    
+    # 类属性：子类覆盖
+    CONFIG: CharacterConfig = None
+    
+    def __init__(self, db_path: str, minirock_api: str = "http://127.0.0.1:8000"):
+        self.db_path = db_path
+        self.minirock_api = minirock_api
+        self.ai_id = self.CONFIG.ai_id
+        
+        # 子系统初始化
+        self.memory = AIMemory(self.ai_id, self.db_path)
+        self.shared_ctx = SharedContext()
+        self.content_gen = ContentGenerator(self.CONFIG)
+        self.post_coord = PostCoordinator(self.ai_id, self.CONFIG.personality.post_frequency_cap)
+        self.interaction = InteractionEngine(self.ai_id, self.CONFIG.personality)
+        
+        # 运行时状态
+        self._running = False
+        self._market_state: Dict[str, Any] = {}
+        self._last_market_check = 0
+        self._session = Session.CLOSED
+        self._pending_decisions: List[TradingDecision] = []
+        
+        # 统计
+        self.stats = {
+            "posts_today": 0,
+            "trades_today": 0,
+            "decisions_made": 0,
+            "social_interactions": 0,
+        }
+        
+        logger.info(f"[{self.CONFIG.name}] 大脑初始化完成 | 人设: {self.CONFIG.personality.speech_pattern}")
+
+    # ---- 子类必须实现 ----
+
+    @abstractmethod
+    def get_config(self) -> CharacterConfig:
+        """返回角色配置"""
+        pass
+
+    @abstractmethod
+    async def think_like_human(
+        self,
+        market_data: Dict[str, Any],
+        my_holdings: List[Dict],
+        my_cash: float,
+        news: List[Dict],
+    ) -> TradingDecision:
+        """
+        核心决策逻辑：模拟人类交易员思维
+        输入: 市场数据 + 我的持仓 + 现金 + 新闻
+        输出: TradingDecision (买入/卖出/持有/观望)
+        
+        这个方法体现了每个AI独特的"性格"和决策风格
+        """
+        pass
+
+    # ---- 可选覆盖 ----
+
+    def get_post_timing(self) -> List[dtime]:
+        """
+        返回该AI偏好的发帖时间点列表
+        默认按人设的话痨度动态调整
+        """
+        freq = self.CONFIG.personality.talkativeness
+        if freq < 30:
+            return [dtime(9, 25), dtime(15, 0), dtime(20, 0)]  # 每天3次
+        elif freq < 60:
+            return [dtime(9, 25), dtime(10, 30), dtime(14, 55), dtime(20, 0)]  # 4次
+        else:
+            return [dtime(9, 25), dtime(10, 30), dtime(13, 30), dtime(14, 55), dtime(20, 0), dtime(21, 30)]  # 6次
+
+    def should_post_now(self) -> bool:
+        """基于时间和人设判断是否应该发帖"""
+        if not self.post_coord.can_post():
+            logger.debug(f"[{self.CONFIG.name}] 发帖冷却中")
+            return False
+
+        from engine.unified_scheduler import get_current_session as sched_get_session
+        session = sched_get_session()
+        session_name = session.get("name", "")
+        now_t = datetime.now().time()
+
+        # 关键时间点必须发帖
+        key_times = [
+            dtime(9, 25),  # 开盘
+            dtime(15, 0),  # 收盘
+            dtime(20, 0),  # 夜盘
+        ]
+        for kt in key_times:
+            if abs((now_t.hour * 60 + now_t.minute) - (kt.hour * 60 + kt.minute)) < 3:
+                return True
+
+        # 深夜到凌晨休市：不发帖
+        if session_name == "休市":
+            return False
+
+        # 周末/休市分析时段：允许发帖（调度器已做频率控制，这里不重复拦截）
+        if session_name in ("周末分析", "周末复盘"):
+            return True
+
+        # 非关键时间按话痨度采样（交易日）
+        threshold = 100 - self.CONFIG.personality.talkativeness
+        return (int(time.time()) % 60) < threshold
+
+    # ---- 核心运行逻辑（通用） ----
+
+    def get_my_positions(self) -> Dict:
+        """从数据库读取 AI 个人持仓和资金"""
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        
+        # 读取持仓
+        holdings = conn.execute("""
+            SELECT symbol, name, quantity, avg_cost, current_price, updated_at
+            FROM ai_holdings WHERE ai_id=? AND quantity > 0
+        """, (self.ai_id,)).fetchall()
+        
+        # 读取资金
+        cash_row = conn.execute("""
+            SELECT cash FROM ai_portfolios WHERE ai_id=? 
+            ORDER BY updated_at DESC LIMIT 1
+        """, (self.ai_id,)).fetchone()
+        
+        conn.close()
+        return {
+            "holdings": [dict(r) for r in holdings],
+            "cash": float(cash_row[0]) if cash_row else 1000000.0,
+        }
+
+    async def get_minirock_analysis(self, symbol: str, name: str, 
+                                    current_price: float, avg_cost: float, 
+                                    quantity: int) -> Dict:
+        """调用 MiniRock 分层分析"""
+        import requests
+        url = f"{self.minirock_api}/api/minirock/analyze-tiered"
+        payload = {
+            "symbol": symbol,
+            "name": name,
+            "current_price": current_price,
+            "avg_cost": avg_cost,
+            "quantity": quantity,
+            "profit_percent": ((current_price - avg_cost) / avg_cost * 100) if avg_cost > 0 else 0,
+            "user_level": "svip"
+        }
+        try:
+            resp = requests.post(url, json=payload, timeout=10)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception as e:
+            logger.warning(f"[{self.CONFIG.name}] MiniRock分析失败 {symbol}: {e}")
+        return {}
+
+    async def refresh_market_data(self) -> Dict[str, Any]:
+        """
+        获取并缓存市场数据（每60秒刷新）
+        整合：tushare 实时行情 + MiniRock 分层分析
+        """
+        now = time.time()
+        if now - self._last_market_check < 60 and self._market_state:
+            return self._market_state
+        
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as sess:
+                # 1. 全球指数
+                indices_resp = await sess.get(
+                    f"{self.minirock_api}/api/tushare/index",
+                    timeout=aiohttp.ClientTimeout(total=5)
+                )
+                indices_raw = (await indices_resp.json()) if indices_resp.status == 200 else {}
+                # 统一转换为 dict 格式：{symbol: info}
+                if isinstance(indices_raw, list):
+                    indices = {item.get("symbol") or item.get("name"): item for item in indices_raw}
+                else:
+                    indices = indices_raw
+                
+                # 2. 我的持仓实时价格
+                holdings = self.memory.get_holdings()
+                symbols = [h["symbol"] for h in holdings]
+                prices = {}
+                if symbols:
+                    price_resp = await sess.post(
+                        f"{self.minirock_api}/api/tushare/realtime",
+                        json={"symbols": symbols},
+                        timeout=aiohttp.ClientTimeout(total=5)
+                    )
+                    if price_resp.status == 200:
+                        prices = await price_resp.json()
+                
+                # 3. 最新新闻（相关行业）
+                news_resp = await sess.get(
+                    f"{self.minirock_api}/api/news/?limit=20",
+                    timeout=aiohttp.ClientTimeout(total=5)
+                )
+                news_list = (await news_resp.json()) if news_resp.status == 200 else []
+                
+                # 4. 市场热点/板块 (MiniRock Eyes)
+                hotspots_resp = await sess.get(
+                    f"{self.minirock_api}/api/minirock/eyes/hotspots",
+                    timeout=aiohttp.ClientTimeout(total=5)
+                )
+                hotspots_raw = (await hotspots_resp.json()) if hotspots_resp.status == 200 else {}
+                if isinstance(hotspots_raw, dict):
+                    hotspots = hotspots_raw.get("hot_spots", [])
+                else:
+                    hotspots = []
+
+                # 5. 板块分析
+                sectors_resp = await sess.get(
+                    f"{self.minirock_api}/api/minirock/eyes/sectors",
+                    timeout=aiohttp.ClientTimeout(total=5)
+                )
+                sectors_raw = (await sectors_resp.json()) if sectors_resp.status == 200 else {}
+                sectors = sectors_raw if isinstance(sectors_raw, dict) else {}
+
+                # 生成 hot_topic（取第一个热点作为代表，供 content_generator 使用）
+                hot_topic = {}
+                if hotspots and isinstance(hotspots, list) and len(hotspots) > 0:
+                    h = hotspots[0]
+                    hot_topic = {"name": h.get("name", "热门板块"), "reason": h.get("reason", "")}
+
+                self._market_state = {
+                    "indices": indices,
+                    "prices": prices,
+                    "news": news_list,
+                    "hotspots": hotspots,
+                    "hot_topic": hot_topic,
+                    "sectors": sectors,
+                    "fetched_at": now,
+                }
+                self._last_market_check = now
+                
+        except Exception as e:
+            logger.warning(f"[{self.CONFIG.name}] 获取市场数据失败: {e}")
+        
+        return self._market_state
+
+    async def execute_session_cycle(self):
+        """执行一个完整的交易时段循环"""
+        # 使用 scheduler 的版本（返回 dict，支持 .get()）
+        from engine.unified_scheduler import get_current_session as sched_get_session
+        session = sched_get_session()
+        self._session = session
+        session_name = session.get("name", "")
+
+        # 深夜到凌晨休市：真正停止（通过session名称判断）
+        if session.get("name") == "休市":
+            if self._market_state:
+                self._market_state = {}  # 休市清缓存
+            return
+
+        # 周末/休市分析时段：刷新数据+发帖，但跳过交易决策
+        is_weekend = session_name in ("周末分析", "周末复盘")
+
+        # Step 1: 刷新市场数据（周末也正常刷新）
+        market_data = await self.refresh_market_data()
+        
+        # Step 2: 获取我的持仓和资金（从 ai_god.db）
+        my_positions = self.get_my_positions()
+        holdings = my_positions["holdings"]
+        cash = my_positions["cash"]
+        
+        # Step 2.5: 获取持仓的 MiniRock 分析（如果有持仓）
+        minirock_analysis = {}
+        if holdings:
+            for h in holdings:
+                sym = h["symbol"]
+                analysis = await self.get_minirock_analysis(
+                    sym, h.get("name", ""),
+                    h.get("current_price", h.get("avg_cost", 0)),
+                    h.get("avg_cost", 0),
+                    h.get("quantity", 0)
+                )
+                if analysis:
+                    minirock_analysis[sym] = analysis
+        
+        # 将持仓和 MiniRock 分析加入 market_data
+        market_data["my_positions"] = my_positions
+        market_data["minirock_analysis"] = minirock_analysis
+        
+        # Step 3: 决策（周末/休市分析时段不交易）
+        decision: Optional[TradingDecision] = None
+        if not is_weekend:
+            try:
+                # 交易日才做交易决策
+                session_name = session.get("name", "")
+                trading_session = session_name in ("开盘集合", "早盘交易", "午盘交易", "尾盘收盘")
+                if trading_session:
+                    decision = await self.think_like_human(
+                        market_data=market_data,
+                        my_holdings=holdings,
+                        my_cash=cash,
+                        news=market_data.get("news", []),
+                    )
+                    self._pending_decisions.append(decision)
+                    self.stats["decisions_made"] += 1
+            except Exception as e:
+                logger.error(f"[{self.CONFIG.name}] 决策出错: {e}")
+        
+        # Step 4: 发帖（条件触发）
+        await self._maybe_post(session, decision, market_data, holdings)
+        
+        # Step 5: 社交互动检查
+        if self.CONFIG.personality.social_enabled:
+            await self._maybe_social()
+
+    async def _maybe_post(
+        self,
+        session: Session,
+        decision: Optional[TradingDecision],
+        market_data: Dict,
+        holdings: List[Dict],
+    ):
+        """条件触发发帖"""
+        if not self.should_post_now():
+            return
+        
+        try:
+            # 决定发帖类型
+            post_type = self._choose_post_type(session, decision)
+            if not post_type:
+                return
+            
+            content = await self.content_gen.generate(
+                post_type=post_type,
+                market_data=market_data,
+                holdings=holdings,
+                decision=decision,
+                recent_posts=self.memory.get_recent_posts(5),
+                memory_context=self.memory.get_context_for_llm(),
+            )
+            
+            if content:
+                post_id = self.post_to_bbs(content, post_type.value)
+                if post_id:
+                    self.memory.record_post(post_type.value, content)
+                    self.post_coord.record_post()
+                    self.stats["posts_today"] += 1
+                    logger.info(f"[{self.CONFIG.name}] 发帖成功: {post_type.value} | {content[:50]}...")
+        
+        except Exception as e:
+            logger.error(f"[{self.CONFIG.name}] 发帖失败: {e}")
+
+    def _choose_post_type(
+        self,
+        session: Session,
+        decision: Optional[TradingDecision],
+    ) -> Optional[PostType]:
+        """根据当前时段和状态选择发帖类型"""
+        p = self.CONFIG.personality
+
+        # 兼容 dict (scheduler返回) 和 enum (本地定义)
+        session_name = session.get("name") if isinstance(session, dict) else (
+            session.value if hasattr(session, "value") else str(session)
+        )
+
+        # 周末/休市分析时段：分析帖 + 社交帖，不发交易帖
+        if session_name in ("周末分析", "周末复盘"):
+            weekend_choices = [
+                PostType.NIGHT_ANALYSIS,   # 市场分析
+                PostType.RANDOM,            # 随机话题
+                PostType.HOT_STOCK,         # 热点追踪
+                PostType.MARKET_EDGE,       # 市场异动
+                PostType.STRATEGY_SHARE,    # 策略分享
+            ]
+            return random.choice(weekend_choices)
+
+        # 交易日各时段
+        if session_name in ("开盘集合", "开盘"):
+            return PostType.OPENING
+        elif session_name in ("尾盘收盘", "收盘"):
+            return PostType.CLOSING
+        elif session_name in ("盘后/夜盘", "夜盘"):
+            return PostType.NIGHT_ANALYSIS if random.random() < 0.6 else PostType.RANDOM
+        elif decision:
+            if decision.action == Action.BUY:
+                return PostType.BUY_SIGNAL
+            elif decision.action == Action.SELL:
+                return PostType.SELL_SIGNAL
+            elif decision.action == Action.HOLD:
+                return PostType.HOLD_REASON
+        elif random.random() < p.expressiveness / 200:  # 表现欲触发
+            return PostType.RANDOM
+
+        return None
+
+    async def _maybe_social(self):
+        """检查是否需要社交互动（嘲讽/回复/围观）"""
+        try:
+            # 从共享上下文获取其他AI的最近帖子
+            other_posts = self.shared_ctx.get_recent_other_ai_posts(self.ai_id, minutes=120)
+            if not other_posts:
+                return
+            
+            # 基于攻击性和情绪决定是否互动
+            p = self.CONFIG.personality
+            if random.random() * 100 > p.aggressiveness:
+                return  # 性格太温和，不互动
+            
+            # 找到值得互动的帖子
+            for post in other_posts[:3]:
+                if self.interaction.should_reply(post):
+                    reply_content = await self.interaction.generate_reply(post)
+                    if reply_content:
+                        post_id = self.post_to_bbs(reply_content, "social")
+                        if post_id:
+                            self.shared_ctx.record_interaction(
+                                self.ai_id, post["ai_id"], post["post_id"], reply_content
+                            )
+                            self.stats["social_interactions"] += 1
+            
+        except Exception as e:
+            logger.error(f"[{self.CONFIG.name}] 社交互动出错: {e}")
+
+    def post_to_bbs(self, content: str, post_type: str) -> Optional[str]:
+        """发帖到BBS（写入ai_god.db）"""
+        import sqlite3
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cur = conn.cursor()
+            post_id = str(uuid.uuid4())[:12]
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # 从content提取标题（第一行或【】包裹的内容）
+            title = ""
+            if "【" in content and "】" in content:
+                import re
+                m = re.search(r"【([^】]+)】", content)
+                if m:
+                    title = m.group(1).strip()
+            
+            cur.execute("""
+                INSERT INTO ai_posts 
+                (post_id, ai_id, title, content, post_type, created_at, ai_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (post_id, self.ai_id, title, content, post_type, now, self.CONFIG.name))
+            
+            conn.commit()
+            conn.close()
+            return post_id
+        except Exception as e:
+            logger.error(f"[{self.CONFIG.name}] BBS发帖失败: {e}")
+            return None
+
+    async def run_continuous(self, check_interval: int = 60):
+        """
+        持续运行大脑（主循环）
+        交易时段每check_interval秒执行一次完整决策
+        """
+        self._running = True
+        logger.info(f"[{self.CONFIG.name}] 大脑启动 | 监控间隔: {check_interval}秒")
+        
+        while self._running:
+            try:
+                if is_trading_day():
+                    await self.execute_session_cycle()
+                else:
+                    # 周末：每天3次轻量检查（市场情绪/社交）
+                    if self.CONFIG.personality.social_enabled:
+                        await self._maybe_social()
+                
+                await asyncio.sleep(check_interval)
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"[{self.CONFIG.name}] 主循环异常: {e}")
+                await asyncio.sleep(30)
+
+    def stop(self):
+        self._running = False
+        logger.info(f"[{self.CONFIG.name}] 大脑已停止")
+
+    # ---- 持仓管理工具 ----
+
+    def get_my_holdings_with_pnl(self) -> List[Dict]:
+        """获取持仓含盈亏"""
+        holdings = self.memory.get_holdings()
+        for h in holdings:
+            current = self._market_state.get("prices", {}).get(h["symbol"], {})
+            if current:
+                h["current_price"] = current.get("price", h.get("avg_cost", 0))
+                h["pnl_pct"] = ((h["current_price"] - h["avg_cost"]) / h["avg_cost"] * 100) if h["avg_cost"] > 0 else 0
+                h["pnl_value"] = h["current_price"] * h["quantity"] - h["avg_cost"] * h["quantity"]
+        return holdings
+
+    def get_total_assets(self) -> float:
+        """计算总资产"""
+        holdings = self.get_my_holdings_with_pnl()
+        holdings_value = sum(h["current_price"] * h["quantity"] for h in holdings if h.get("current_price"))
+        return holdings_value + self.memory.get_cash()
