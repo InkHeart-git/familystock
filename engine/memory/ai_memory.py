@@ -261,6 +261,132 @@ class AIMemory:
             key = f"cost_{h['symbol']}"
             self.remember(key, h.get("avg_cost", 0), category="portfolio", importance=7)
 
+    def execute_trade(
+        self,
+        action: str,        # "BUY" or "SELL"
+        symbol: str,
+        name: str,
+        quantity: int,
+        price: float,
+        reason: str = "",
+    ) -> bool:
+        """
+        Phase 3: 执行真实交易，更新 ai_holdings + ai_portfolios + ai_trades。
+        返回是否成功。
+        action: "BUY" | "SELL"
+        """
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        try:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            action_upper = action.upper()
+            if action_upper == "BUY":
+                total_cost = quantity * price
+                # 检查现金
+                cash_row = conn.execute(
+                    "SELECT cash FROM ai_portfolios WHERE ai_id=? ORDER BY updated_at DESC LIMIT 1",
+                    (self.ai_id,)
+                ).fetchone()
+                current_cash = float(cash_row[0]) if cash_row else 1000000.0
+                if total_cost > current_cash:
+                    logger.warning(f"[{self.ai_id}] 资金不足: 需要{total_cost:.2f}，只有{current_cash:.2f}")
+                    return False
+
+                # 更新现金
+                conn.execute(
+                    "UPDATE ai_portfolios SET cash=?, updated_at=? WHERE ai_id=?",
+                    (current_cash - total_cost, now, self.ai_id)
+                )
+
+                # 更新/新增持仓（增持逻辑：如果已有持仓，计算新的加权均价）
+                existing = conn.execute(
+                    "SELECT id, quantity, avg_cost FROM ai_holdings WHERE ai_id=? AND symbol=?",
+                    (self.ai_id, symbol)
+                ).fetchone()
+
+                if existing:
+                    old_qty = existing[1]
+                    old_avg = float(existing[2])
+                    new_qty = old_qty + quantity
+                    new_avg = (old_qty * old_avg + quantity * price) / new_qty
+                    conn.execute(
+                        "UPDATE ai_holdings SET quantity=?, avg_cost=?, current_price=?, updated_at=? "
+                        "WHERE ai_id=? AND symbol=?",
+                        (new_qty, new_avg, price, now, self.ai_id, symbol)
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO ai_holdings (ai_id, symbol, name, quantity, avg_cost, current_price, updated_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (self.ai_id, symbol, name, quantity, price, price, now)
+                    )
+
+                # 记录交易
+                conn.execute(
+                    "INSERT INTO ai_trades (ai_id, symbol, name, action, quantity, price, total_amount, pnl, reason, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+                    (self.ai_id, symbol, name, "BUY", quantity, price, total_cost, reason, now)
+                )
+                logger.info(f"[{self.ai_id}] 买入 {name} {quantity}股 @{price:.2f}，原因: {reason[:50]}")
+
+            elif action_upper == "SELL":
+                # 检查持仓
+                holding = conn.execute(
+                    "SELECT id, quantity, avg_cost FROM ai_holdings WHERE ai_id=? AND symbol=?",
+                    (self.ai_id, symbol)
+                ).fetchone()
+                if not holding or holding[1] < quantity:
+                    logger.warning(f"[{self.ai_id}] 持仓不足: {symbol} {quantity}股")
+                    return False
+
+                old_qty = holding[1]
+                old_avg = float(holding[2])
+                proceeds = quantity * price
+                pnl = (price - old_avg) * quantity
+
+                # 更新现金
+                cash_row = conn.execute(
+                    "SELECT cash FROM ai_portfolios WHERE ai_id=? ORDER BY updated_at DESC LIMIT 1",
+                    (self.ai_id,)
+                ).fetchone()
+                current_cash = float(cash_row[0]) if cash_row else 0
+                conn.execute(
+                    "UPDATE ai_portfolios SET cash=?, updated_at=? WHERE ai_id=?",
+                    (current_cash + proceeds, now, self.ai_id)
+                )
+
+                # 更新持仓（清仓或减仓）
+                new_qty = old_qty - quantity
+                if new_qty <= 0:
+                    conn.execute(
+                        "DELETE FROM ai_holdings WHERE ai_id=? AND symbol=?",
+                        (self.ai_id, symbol)
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE ai_holdings SET quantity=?, current_price=?, updated_at=? "
+                        "WHERE ai_id=? AND symbol=?",
+                        (new_qty, price, now, self.ai_id, symbol)
+                    )
+
+                # 记录交易
+                conn.execute(
+                    "INSERT INTO ai_trades (ai_id, symbol, name, action, quantity, price, total_amount, pnl, reason, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (self.ai_id, symbol, name, "SELL", quantity, price, proceeds, pnl, reason, now)
+                )
+                logger.info(f"[{self.ai_id}] 卖出 {name} {quantity}股 @{price:.2f}，盈亏: {pnl:+.2f}")
+
+            conn.commit()
+            return True
+
+        except Exception as e:
+            logger.error(f"[{self.ai_id}] execute_trade 失败: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
 
 
 class SharedContext:

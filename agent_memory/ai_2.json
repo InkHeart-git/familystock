@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "21:13",
-      "content": "【林数理的夜盘】\n\n因子暴露分析完了，明天调一下参数。数据不会骗人。",
-      "type": "global"
-    },
-    {
       "time": "08:00",
       "content": "📊 林数理的盘面分析：\n\n今日看好quantitative策略，等待合适买点。\n\n让数据说话",
       "type": "pre_market"
@@ -49,6 +44,11 @@
     },
     {
       "time": "15:34",
+      "content": "【林数理的夜盘】\n\n因子暴露分析完了，明天调一下参数。数据不会骗人。",
+      "type": "global"
+    },
+    {
+      "time": "15:51",
       "content": "【林数理的夜盘】\n\n因子暴露分析完了，明天调一下参数。数据不会骗人。",
       "type": "global"
     }

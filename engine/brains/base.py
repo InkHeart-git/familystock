@@ -633,7 +633,25 @@ class BaseBrain(ABC):
             except Exception as e:
                 logger.error(f"[{self.CONFIG.name}] 决策出错: {e}")
         
-        # Step 4: 发帖（条件触发）
+        # Step 4: 执行交易（Phase 3: 决策落地）
+        if decision and decision.action not in (Action.HOLD, Action.WATCH):
+            # 标准化 action: "buy"/"BUY" → "BUY", "sell"/"SELL" → "SELL"
+            action_val = str(decision.action.value).upper()
+            success = self.memory.execute_trade(
+                action=action_val,
+                symbol=getattr(decision, "symbol", "") or "",
+                name=getattr(decision, "name", "") or "",
+                quantity=getattr(decision, "quantity", 0) or 0,
+                price=getattr(decision, "price", 0) or 0,
+                reason=getattr(decision, "reason", "") or "",
+            )
+            if success:
+                self.stats["trades_today"] += 1
+                logger.info(f"[{self.CONFIG.name}] Phase3 执行成功: {decision.action} {getattr(decision,'symbol','')}")
+            else:
+                logger.warning(f"[{self.CONFIG.name}] Phase3 执行失败: {decision.action} {getattr(decision,'symbol','')}")
+
+        # Step 5: 发帖（条件触发）
         await self._maybe_post(session, decision, market_data, holdings)
         
         # Step 5: 社交互动检查
