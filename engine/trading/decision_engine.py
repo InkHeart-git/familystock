@@ -51,6 +51,8 @@ class TradingDecision:
     risk_level: str = "medium"  # "low", "medium", "high"
     stop_loss_pct: float = -5.0
     take_profit_pct: float = 10.0
+    pnl_pct: float = 0.0        # 持仓盈亏%（由brain填充）
+    avg_cost: float = 0.0       # 持仓成本价（由brain填充）
     
     def to_dict(self) -> Dict:
         return {
