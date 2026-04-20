@@ -256,6 +256,106 @@ class NewsDB:
             ))
         return results
 
+    def get_news_for_stock(self, stock_name: str, hours: int = 48, min_relevance: float = 0.15) -> List[NewsItem]:
+        """获取与某只股票相关的新闻"""
+        import re
+        cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+
+        # 股票名称关键词（去掉"股份有限公司"等后缀）
+        name_keywords = re.sub(r'有限公司|股份有限公司|A股指数|ETF|\d+', '', stock_name).strip()
+        main_kw = name_keywords[:4] if len(name_keywords) >= 4 else name_keywords
+        codes = re.findall(r'\d{6}', stock_name)
+
+        conn = sqlite3.connect(self.db_path)
+        like_pat = f"%{main_kw}%"
+
+        rows = conn.execute("""
+            SELECT title, content, source, url, published_at, sentiment, keywords, relevance
+            FROM news
+            WHERE published_at > ? AND relevance >= ? AND (title LIKE ? OR content LIKE ?)
+            ORDER BY published_at DESC, relevance DESC
+            LIMIT 20
+        """, (cutoff, min_relevance, like_pat, like_pat)).fetchall()
+
+        # 额外匹配股票代码
+        if codes:
+            code_pat = f"%{codes[0]}%"
+            code_rows = conn.execute("""
+                SELECT title, content, source, url, published_at, sentiment, keywords, relevance
+                FROM news
+                WHERE published_at > ? AND relevance >= ? AND (title LIKE ? OR content LIKE ?)
+                ORDER BY published_at DESC, relevance DESC
+                LIMIT 10
+            """, (cutoff, min_relevance, code_pat, code_pat)).fetchall()
+            seen = {r[0] for r in rows}
+            for r in code_rows:
+                if r[0] not in seen:
+                    rows.append(r)
+                    seen.add(r[0])
+
+        conn.close()
+
+        return [
+            NewsItem(
+                title=r[0], content=r[1], source=r[2], url=r[3],
+                published_at=datetime.strptime(r[4], "%Y-%m-%d %H:%M:%S"),
+                sentiment=r[5],
+                keywords=r[6].split(",") if r[6] else [],
+                relevance_score=r[7]
+            )
+            for r in rows
+        ]
+
+
+class NewsSentimentScorer:
+    """新闻情感评分器 - 将新闻情感转换为0-100的评分，注入算法决策"""
+
+    def score_for_stock(self, stock_name: str, hours: int = 48) -> dict:
+        """
+        获取某只股票的新闻情感评分
+        返回: {
+            sentiment_score: int(0-100),  综合情绪评分
+            sentiment_label: str,           "利好"/"利空"/"中性"
+            news_count: int,               相关新闻数量
+            avg_sentiment: float,           平均情感值(-1~1)
+            confidence: float,              置信度(0~1)
+        }
+        """
+        db = NewsDB()
+        news_list = db.get_news_for_stock(stock_name, hours=hours, min_relevance=0.15)
+
+        if not news_list:
+            return {
+                "sentiment_score": 50,
+                "sentiment_label": "中性",
+                "news_count": 0,
+                "avg_sentiment": 0.0,
+                "confidence": 0.0,
+            }
+
+        sentiments = [n.sentiment for n in news_list]
+        avg_sentiment = sum(sentiments) / len(sentiments)
+
+        # 情感分数转0-100: -1→0, 0→50, 1→100
+        sentiment_score = max(0, min(100, int((avg_sentiment + 1) * 50)))
+
+        if avg_sentiment > 0.15:
+            label = "利好"
+        elif avg_sentiment < -0.15:
+            label = "利空"
+        else:
+            label = "中性"
+
+        confidence = min(1.0, len(news_list) / 20)
+
+        return {
+            "sentiment_score": sentiment_score,
+            "sentiment_label": label,
+            "news_count": len(news_list),
+            "avg_sentiment": round(avg_sentiment, 3),
+            "confidence": round(confidence, 2),
+        }
+
 
 class NewsAnalyzer:
     """

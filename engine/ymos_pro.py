@@ -59,6 +59,9 @@ class YMOSProAnalyzer:
             current_price, high, low, open_price
         )
 
+        # 计算新闻情感评分（Phase 4.2: 新闻×评分打通）
+        news_sentiment_score = await self._calculate_news_sentiment_score(name or symbol)
+
         # 3. 从MiniRock API获取YMOS分析
         try:
             from app.services.ymos_brain import analyze_stock_brain
@@ -76,7 +79,11 @@ class YMOSProAnalyzer:
             )
 
             # 添加YMOS评分到结果
-            result['ymos_score'] = result.get('judgement', {}).get('score', 50)
+            base_score = result.get('judgement', {}).get('score', 50)
+            # 四维融合: 技术(25%) + 资金(25%) + 估值(20%) + 新闻情感(30%)
+            final_score = self._blend_final_score(technical_score, fund_score, valuation_score, news_sentiment_score, base_score)
+            result['ymos_score'] = final_score
+            result['news_sentiment_score'] = news_sentiment_score
             result['recommendation'] = result.get('judgement', {}).get('action', 'HOLD')
             result['sentiment'] = result.get('judgement', {}).get('rating', 'neutral')
 
@@ -98,17 +105,22 @@ class YMOSProAnalyzer:
             return result
 
         except Exception as e:
+            # MiniRock API 不可用时的兜底路径
             logger.error(f"YMOS分析失败: {e}")
-            # 返回简化版结果
+            # 返回简化版结果（含新闻情感）
+            final_score = self._blend_final_score(
+                technical_score, fund_score, valuation_score, news_sentiment_score
+            )
             return {
                 "symbol": symbol,
                 "name": name or quote.get('name', symbol),
                 "current_price": current_price,
                 "pct_chg": pct_chg,
-                "ymos_score": (technical_score + fund_score + valuation_score) / 3,
-                "recommendation": "BUY" if pct_chg > 2 else "SELL" if pct_chg < -2 else "HOLD",
+                "ymos_score": final_score,
+                "recommendation": "BUY" if final_score > 65 else "SELL" if final_score < 40 else "HOLD",
                 "sentiment": "bullish" if pct_chg > 1 else "bearish" if pct_chg < -1 else "neutral",
                 "realtime": quote,
+                "news_sentiment_score": news_sentiment_score,
                 "error": str(e)
             }
 
@@ -258,6 +270,62 @@ class YMOSProAnalyzer:
             'hot_stocks': hot_stocks,
             'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
+
+    async def _calculate_news_sentiment_score(self, stock_name: str) -> int:
+        """
+        Phase 4.2: 根据新闻情感计算评分(0-100)
+        优先级: 个股新闻 > 市场整体情绪(降级策略)
+        """
+        try:
+            from engine.info.news_analyzer import NewsSentimentScorer, NewsAnalyzer
+            scorer = NewsSentimentScorer()
+            result = scorer.score_for_stock(stock_name, hours=48)
+
+            if result["news_count"] >= 3:
+                # 有足够个股新闻，用个股情感
+                return result["sentiment_score"]
+
+            # 个股新闻不足(<3条)，叠加市场整体情绪作为补充
+            analyzer = NewsAnalyzer()
+            ctx = await analyzer.get_market_context(hours=48)
+            if ctx.get("has_news"):
+                market_sentiment = ctx.get("overall_sentiment", "中性")
+                # 市场情绪映射: 偏多→60, 略偏多→53, 中性→50, 略偏空→47, 偏空→40
+                market_map = {"偏多": 60, "略偏多": 53, "中性": 50, "略偏空": 47, "偏空": 40}
+                market_score = market_map.get(market_sentiment, 50)
+                # 混合: 60%个股 + 40%市场
+                blended = int(result["sentiment_score"] * 0.6 + market_score * 0.4)
+                return blended
+
+            return result["sentiment_score"]
+
+        except Exception as e:
+            logger.debug(f"新闻情感评分失败: {e}")
+            return 50
+
+    def _blend_final_score(
+        self,
+        technical: int,
+        fund: int,
+        valuation: int,
+        news_sentiment: int,
+        base: int = 50
+    ) -> int:
+        """
+        四维融合: 技术(25%) + 资金(25%) + 估值(20%) + 新闻情感(30%)
+        如果 news_sentiment = 50(无新闻)，则降权重新分配给前三项
+        """
+        if news_sentiment == 50:
+            # 无新闻时: 技术30% + 资金30% + 估值40%
+            return round(technical * 0.30 + fund * 0.30 + valuation * 0.40)
+        else:
+            # 有新闻时: 四维融合
+            return round(
+                technical * 0.25 +
+                fund * 0.25 +
+                valuation * 0.20 +
+                news_sentiment * 0.30
+            )
 
 
 # 全局实例
