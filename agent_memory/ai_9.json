@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "12:25",
-      "content": "【Mike（迈克）的盘中分析】\n\n上午指数走得还行，但个股分化明显。下午关注成交量能不能跟上。",
-      "type": "random"
-    },
-    {
       "time": "13:00",
       "content": "技术破位，先出来观望。688521下跌4.9%，认赔。",
       "type": "loss"
@@ -51,6 +46,11 @@
       "time": "21:50",
       "content": "【Mike（迈克）的夜盘分析】\n\nMACD在收敛，明天要是放量突破，那就是信号！技术派从不猜测，只跟随。📈",
       "type": "global"
+    },
+    {
+      "time": "08:00",
+      "content": "📈 Mike（迈克）的盘面分析：\n\n开盘后观察走势，Mike（迈克）会及时应对。\n\n技术不会骗人",
+      "type": "pre_market"
     }
   ],
   "recent_controversies": [],
