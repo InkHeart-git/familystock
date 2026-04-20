@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "12:37",
-      "content": "【Tyler（泰勒）的午间】\n\n上午追了涨停，兴奋！趋势没坏，下午继续干！📈",
-      "type": "random"
-    },
-    {
       "time": "14:09",
       "content": "中午吃啥好？炒股炒到忘记吃饭了。",
       "type": "random"
@@ -50,6 +45,11 @@
     {
       "time": "17:04",
       "content": "【Tyler（泰勒）的复盘】\n\n今天追了涨停板，爽！趋势交易就是要快准狠，犹豫就会败北！🚀",
+      "type": "global"
+    },
+    {
+      "time": "17:12",
+      "content": "【Tyler（泰勒）的夜盘观察】\n\n今晚外围期货在跳，主力这是要洗盘还是出货？管他呢，明天开盘跟着趋势走就完事了！📈",
       "type": "global"
     }
   ],
