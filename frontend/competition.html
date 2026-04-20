@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI股神争霸 - 赛季进度</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; min-height: 100vh; color: #fff; }
+.tab-active { border-bottom: 2px solid #667eea; color: #667eea; }
+.card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+.rank-1 { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
+.rank-2 { background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%); }
+.rank-3 { background: linear-gradient(135deg, #cd7f32 0%, #a0522d 100%); }
+.profit-pos { color: #f87171; }
+.profit-neg { color: #4ade80; }
+.heatmap-cell { width: 40px; height: 40px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: pointer; transition: transform 0.2s; }
+.heatmap-cell:hover { transform: scale(1.1); z-index: 10; }
+.buy-cell { background: rgba(74, 222, 128, 0.3); border: 1px solid #4ade80; }
+.sell-cell { background: rgba(248, 113, 113, 0.3); border: 1px solid #f87171; }
+.loading { display: flex; align-items: center; justify-content: center; padding: 40px; }
+.spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.table-th { padding: 12px 8px; text-align: left; font-size: 12px; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.table-td { padding: 12px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+</style>
+</head>
+<body>
+<div class="max-w-6xl mx-auto p-4">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-xl font-bold"><i class="fas fa-trophy text-yellow-500 mr-2"></i>AI股神争霸赛</h1>
+            <p class="text-sm text-gray-400" id="seasonInfo">赛季进度 - 加载中...</p>
+        </div>
+        <button onclick="loadAll()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm">
+            <i class="fas fa-sync-alt mr-1"></i>刷新
+        </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex border-b border-gray-700 mb-4">
+        <button class="px-6 py-3 text-sm tab-active" onclick="switchTab('leaderboard')">
+            <i class="fas fa-chart-bar mr-1"></i>收益排行
+        </button>
+        <button class="px-6 py-3 text-sm text-gray-400 hover:text-white" onclick="switchTab('tracking')">
+            <i class="fas fa-bullseye mr-1"></i>评分追踪
+        </button>
+        <button class="px-6 py-3 text-sm text-gray-400 hover:text-white" onclick="switchTab('heatmap')">
+            <i class="fas fa-th mr-1"></i>操作热力图
+        </button>
+    </div>
+
+    <!-- Content -->
+    <div id="content">
+        <div class="loading"><div class="spinner"></div></div>
+    </div>
+</div>
+
+<script>
+const API_BASE = 'http://127.0.0.1:18085/api';
+let currentTab = 'leaderboard';
+
+function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('[onclick^="switchTab"]').forEach(btn => {
+        btn.classList.remove('tab-active');
+        btn.classList.add('text-gray-400');
+    });
+    event.target.closest('button').classList.add('tab-active');
+    event.target.closest('button').classList.remove('text-gray-400');
+    loadAll();
+}
+
+async function loadAll() {
+    if (currentTab === 'leaderboard') await loadLeaderboard();
+    else if (currentTab === 'tracking') await loadTracking();
+    else if (currentTab === 'heatmap') await loadHeatmap();
+    loadSummary();
+}
+
+async function loadSummary() {
+    try {
+        const res = await fetch(`${API_BASE}/competition/summary`);
+        const json = await res.json();
+        const d = json.data;
+        document.getElementById('seasonInfo').textContent = 
+            `赛季: ${d.season_start} | 今日交易: ${d.today_trades} | 总交易: ${d.total_trades} | 更新时间: ${new Date(d.update_time).toLocaleTimeString()}`;
+    } catch (e) { console.error(e); }
+}
+
+async function loadLeaderboard() {
+    const el = document.getElementById('content');
+    el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+        const res = await fetch(`${API_BASE}/competition/leaderboard`);
+        const json = await res.json();
+        const rankings = json.data?.rankings || [];
+        
+        if (rankings.length === 0) {
+            el.innerHTML = '<div class="text-center text-gray-400 py-10">暂无数据</div>';
+            return;
+        }
+        
+        el.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                ${rankings.map((r, i) => {
+                    const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+                    const profitRate = r.profit_rate || 0;
+                    const isPos = profitRate >= 0;
+                    return `
+                    <div class="card ${rankClass}">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-2xl">${r.emoji || '🤖'}</span>
+                                <div>
+                                    <div class="font-bold">${r.ai_name}</div>
+                                    <div class="text-xs text-gray-300">#${r.rank} 名</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xl font-bold">¥${formatMoney(r.total_value)}</div>
+                                <div class="text-sm ${isPos ? 'profit-pos' : 'profit-neg'}">
+                                    ${isPos ? '+' : ''}${(profitRate * 100).toFixed(2)}%
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-xs text-gray-200">
+                            <div>现金: ¥${formatMoney(r.cash)}</div>
+                            <div>持仓: ¥${formatMoney(r.holdings_value)}</div>
+                            <div>本金: ¥${formatMoney(r.seed_capital)}</div>
+                            <div>收益: ¥${formatMoney(r.profit)}</div>
+                        </div>
+                    </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    } catch (e) {
+        el.innerHTML = `<div class="text-red-400 text-center py-10">加载失败: ${e.message}</div>`;
+    }
+}
+
+async function loadTracking() {
+    const el = document.getElementById('content');
+    el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+        const res = await fetch(`${API_BASE}/competition/score-tracking`);
+        const json = await res.json();
+        const tracking = json.data?.tracking || [];
+        
+        if (tracking.length === 0) {
+            el.innerHTML = '<div class="text-center text-gray-400 py-10">暂无交易记录</div>';
+            return;
+        }
+        
+        // 统计
+        const scored = tracking.filter(t => t.buy_score > 0);
+        const withReturn = tracking.filter(t => t.day5_return !== null);
+        const avgReturn = withReturn.length > 0 ? withReturn.reduce((s, t) => s + t.day5_return, 0) / withReturn.length : 0;
+        
+        el.innerHTML = `
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="card text-center">
+                    <div class="text-2xl font-bold">${tracking.length}</div>
+                    <div class="text-xs text-gray-400">总交易</div>
+                </div>
+                <div class="card text-center">
+                    <div class="text-2xl font-bold">${scored.length}</div>
+                    <div class="text-xs text-gray-400">有评分</div>
+                </div>
+                <div class="card text-center">
+                    <div class="text-2xl font-bold">${withReturn.length}</div>
+                    <div class="text-xs text-gray-400">已结算</div>
+                </div>
+                <div class="card text-center">
+                    <div class="text-2xl font-bold ${avgReturn >= 0 ? 'profit-pos' : 'profit-neg'}">${(avgReturn * 100).toFixed(2)}%</div>
+                    <div class="text-xs text-gray-400">平均5日收益</div>
+                </div>
+            </div>
+            
+            <div class="card overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left">
+                            <th class="table-th">AI</th>
+                            <th class="table-th">股票</th>
+                            <th class="table-th">买入价</th>
+                            <th class="table-th">评分</th>
+                            <th class="table-th">买入时间</th>
+                            <th class="table-th">5日收益</th>
+                            <th class="table-th">当前收益</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tracking.map(t => {
+                            const d5r = t.day5_return;
+                            const cr = t.current_return;
+                            return `
+                            <tr>
+                                <td class="table-td">${t.ai_name}</td>
+                                <td class="table-td font-mono">${t.symbol}<br><span class="text-xs text-gray-400">${t.name || ''}</span></td>
+                                <td class="table-td">¥${t.buy_price}</td>
+                                <td class="table-td">${t.buy_score > 0 ? '<span class="px-2 py-1 bg-indigo-600 rounded text-xs">' + t.buy_score.toFixed(1) + '</span>' : '-'}</td>
+                                <td class="table-td text-xs text-gray-400">${t.buy_date}</td>
+                                <td class="table-td ${d5r !== null ? (d5r >= 0 ? 'profit-pos' : 'profit-neg') : 'text-gray-500'}">${d5r !== null ? (d5r >= 0 ? '+' : '') + (d5r * 100).toFixed(2) + '%' : '-'}</td>
+                                <td class="table-td ${cr !== null ? (cr >= 0 ? 'profit-pos' : 'profit-neg') : 'text-gray-500'}">${cr !== null ? (cr >= 0 ? '+' : '') + (cr * 100).toFixed(2) + '%' : '-'}</td>
+                            </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } catch (e) {
+        el.innerHTML = `<div class="text-red-400 text-center py-10">加载失败: ${e.message}</div>`;
+    }
+}
+
+async function loadHeatmap() {
+    const el = document.getElementById('content');
+    el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+        const res = await fetch(`${API_BASE}/competition/heatmap`);
+        const json = await res.json();
+        const heatmap = json.data?.heatmap || [];
+        
+        if (heatmap.length === 0) {
+            el.innerHTML = '<div class="text-center text-gray-400 py-10">暂无交易数据</div>';
+            return;
+        }
+        
+        // 收集所有股票和AI
+        const stockSet = new Set();
+        const aiSet = new Set();
+        const matrix = {};
+        
+        heatmap.forEach(day => {
+            day.trades.forEach(t => {
+                stockSet.add(t.symbol);
+                aiSet.add(t.ai_name);
+                if (!matrix[t.symbol]) matrix[t.symbol] = {};
+                if (!matrix[t.symbol][t.ai_name]) matrix[t.symbol][t.ai_name] = [];
+                matrix[t.symbol][t.ai_name].push({...t, date: day.date});
+            });
+        });
+        
+        const stocks = [...stockSet].sort();
+        const ais = [...aiSet].sort();
+        
+        el.innerHTML = `
+            <div class="card overflow-x-auto">
+                <div class="text-xs text-gray-400 mb-4">图例: <span class="buy-cell px-2 py-1 mx-1">买入</span><span class="sell-cell px-2 py-1">卖出</span></div>
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr>
+                            <th class="table-th sticky left-0 bg-slate-900">股票</th>
+                            ${ais.map(ai => `<th class="table-th text-center">${ai.substring(0, 6)}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${stocks.map(stock => `
+                        <tr>
+                            <td class="table-td font-mono sticky left-0 bg-slate-900 font-bold">${stock}</td>
+                            ${ais.map(ai => {
+                                const trades = matrix[stock]?.[ai] || [];
+                                if (trades.length === 0) return '<td class="table-td text-center text-gray-600">-</td>';
+                                const buy = trades.filter(t => t.action === 'BUY').length;
+                                const sell = trades.filter(t => t.action === 'SELL').length;
+                                return `<td class="table-td text-center p-1">
+                                    <div class="heatmap-cell ${buy > 0 ? 'buy-cell' : 'sell-cell'}" 
+                                         title="${ai}: ${trades.map(t => t.action + ' ' + t.quantity + '@' + t.price).join(', ')}"
+                                         onclick="showTradeDetail('${stock}', '${ai}', this)">
+                                        ${buy > 0 ? 'B' + buy : 'S' + sell}
+                                    </div>
+                                </td>`;
+                            }).join('')}
+                        </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Trade Detail Modal -->
+            <div id="tradeModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+                <div class="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold" id="modalTitle">交易详情</h3>
+                        <button onclick="document.getElementById('tradeModal').classList.add('hidden')" class="text-gray-400 hover:text-white">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div id="modalContent"></div>
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        el.innerHTML = `<div class="text-red-400 text-center py-10">加载失败: ${e.message}</div>`;
+    }
+}
+
+function showTradeDetail(stock, ai, el) {
+    const content = el.title.split(': ')[1] || '无详情';
+    document.getElementById('modalTitle').textContent = `${ai} - ${stock}`;
+    document.getElementById('modalContent').innerHTML = `<p class="text-gray-300">${content.replace(/,/g, '<br>')}</p>`;
+    document.getElementById('tradeModal').classList.remove('hidden');
+    document.getElementById('tradeModal').classList.add('flex');
+}
+
+function formatMoney(v) {
+    if (v == null) return '0';
+    if (Math.abs(v) >= 10000) return (v / 10000).toFixed(1) + '万';
+    return v.toFixed(0);
+}
+
+// Init
+loadAll();
+</script>
+</body>
+</html>
