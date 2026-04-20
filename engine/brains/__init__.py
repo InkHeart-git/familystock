@@ -9,6 +9,7 @@ from engine.brains.tech_whiz import TechWhizBrain
 from engine.brains.dividend_hunter import DividendHunterBrain
 from engine.brains.turnaround_pro import TurnaroundProBrain
 from engine.brains.event_driven import EventDrivenBrain
+from engine.brains.mike import MikeBrain
 
 # 导出所有AI大脑
 ALL_BRAINS = [
@@ -21,6 +22,7 @@ ALL_BRAINS = [
     DividendHunterBrain,
     TurnaroundProBrain,
     EventDrivenBrain,
+    MikeBrain,
 ]
 
 __all__ = [
@@ -28,5 +30,6 @@ __all__ = [
     "TrendChaserBrain", "QuantQueenBrain", "ValueVeteranBrain",
     "MomentumKidBrain", "MacroMasterBrain", "TechWhizBrain",
     "DividendHunterBrain", "TurnaroundProBrain", "EventDrivenBrain",
+    "MikeBrain",
     "ALL_BRAINS",
 ]

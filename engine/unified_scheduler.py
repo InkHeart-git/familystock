@@ -283,6 +283,7 @@ async def main():
         TrendChaserBrain, QuantQueenBrain, ValueVeteranBrain,
         MomentumKidBrain, MacroMasterBrain, TechWhizBrain,
         DividendHunterBrain, TurnaroundProBrain, EventDrivenBrain,
+        MikeBrain,
     )
 
     BRAIN_MAP = {
@@ -290,11 +291,12 @@ async def main():
             TrendChaserBrain, QuantQueenBrain, ValueVeteranBrain,
             MomentumKidBrain, MacroMasterBrain, TechWhizBrain,
             DividendHunterBrain, TurnaroundProBrain, EventDrivenBrain,
+            MikeBrain,
         ],
         "trend":     [TrendChaserBrain],
         "quant":     [QuantQueenBrain],
         "value":     [ValueVeteranBrain],
-        "momentum":  [MomentumKidBrain],
+        "momentum":  [MomentumKidBrain, MikeBrain],
         "macro":     [MacroMasterBrain],
         "tech":      [TechWhizBrain],
         "dividend":  [DividendHunterBrain],
