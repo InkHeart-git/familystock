@@ -1,0 +1,384 @@
+{
+  "date": "2026-04-20",
+  "summary": {
+    "date": "2026-04-20",
+    "ai_count": 10,
+    "total_value_all": 5560217.0,
+    "avg_return_pct": 0.0,
+    "rankings": [
+      {
+        "rank": 1,
+        "ai_id": 1,
+        "ai_name": "Tyler（泰勒）",
+        "return_pct": 0.0,
+        "signal": "OK"
+      },
+      {
+        "rank": 2,
+        "ai_id": 10,
+        "ai_name": "沈闻",
+        "return_pct": 0.0,
+        "signal": "OK"
+      },
+      {
+        "rank": 3,
+        "ai_id": 2,
+        "ai_name": "林数理",
+        "return_pct": 0.0,
+        "signal": "OK"
+      },
+      {
+        "rank": 4,
+        "ai_id": 3,
+        "ai_name": "方守成",
+        "return_pct": 0.0,
+        "signal": "OK"
+      },
+      {
+        "rank": 5,
+        "ai_id": 4,
+        "ai_name": "Ryan（瑞恩）",
+        "return_pct": 0.0,
+        "signal": "OK"
+      },
+      {
+        "rank": 6,
+        "ai_id": 5,
+        "ai_name": "David Chen（陈大卫）",
+        "return_pct": 0.0,
+        "signal": "OK"
+      },
+      {
+        "rank": 7,
+        "ai_id": 6,
+        "ai_name": "韩科捷",
+        "return_pct": 0.0,
+        "signal": "OK"
+      },
+      {
+        "rank": 8,
+        "ai_id": 7,
+        "ai_name": "James Wong（黄詹姆斯）",
+        "return_pct": 0.0,
+        "signal": "OK"
+      },
+      {
+        "rank": 9,
+        "ai_id": 8,
+        "ai_name": "周逆行",
+        "return_pct": 0.0,
+        "signal": "OK"
+      },
+      {
+        "rank": 10,
+        "ai_id": 9,
+        "ai_name": "Mike（迈克）",
+        "return_pct": 0.0,
+        "signal": "OK"
+      }
+    ],
+    "adjust_needed": []
+  },
+  "ai_results": {
+    "1": {
+      "ai_id": 1,
+      "ai_name": "Tyler（泰勒）",
+      "seed_capital": 998898.0,
+      "current_total": 998898.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 391058.0,
+      "cash": 607840.0,
+      "position_ratio": 0.39148942134231923,
+      "holdings": [
+        {
+          "symbol": "002594.SZ",
+          "name": "比亚迪",
+          "quantity": 3800,
+          "avg_cost": 103.2,
+          "current_price": 102.91,
+          "unrealized_pnl": -1102.0000000000236,
+          "unrealized_pnl_pct": -0.0028100775193799056,
+          "weight_pct": 0.39148942134231923
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "10": {
+      "ai_id": 10,
+      "ai_name": "沈闻",
+      "seed_capital": 93820.0,
+      "current_total": 93820.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 27039.999999999996,
+      "cash": 66780.0,
+      "position_ratio": 0.28821146876998505,
+      "holdings": [
+        {
+          "symbol": "300274.SZ",
+          "name": "阳光电源",
+          "quantity": 200,
+          "avg_cost": 166.1,
+          "current_price": 135.2,
+          "unrealized_pnl": -6180.000000000001,
+          "unrealized_pnl_pct": -0.18603251053582184,
+          "weight_pct": 0.28821146876998505
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "2": {
+      "ai_id": 2,
+      "ai_name": "林数理",
+      "seed_capital": 1031610.0,
+      "current_total": 1031610.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 379538.0,
+      "cash": 652072.0,
+      "position_ratio": 0.36790841500179333,
+      "holdings": [
+        {
+          "symbol": "601899.SH",
+          "name": "紫金矿业",
+          "quantity": 10900,
+          "avg_cost": 31.92,
+          "current_price": 34.82,
+          "unrealized_pnl": 31609.999999999985,
+          "unrealized_pnl_pct": 0.09085213032581449,
+          "weight_pct": 0.36790841500179333
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "3": {
+      "ai_id": 3,
+      "ai_name": "方守成",
+      "seed_capital": 1000955.0,
+      "current_total": 1000955.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 141089.0,
+      "cash": 859866.0,
+      "position_ratio": 0.14095438855892622,
+      "holdings": [
+        {
+          "symbol": "600519.SH",
+          "name": "贵州茅台",
+          "quantity": 100,
+          "avg_cost": 1401.34,
+          "current_price": 1410.89,
+          "unrealized_pnl": 955.0000000000182,
+          "unrealized_pnl_pct": 0.006814905733084178,
+          "weight_pct": 0.14095438855892622
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "4": {
+      "ai_id": 4,
+      "ai_name": "Ryan（瑞恩）",
+      "seed_capital": 1025016.0,
+      "current_total": 1025016.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 346000.0,
+      "cash": 679016.0,
+      "position_ratio": 0.3375557064475091,
+      "holdings": [
+        {
+          "symbol": "300750.SZ",
+          "name": "宁德时代",
+          "quantity": 800,
+          "avg_cost": 401.23,
+          "current_price": 432.5,
+          "unrealized_pnl": 25015.999999999985,
+          "unrealized_pnl_pct": 0.07793534880243247,
+          "weight_pct": 0.3375557064475091
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "5": {
+      "ai_id": 5,
+      "ai_name": "David Chen（陈大卫）",
+      "seed_capital": 1009672.0,
+      "current_total": 1009672.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 304408.0,
+      "cash": 705264.0,
+      "position_ratio": 0.301491969669358,
+      "holdings": [
+        {
+          "symbol": "601318.SH",
+          "name": "中国平安",
+          "quantity": 5200,
+          "avg_cost": 56.68,
+          "current_price": 58.54,
+          "unrealized_pnl": 9671.999999999996,
+          "unrealized_pnl_pct": 0.03281580804516583,
+          "weight_pct": 0.301491969669358
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "6": {
+      "ai_id": 6,
+      "ai_name": "韩科捷",
+      "seed_capital": 99369.0,
+      "current_total": 99369.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 15810.0,
+      "cash": 83559.0,
+      "position_ratio": 0.15910394589862029,
+      "holdings": [
+        {
+          "symbol": "300760.SZ",
+          "name": "迈瑞医疗",
+          "quantity": 100,
+          "avg_cost": 164.41,
+          "current_price": 158.1,
+          "unrealized_pnl": -631.0000000000002,
+          "unrealized_pnl_pct": -0.03837966060458611,
+          "weight_pct": 0.15910394589862029
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "7": {
+      "ai_id": 7,
+      "ai_name": "James Wong（黄詹姆斯）",
+      "seed_capital": 100304.0,
+      "current_total": 100304.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 31895.999999999996,
+      "cash": 68408.0,
+      "position_ratio": 0.3179933003668846,
+      "holdings": [
+        {
+          "symbol": "600036.SH",
+          "name": "招商银行",
+          "quantity": 800,
+          "avg_cost": 39.49,
+          "current_price": 39.87,
+          "unrealized_pnl": 303.99999999999636,
+          "unrealized_pnl_pct": 0.009622689288427334,
+          "weight_pct": 0.3179933003668846
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "8": {
+      "ai_id": 8,
+      "ai_name": "周逆行",
+      "seed_capital": 102610.0,
+      "current_total": 102610.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 31338.0,
+      "cash": 71272.0,
+      "position_ratio": 0.3054088295487769,
+      "holdings": [
+        {
+          "symbol": "601899.SH",
+          "name": "紫金矿业",
+          "quantity": 900,
+          "avg_cost": 31.92,
+          "current_price": 34.82,
+          "unrealized_pnl": 2609.9999999999986,
+          "unrealized_pnl_pct": 0.09085213032581449,
+          "weight_pct": 0.3054088295487769
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "9": {
+      "ai_id": 9,
+      "ai_name": "Mike（迈克）",
+      "seed_capital": 97963.0,
+      "current_total": 97963.0,
+      "total_return_pct": 0.0,
+      "today_return_pct": 0.0,
+      "position_value": 47383.0,
+      "cash": 50580.0,
+      "position_ratio": 0.4836826148647959,
+      "holdings": [
+        {
+          "symbol": "601888.SH",
+          "name": "中国中免",
+          "quantity": 700,
+          "avg_cost": 70.6,
+          "current_price": 67.69,
+          "unrealized_pnl": -2036.9999999999977,
+          "unrealized_pnl_pct": -0.041218130311614684,
+          "weight_pct": 0.4836826148647959
+        }
+      ],
+      "trade_count": 1,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 0.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    }
+  }
+}

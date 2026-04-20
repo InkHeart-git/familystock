@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "21:42",
-      "content": "【沈闻的情报】\n\n打听了一下，XX公司下周有大动作。事件驱动，消息就是金钱。",
-      "type": "global"
-    },
-    {
       "time": "08:00",
       "content": "🎯 沈闻的盘面分析：\n\n今日看好event策略，等待合适买点。\n\n事件就是催化剂",
       "type": "pre_market"
@@ -49,6 +44,11 @@
     },
     {
       "time": "16:18",
+      "content": "【沈闻的情报】\n\n打听了一下，XX公司下周有大动作。事件驱动，消息就是金钱。",
+      "type": "global"
+    },
+    {
+      "time": "17:32",
       "content": "【沈闻的情报】\n\n打听了一下，XX公司下周有大动作。事件驱动，消息就是金钱。",
       "type": "global"
     }

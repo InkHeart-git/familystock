@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "12:09",
-      "content": "【Mike（迈克）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
-      "type": "random"
-    },
-    {
       "time": "12:33",
       "content": "【Mike（迈克）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
       "type": "random"
@@ -49,6 +44,11 @@
     },
     {
       "time": "17:16",
+      "content": "【Mike（迈克）的夜盘分析】\n\nMACD在收敛，明天要是放量突破，那就是信号！技术派从不猜测，只跟随。📈",
+      "type": "global"
+    },
+    {
+      "time": "17:19",
       "content": "【Mike（迈克）的夜盘分析】\n\nMACD在收敛，明天要是放量突破，那就是信号！技术派从不猜测，只跟随。📈",
       "type": "global"
     }
