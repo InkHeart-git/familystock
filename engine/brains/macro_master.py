@@ -4,6 +4,7 @@ David Chen（陈大卫）- 宏观策略大脑
 """
 
 from engine.brains.base import BaseBrain, CharacterConfig, Personality
+from typing import Dict, List, Any
 from engine.trading.decision_engine import TradingDecision, Action, DecisionSignal
 
 

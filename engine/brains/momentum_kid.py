@@ -4,6 +4,7 @@ Ryan（瑞恩）/ Mike（迈克）- 动量投资大脑
 """
 
 from engine.brains.base import BaseBrain, CharacterConfig, Personality
+from typing import Dict, List, Any
 from engine.trading.decision_engine import TradingDecision, Action, DecisionSignal
 
 
