@@ -633,18 +633,37 @@ class BaseBrain(ABC):
             except Exception as e:
                 logger.error(f"[{self.CONFIG.name}] 决策出错: {e}")
         
-        # Step 4: 执行交易（Phase 3: 决策落地）
+        # Step 4: 执行交易（Phase 3: 决策落地 + 风控）
         if decision and decision.action not in (Action.HOLD, Action.WATCH):
-            # 标准化 action: "buy"/"BUY" → "BUY", "sell"/"SELL" → "SELL"
             action_val = str(decision.action.value).upper()
-            success = self.memory.execute_trade(
+            sym = getattr(decision, "symbol", "") or ""
+            qty = getattr(decision, "quantity", 0) or 0
+            price = getattr(decision, "price", 0) or 0
+
+            # Phase 3.3: 风控检查
+            from engine.risk_control import get_risk_controller
+            risk = get_risk_controller(self.db_path)
+            allowed, reason = risk.check_trade(
+                ai_id=self.ai_id,
                 action=action_val,
-                symbol=getattr(decision, "symbol", "") or "",
-                name=getattr(decision, "name", "") or "",
-                quantity=getattr(decision, "quantity", 0) or 0,
-                price=getattr(decision, "price", 0) or 0,
-                reason=getattr(decision, "reason", "") or "",
+                symbol=sym,
+                quantity=qty,
+                price=price,
             )
+            if not allowed:
+                logger.warning(f"[{self.CONFIG.name}] 风控拦截: {sym} {action_val} - {reason}")
+                # 决策降级为 WATCH（记录但不执行）
+                self.stats["risk_rejected"] = self.stats.get("risk_rejected", 0) + 1
+                success = False
+            else:
+                success = self.memory.execute_trade(
+                    action=action_val,
+                    symbol=sym,
+                    name=getattr(decision, "name", "") or "",
+                    quantity=qty,
+                    price=price,
+                    reason=getattr(decision, "reason", "") or "",
+                )
             if success:
                 self.stats["trades_today"] += 1
                 logger.info(f"[{self.CONFIG.name}] Phase3 执行成功: {decision.action} {getattr(decision,'symbol','')}")
@@ -653,8 +672,8 @@ class BaseBrain(ABC):
 
         # Step 5: 发帖（条件触发）
         await self._maybe_post(session, decision, market_data, holdings)
-        
-        # Step 5: 社交互动检查
+
+        # Step 6: 社交互动检查
         if self.CONFIG.personality.social_enabled:
             await self._maybe_social()
 
