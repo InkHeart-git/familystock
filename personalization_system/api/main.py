@@ -187,13 +187,11 @@ async def generate_personalized_analysis(request: PersonalizedAnalysisRequest):
             news_section=news_section
         )
         
-        # 4. 调用Kimi API生成分析
-        analysis_content = call_kimi_api(prompt)
-        
-        # 如果Kimi调用失败，使用DeepSeek作为备用
-        if not analysis_content:
-            from deepseek_integration import call_deepseek_api
-            analysis_content = call_deepseek_api(prompt)
+        # 4. 调用 LLM 生成分析（MiniMax→Kimi→DeepSeek 三路自动切换）
+        import asyncio
+        from engine.llm_client import get_llm_client
+        client = get_llm_client()
+        analysis_content = asyncio.run(client.generate(prompt))
         
         # 还是失败，使用本地模拟
         if not analysis_content:

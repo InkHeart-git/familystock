@@ -270,30 +270,11 @@ async def get_market_data() -> dict:
     return {'indices': indices}
 
 async def call_deepseek(system_prompt: str, user_prompt: str) -> str:
-    """调用DeepSeek API"""
-    headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "model": "deepseek-chat",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "max_tokens": 400,
-        "temperature": 0.7
-    }
-    
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                DEEPSEEK_API_URL, headers=headers, json=payload,
-                timeout=aiohttp.ClientTimeout(total=25)
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data['choices'][0]['message']['content']
-    except:
-        pass
-    return None
+    """调用 LLM（MiniMax→Kimi→DeepSeek 三路自动切换）"""
+    from engine.llm_client import get_llm_client
+    client = get_llm_client()
+    combined = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
+    return await client.generate(combined)
 
 def save_to_bbs(ai_id: str, content: str):
     """保存帖子到BBS数据库（带持仓验证）"""

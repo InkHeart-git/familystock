@@ -14,72 +14,10 @@ import logging
 from core.characters import get_character, get_risk_profile
 from data.preprocessor import DataPreprocessor, MarketData
 from engine.ymos_pro import YMOSProAnalyzer
+from engine.llm_client import get_llm_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Kimi API 配置
-KIMI_API_KEY = "sk-kimi-vnaQ6fxjClovEOv1qdnUoM2ydFjEjAEseCGWaLgZZ5tSKvcxqxhLimtpwbK3qrOe"
-KIMI_API_URL = "https://api.kimi.com/coding/v1/messages"
-KIMI_MODEL = "k2p5"
-
-# DeepSeek API 配置（备用）
-DEEPSEEK_API_KEY = "sk-7d9d3bc3ca754c368d52d57c20d3ad98"
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
-DEEPSEEK_MODEL = "deepseek-chat"
-
-# LLM Provider 状态跟踪
-class LLMProvider:
-    """LLM提供商状态管理"""
-    _kimi_available = True  # 默认Kimi可用
-    _last_kimi_check = None
-    _kimi_check_interval = 60  # 60秒检查一次
-    
-    @classmethod
-    def is_kimi_available(cls) -> bool:
-        """检测Kimi是否可用"""
-        import time
-        now = time.time()
-        
-        # 如果刚刚检查过，直接返回结果
-        if cls._last_kimi_check and (now - cls._last_kimi_check) < cls._kimi_check_interval:
-            return cls._kimi_available
-        
-        # 尝试调用Kimi测试
-        try:
-            import aiohttp
-            headers = {
-                "x-api-key": KIMI_API_KEY,
-                "Content-Type": "application/json",
-                "User-Agent": "Kimi Claw Plugin"
-            }
-            payload = {
-                "model": KIMI_MODEL,
-                "messages": [{"role": "user", "content": "hi"}],
-                "max_tokens": 10
-            }
-            # 5秒超时快速检测
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                response = loop.run_until_complete(
-                    aiohttp.ClientSession().post(
-                        KIMI_API_URL, headers=headers, json=payload,
-                        timeout=aiohttp.ClientTimeout(total=5)
-                    )
-                )
-                cls._kimi_available = (response.status == 200)
-            except:
-                cls._kimi_available = False
-            finally:
-                loop.close()
-        except:
-            cls._kimi_available = False
-        
-        cls._last_kimi_check = now
-        logger.info(f"[LLM] Kimi可用性检测: {'可用' if cls._kimi_available else '不可用，将使用DeepSeek'}")
-        return cls._kimi_available
 
 
 class StockSelector:
@@ -628,9 +566,10 @@ class StockSelector:
         for sector in market_data.hot_sectors[:5]:
             prompt += f"- {sector['name']}: 均涨幅{sector['avg_change']:.2f}%\n"
         
+        candidates_joined = "\n".join(candidates_str)
         prompt += f"""
 候选股票列表：
-{"\n".join(candidates_str)}
+{candidates_joined}
 
 请从候选股票中选择 1-3 只最值得买入的股票。
 
@@ -673,12 +612,9 @@ OpenClaw Agent 需要设计股票分析和选股决策算法
 </instruction>
 </task>"""
         
-        # 根据可用性选择provider
-        if LLMProvider.is_kimi_available():
-            return await self._call_kimi_api_internal(wrapped_prompt)
-        else:
-            logger.info("[LLM] Kimi不可用，切换到DeepSeek")
-            return await self._call_deepseek_api(wrapped_prompt)
+        # 三路 fallback: MiniMax → Kimi → DeepSeek
+        client = get_llm_client()
+        return await client.generate(wrapped_prompt)
     
     async def _call_kimi_api_internal(self, prompt: str) -> str:
         """调用 Kimi API（内部方法）"""
