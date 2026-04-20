@@ -168,55 +168,60 @@ class TrendChaserBrain(BaseBrain):
                     ai_id=self.ai_id,
                 )
         
-        # ── 2. 空仓时寻找机会：算法评分驱动 ─────────────────────
+        # ── 2. 空仓时寻找机会（Phase 2: 评分排序选最优）──────
         if not my_holdings and my_cash > 10000:
             candidates = []
             for sym, info in prices.items():
                 alg = minirock_analysis.get(sym, {})
+                if not alg:
+                    continue
                 summary = alg.get("summary", {})
                 tech = alg.get("technical", {})
                 fund = alg.get("fund", {})
-                
+
                 score = summary.get("overall_score", 0)
-                action = summary.get("action", "观望")
+                action = summary.get("action", "持有")
                 pct_chg = info.get("pct_chg", 0)
-                
-                # 趋势跟踪：只追涨幅 ≥3% 且 评分 ≥70 分 的标的
-                if pct_chg >= 3.0 and score >= 70 and action in ("买入", "增持"):
-                    # 主力资金确认（当日净流入）
-                    main_net = fund.get("main_net_amount", 0)
-                    # 强势股：主力净流入 OR 大盘情绪好
-                    if main_net > 0 or score >= 80:
-                        candidates.append({
-                            "symbol": sym, "name": info.get("name", sym),
-                            "price": info.get("price", 0),
-                            "pct_chg": pct_chg,
-                            "score": score,
-                            "action": action,
-                            "confidence": min(score, 95),
-                        })
-            
+                tech_score = tech.get("score", 50)
+                main_net = fund.get("main_net_amount", 0)
+
+                # Phase 2: 趋势跟踪入口放宽（评分≥55且技术面正向）
+                if score < 55 or tech_score < 45:
+                    continue
+
+                candidates.append({
+                    "symbol": sym, "name": info.get("name", sym),
+                    "price": info.get("price", 0),
+                    "pct_chg": pct_chg,
+                    "score": score,
+                    "tech_score": tech_score,
+                    "action": action,
+                    "main_net": main_net,
+                    "confidence": min(score, 95),
+                })
+
             if candidates:
-                # 选评分最高 + 涨幅最大的
-                best = max(candidates, key=lambda x: (x["score"], x["pct_chg"]))
+                # Phase 2: 选评分最高的（算法驱动核心）
+                best = max(candidates, key=lambda x: (x["score"], x["tech_score"]))
                 price = best["price"]
                 if price <= 0:
                     return TradingDecision(
                         action=Action.WATCH, signal=DecisionSignal.WATCH,
-                        reason="暂无符合条件的机会（评分≥70分且强势），保持空仓",
+                        reason="暂无符合条件的机会（评分≥55分），保持空仓",
                         confidence=50, ai_id=self.ai_id,
                     )
-                qty = min(int((my_cash * 0.4) / price / 100) * 100, int(my_cash / price / 100) * 100)
+                qty = min(int((my_cash * 0.4) / price / 100) * 100,
+                           int(my_cash / price / 100) * 100)
                 return TradingDecision(
                     action=Action.BUY,
-                    signal=DecisionSignal.STRONG_BUY if best["score"] >= 85 else DecisionSignal.BUY,
+                    signal=DecisionSignal.STRONG_BUY if best["score"] >= 80 else DecisionSignal.BUY,
                     symbol=best["symbol"],
                     name=best["name"],
                     quantity=qty, price=price,
-                    reason=f"MiniRock评分{best['score']}分（{best['action']}），"
+                    reason=f"MiniRock评分{best['score']}分（{best['action']}，技术{tech_score}），"
                            f"今日涨幅{best['pct_chg']:.2f}%，趋势确立，趋势跟踪启动！🚀",
                     confidence=best["confidence"],
-                    urgency="high" if best["score"] >= 85 else "normal",
+                    urgency="high" if best["score"] >= 80 else "normal",
                     ai_id=self.ai_id,
                 )
         

@@ -88,23 +88,26 @@ class EventDrivenBrain(BaseBrain):
                     ai_id=self.ai_id, risk_level="medium",
                 )
 
-        # ── 空仓事件驱动 ──────────────────────────────────
+        # ── 空仓事件驱动（Phase 2: 算法评分驱动）─────────────
         if not my_holdings and my_cash > 10000:
             candidates = []
             for sym, info in prices.items():
                 alg = minirock_analysis.get(sym, {})
+                if not alg:
+                    continue
                 summary = alg.get("summary", {})
                 score = summary.get("overall_score", 0)
                 pct_chg = info.get("pct_chg", 0)
 
-                # 事件驱动：涨幅 ≥2% + 评分 ≥65
-                if pct_chg >= 2.0 and score >= 65:
-                    candidates.append({
-                        "symbol": sym, "name": info.get("name", sym),
-                        "price": info.get("price", 0), "pct_chg": pct_chg,
-                        "score": score,
-                        "confidence": min(score, 90),
-                    })
+                # Phase 2: 评分≥50即可纳入候选
+                if score < 50:
+                    continue
+                candidates.append({
+                    "symbol": sym, "name": info.get("name", sym),
+                    "price": info.get("price", 0), "pct_chg": pct_chg,
+                    "score": score,
+                    "confidence": min(score, 90),
+                })
 
             if candidates:
                 best = max(candidates, key=lambda x: x["score"])

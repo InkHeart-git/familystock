@@ -101,14 +101,15 @@ class TurnaroundProBrain(BaseBrain):
                 pct_chg = info.get("pct_chg", 0)
                 fraud_risk = str(fraud.get("risk_level", "")).lower()
 
-                # 逆向策略：跌幅 ≥4% + 评分开始回升 ≥50 + 非造假陷阱
-                if pct_chg <= -2.0 and score >= 50 and "高" not in fraud_risk:
-                    candidates.append({
-                        "symbol": sym, "name": info.get("name", sym),
-                        "price": info.get("price", 0), "pct_chg": pct_chg,
-                        "score": score,
-                        "confidence": min(score + abs(pct_chg), 88),
-                    })
+                # 逆向策略（Phase 2: 算法评分驱动）
+                if score < 50 or "高" in fraud_risk:
+                    continue
+                candidates.append({
+                    "symbol": sym, "name": info.get("name", sym),
+                    "price": info.get("price", 0), "pct_chg": pct_chg,
+                    "score": score,
+                    "confidence": min(score + abs(pct_chg), 88),
+                })
 
             if candidates:
                 best = max(candidates, key=lambda x: x["score"])

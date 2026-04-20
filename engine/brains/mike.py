@@ -120,30 +120,36 @@ class MikeBrain(BaseBrain):
                     ai_id=self.ai_id, risk_level="medium",
                 )
 
-        # ── 空仓追击强势股 ──────────────────────────────
+        # ── 空仓追击强势股（Phase 2: 评分排序选最优）─────────
         if not my_holdings and my_cash > 10000:
             candidates = []
             for sym, info in prices.items():
                 alg = minirock_analysis.get(sym, {})
+                if not alg:
+                    continue
                 summary = alg.get("summary", {})
+                tech = alg.get("technical", {})
                 fund = alg.get("fund", {})
 
                 score = summary.get("overall_score", 0)
+                tech_score = tech.get("score", 50)
                 pct_chg = info.get("pct_chg", 0)
                 main_net = fund.get("main_net_amount", 0)
 
-                # 激进动量：涨幅≥4% + 评分≥75 + 主力净流入确认
-                if pct_chg >= 2.0 and score >= 65 and main_net > 0:
-                    candidates.append({
-                        "symbol": sym, "name": info.get("name", sym),
-                        "price": info.get("price", 0), "pct_chg": pct_chg,
-                        "score": score, "main_net": main_net,
-                        "confidence": min(score, 95),
-                    })
+                # Phase 2: 激进入口放宽，评分≥50且技术面不太差
+                if score < 50 or tech_score < 40:
+                    continue
+
+                candidates.append({
+                    "symbol": sym, "name": info.get("name", sym),
+                    "price": info.get("price", 0), "pct_chg": pct_chg,
+                    "score": score, "tech_score": tech_score, "main_net": main_net,
+                    "confidence": min(score, 95),
+                })
 
             if candidates:
-                # 选最强 + 主力最确认的
-                best = max(candidates, key=lambda x: (x["score"], x["pct_chg"]))
+                # Phase 2: 选评分最高的
+                best = max(candidates, key=lambda x: (x["score"], x["tech_score"]))
                 price = best["price"]
                 if price <= 0:
                     return TradingDecision(
@@ -151,13 +157,15 @@ class MikeBrain(BaseBrain):
                         reason="无强势动量机会，等待下一个爆发点",
                         confidence=50, ai_id=self.ai_id,
                     )
-                qty = min(int((my_cash * 0.5) / price / 100) * 100, int(my_cash / price / 100) * 100)  # 激进：半仓出击
+                qty = min(int((my_cash * 0.5) / price / 100) * 100,
+                           int(my_cash / price / 100) * 100)
                 return TradingDecision(
                     action=Action.BUY,
-                    signal=DecisionSignal.STRONG_BUY,
+                    signal=DecisionSignal.STRONG_BUY if best["score"] >= 80 else DecisionSignal.BUY,
                     symbol=best["symbol"], name=best["name"],
                     quantity=qty, price=price,
-                    reason=f"MiniRock评分{best['score']}分，{best['pct_chg']:.1f}%强势启动，主力确认！🔥顺势追击！",
+                    reason=f"MiniRock评分{best['score']}分（技术{best['tech_score']}），"
+                           f"{best['pct_chg']:+.1f}%启动，激进顺势追击！🔥",
                     confidence=best["confidence"], urgency="critical",
                     ai_id=self.ai_id,
                 )

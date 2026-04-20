@@ -99,29 +99,34 @@ class TechWhizBrain(BaseBrain):
                     ai_id=self.ai_id, risk_level="medium",
                 )
 
-        # ── 空仓选科技股 ──────────────────────────────────
+        # ── 空仓选科技股（Phase 2: 评分排序选最优）─────────────
         if not my_holdings and my_cash > 10000:
             candidates = []
             for sym, info in prices.items():
                 alg = minirock_analysis.get(sym, {})
+                if not alg:
+                    continue
                 summary = alg.get("summary", {})
-                fund = alg.get("fund", {})
+                tech = alg.get("technical", {})
 
                 score = summary.get("overall_score", 0)
+                tech_score = tech.get("score", 50)
                 pct_chg = info.get("pct_chg", 0)
-                main_net = fund.get("main_net_amount", 0)
 
-                # 科技股：评分 ≥70 + 涨幅 ≥2% + 主力净流入
-                if score >= 70 and pct_chg >= 2.0 and main_net > 0:
-                    candidates.append({
-                        "symbol": sym, "name": info.get("name", sym),
-                        "price": info.get("price", 0), "pct_chg": pct_chg,
-                        "score": score,
-                        "confidence": min(score, 92),
-                    })
+                # Phase 2: 科技股入口放宽，评分≥50且技术面正向
+                if score < 50 or tech_score < 40:
+                    continue
+
+                candidates.append({
+                    "symbol": sym, "name": info.get("name", sym),
+                    "price": info.get("price", 0), "pct_chg": pct_chg,
+                    "score": score, "tech_score": tech_score,
+                    "confidence": min(score, 92),
+                })
 
             if candidates:
-                best = max(candidates, key=lambda x: x["score"])
+                # Phase 2: 选评分最高的科技股
+                best = max(candidates, key=lambda x: (x["score"], x["tech_score"]))
                 price = best["price"]
                 if price <= 0:
                     return TradingDecision(
@@ -129,12 +134,14 @@ class TechWhizBrain(BaseBrain):
                         reason="等待科技机会",
                         confidence=50, ai_id=self.ai_id,
                     )
-                qty = min(int((my_cash * 0.4) / price / 100) * 100, int(my_cash / price / 100) * 100)
+                qty = min(int((my_cash * 0.4) / price / 100) * 100,
+                           int(my_cash / price / 100) * 100)
                 return TradingDecision(
                     action=Action.BUY, signal=DecisionSignal.BUY,
                     symbol=best["symbol"], name=best["name"],
                     quantity=qty, price=price,
-                    reason=f"MiniRock评分{best['score']}分，科技赛道强势，{best['pct_chg']:.1f}%涨幅启动，成长动量强🚀",
+                    reason=f"MiniRock评分{best['score']}分（技术{best['tech_score']}），"
+                           f"科技赛道强势，{best['pct_chg']:+.1f}%涨幅启动，成长动量强🚀",
                     confidence=best["confidence"], urgency="normal",
                     ai_id=self.ai_id,
                 )
