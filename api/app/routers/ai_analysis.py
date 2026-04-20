@@ -288,84 +288,14 @@ def generate_mock_news(symbol: str, name: str, limit: int = 3) -> List[dict]:
 
 
 # ==================== AI服务封装 ====================
+# 优先级：MiniMax → Kimi → DeepSeek（由 llm_client 自动切换）
 
-def call_kimi_api(prompt: str) -> Optional[str]:
-    """调用Kimi Code Plan API（主要接口）"""
-    try:
-        headers = {
-            "x-api-key": KIMI_API_KEY,
-            "Content-Type": "application/json",
-            "User-Agent": "Kimi Claw Plugin",
-            "anthropic-version": "2023-06-01"
-        }
-        
-        payload = {
-            "model": KIMI_MODEL,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": 1500,
-            "temperature": 0.7
-        }
-        
-        response = requests.post(KIMI_API_URL, headers=headers, json=payload, timeout=45)
-        result = response.json()
-        
-        if response.ok and "content" in result:
-            content_blocks = result["content"]
-            if isinstance(content_blocks, list) and len(content_blocks) > 0:
-                return content_blocks[0].get("text", "")
-            return str(content_blocks)
-        else:
-            print(f"Kimi API错误: {result}")
-            return None
-    except Exception as e:
-        print(f"调用Kimi API失败: {e}")
-        return None
-
-
-def call_ai_api(prompt: str) -> Optional[str]:
-    """调用AI API（Kimi优先，DeepSeek备用）"""
-    # 先尝试Kimi
-    result = call_kimi_api(prompt)
-    if result:
-        print("使用Kimi生成分析")
-        return result
-    
-    # Kimi失败时回退到DeepSeek
-    print("Kimi失败，回退到DeepSeek")
-    return call_deepseek_api(prompt)
-
-
-def call_deepseek_api(prompt: str, model: str = "deepseek-chat") -> str:
-    """调用DeepSeek API获取AI分析"""
-    try:
-        headers = {
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "你是一位专业的股票投资分析师，擅长技术分析和基本面分析。请提供简洁、专业的投资建议。"},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1500
-        }
-        
-        response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=30)
-        result = response.json()
-        
-        if response.ok and "choices" in result:
-            return result["choices"][0]["message"]["content"]
-        else:
-            print(f"AI API错误: {result}")
-            return None
-    except Exception as e:
-        print(f"调用AI API失败: {e}")
-        return None
+async def call_ai_api(prompt: str) -> Optional[str]:
+    """调用AI API - MiniMax优先，Kimi备用，DeepSeek兜底"""
+    from engine.llm_client import get_llm_client
+    client = get_llm_client()
+    system = "你是一位专业的股票投资分析师，擅长技术分析和基本面分析。请提供简洁、专业的投资建议。"
+    return await client.generate(prompt, system_prompt=system)
 
 
 # ==================== 个股诊断 ====================
@@ -470,7 +400,7 @@ async def analyze_stock(request: StockAnalysisRequest):
     prompt = generate_stock_analysis_prompt(stock_data, related_news)
     
     # 调用AI
-    ai_response = call_ai_api(prompt)
+    ai_response = await call_ai_api(prompt)
     
     if ai_response:
         # 解析AI响应
@@ -630,7 +560,7 @@ async def analyze_portfolio(request: PortfolioAnalysisRequest):
 
     # AI综合点评
     prompt = generate_portfolio_analysis_prompt(portfolio_data, news_summary)
-    ai_response = call_ai_api(prompt)
+    ai_response = await call_ai_api(prompt)
     if ai_response:
         summary_parts.append("---")
         summary_parts.append("### AI综合点评")
