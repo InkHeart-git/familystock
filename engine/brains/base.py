@@ -662,22 +662,49 @@ class BaseBrain(ABC):
                 score = summary.get("overall_score", 0)
                 import json
                 minirock_raw = json.dumps(alg_data.get("_raw", {}), ensure_ascii=False)[:500]
+
+                # Phase 4.3: 多脑协调（仅BUY需要协调）
+                final_qty = qty
+                if action_val == "BUY":
+                    from engine.multi_brain_coordinator import get_coordinator
+                    coord = get_coordinator(self.db_path)
+                    is_empty = len(holdings) == 0
+                    final_qty = coord.register_intention(
+                        ai_id=self.ai_id,
+                        ai_name=self.CONFIG.name,
+                        symbol=sym,
+                        name=getattr(decision, "name", "") or "",
+                        quantity=qty,
+                        price=price,
+                        score=score,
+                        is_empty=is_empty,
+                    )
+                    if final_qty < qty:
+                        logger.warning(
+                            f"[{self.CONFIG.name}] 协调减量: {sym} "
+                            f"{qty}股 → {final_qty}股（{len(coord.get_congestion_info(sym)['ai_names'])}个AI竞争）"
+                        )
+
                 success = self.memory.execute_trade(
                     action=action_val,
                     symbol=sym,
                     name=getattr(decision, "name", "") or "",
-                    quantity=qty,
+                    quantity=final_qty,
                     price=price,
                     reason=getattr(decision, "reason", "") or "",
                     score=score,
                     algorithm="minirock",
                     minirock_raw=minirock_raw,
                 )
+
             if success:
                 self.stats["trades_today"] += 1
-                logger.info(f"[{self.CONFIG.name}] Phase3 执行成功: {decision.action} {getattr(decision,'symbol','')}")
+                coord_note = f" (协调{qty}→{final_qty}股)" if (action_val == "BUY" and final_qty != qty) else ""
+                logger.info(f"[{self.CONFIG.name}] Phase3 执行成功: {decision.action} {sym} {final_qty}股{coord_note}")
+            elif not allowed:
+                pass  # 风控拦截已在上方记录
             else:
-                logger.warning(f"[{self.CONFIG.name}] Phase3 执行失败: {decision.action} {getattr(decision,'symbol','')}")
+                logger.warning(f"[{self.CONFIG.name}] Phase3 执行失败: {decision.action} {sym}")
 
         # Step 5: 发帖（条件触发）
         await self._maybe_post(session, decision, market_data, holdings)
