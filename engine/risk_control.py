@@ -1,26 +1,17 @@
 """
 Phase 3.3 + 3.4: 账户风控模块
-- 禁止股过滤：比亚迪/平安银行/茅台不得重仓（>5%仓位）
 - 仓位上限：单股≤20%仓位，总仓位≤150%
-- 单日止损：亏损>3%暂停所有AI交易30分钟
-- 空仓铁律：连续空仓不超过2天
+- 现金充足性：买入金额不能超过可用现金
+- 单日止损：亏损>3%暂停该AI交易30分钟
 """
 
 import sqlite3
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Tuple
 
 logger = logging.getLogger("RiskControl")
-
-# 禁止重仓股名单（大盘股，占指数权重过高）
-BANNED_STOCKS = {
-    "002594.SZ": "比亚迪",
-    "601318.SH": "中国平安",
-    "600519.SH": "贵州茅台",
-    "601888.SH": "中国中免",  # 白酒相关
-}
 
 # 单股最大仓位比例
 MAX_SINGLE_POSITION_PCT = 0.20  # 20%
@@ -36,9 +27,7 @@ class RiskController:
 
     def __init__(self, db_path: str = "/var/www/ai-god-of-stocks/ai_god.db"):
         self.db_path = db_path
-        self._daily_loss_triggered = False
-        self._daily_loss_time: Optional[float] = None
-        self._pause_until: Optional[float] = None
+        self._pause_until: Optional[float] = None  # pause until timestamp
 
     def check_trade(
         self,
@@ -58,17 +47,12 @@ class RiskController:
         if action.upper() != "BUY":
             return True, "SELL无需风控检查"
 
-        # ── 规则1: 禁止股检查 ──────────────────────────────
-        ban_reason = self._check_banned_stock(symbol)
-        if ban_reason:
-            return False, ban_reason
-
-        # ── 规则2: 仓位上限检查 ────────────────────────────
+        # ── 规则1: 仓位上限检查 ────────────────────────────
         allowed, reason = self._check_position_limit(ai_id, symbol, quantity, price)
         if not allowed:
             return False, reason
 
-        # ── 规则3: 现金充足性检查 ──────────────────────────
+        # ── 规则2: 现金充足性检查 ──────────────────────────
         allowed, reason = self._check_cash_sufficient(ai_id, quantity, price)
         if not allowed:
             return False, reason
@@ -82,16 +66,10 @@ class RiskController:
         self._pause_until = None
         return False
 
-    def _check_banned_stock(self, symbol: str) -> Optional[str]:
-        """规则1: 禁止股不得新建仓（已有持仓可减仓）"""
-        if symbol in BANNED_STOCKS:
-            return f"禁止股[{BANNED_STOCKS[symbol]}({symbol})]，不得新建仓"
-        return None
-
     def _check_position_limit(
         self, ai_id: str, symbol: str, quantity: int, price: float
     ) -> Tuple[bool, str]:
-        """规则2: 单股仓位≤20%，总仓位≤150%"""
+        """规则1: 单股仓位≤20%，总仓位≤150%"""
         conn = sqlite3.connect(self.db_path)
         try:
             conn.row_factory = sqlite3.Row
@@ -180,7 +158,7 @@ class RiskController:
 
     def check_daily_loss(self, ai_id: str) -> Tuple[bool, str]:
         """
-        规则4: 单日亏损>3%则暂停所有AI交易。
+        规则3: 单日亏损>3%则暂停该AI交易30分钟。
         检查当前总资产相对初始资金的亏损幅度。
         """
         conn = sqlite3.connect(self.db_path)
