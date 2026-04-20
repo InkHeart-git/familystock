@@ -151,7 +151,7 @@ class QuantQueenBrain(BaseBrain):
                         reason="无符合量化条件的标的，等待模型信号",
                         confidence=50, ai_id=self.ai_id,
                     )
-                qty = int((my_cash * 0.35) / price / 100) * 100
+                qty = min(int((my_cash * 0.35) / price / 100) * 100, int(my_cash / price / 100) * 100)
                 return TradingDecision(
                     action=Action.BUY, signal=DecisionSignal.BUY,
                     symbol=best["symbol"], name=best["name"],

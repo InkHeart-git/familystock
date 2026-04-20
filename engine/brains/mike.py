@@ -133,7 +133,7 @@ class MikeBrain(BaseBrain):
                 main_net = fund.get("main_net_amount", 0)
 
                 # 激进动量：涨幅≥4% + 评分≥75 + 主力净流入确认
-                if pct_chg >= 4.0 and score >= 75 and main_net > 0:
+                if pct_chg >= 2.0 and score >= 65 and main_net > 0:
                     candidates.append({
                         "symbol": sym, "name": info.get("name", sym),
                         "price": info.get("price", 0), "pct_chg": pct_chg,
@@ -151,7 +151,7 @@ class MikeBrain(BaseBrain):
                         reason="无强势动量机会，等待下一个爆发点",
                         confidence=50, ai_id=self.ai_id,
                     )
-                qty = int((my_cash * 0.50) / price / 100) * 100  # 激进：半仓出击
+                qty = min(int((my_cash * 0.5) / price / 100) * 100, int(my_cash / price / 100) * 100)  # 激进：半仓出击
                 return TradingDecision(
                     action=Action.BUY,
                     signal=DecisionSignal.STRONG_BUY,

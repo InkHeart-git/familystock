@@ -206,7 +206,7 @@ class TrendChaserBrain(BaseBrain):
                         reason="暂无符合条件的机会（评分≥70分且强势），保持空仓",
                         confidence=50, ai_id=self.ai_id,
                     )
-                qty = int((my_cash * 0.40) / price / 100) * 100
+                qty = min(int((my_cash * 0.4) / price / 100) * 100, int(my_cash / price / 100) * 100)
                 return TradingDecision(
                     action=Action.BUY,
                     signal=DecisionSignal.STRONG_BUY if best["score"] >= 85 else DecisionSignal.BUY,

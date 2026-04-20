@@ -133,7 +133,7 @@ class ValueVeteranBrain(BaseBrain):
                 upside = valuation.get("premium_discount", 0)  # 正=折价
 
                 # 价值投资：DCF折价 ≥20% + 评分 ≥65 + 现金流健康 + 非大盘蓝筹（贵州茅台/平安银行不碰）
-                if score >= 65 and upside >= 20:
+                if score >= 60 and upside >= 15:
                     candidates.append({
                         "symbol": sym, "name": info.get("name", sym),
                         "price": info.get("price", 0), "pct_chg": pct_chg,
@@ -147,10 +147,10 @@ class ValueVeteranBrain(BaseBrain):
                 if price <= 0:
                     return TradingDecision(
                         action=Action.WATCH, signal=DecisionSignal.WATCH,
-                        reason="市场未提供足够的安全边际（DCF折价≥20%），继续等待",
+                        reason="市场未提供足够的安全边际（安全边际（DCF折价≥15%）），继续等待",
                         confidence=50, ai_id=self.ai_id,
                     )
-                qty = int((my_cash * 0.30) / price / 100) * 100
+                qty = min(int((my_cash * 0.3) / price / 100) * 100, int(my_cash / price / 100) * 100)
                 return TradingDecision(
                     action=Action.BUY, signal=DecisionSignal.BUY,
                     symbol=best["symbol"], name=best["name"],
@@ -172,6 +172,6 @@ class ValueVeteranBrain(BaseBrain):
 
         return TradingDecision(
             action=Action.WATCH, signal=DecisionSignal.WATCH,
-            reason="市场未提供足够的安全边际（DCF折价≥20%），继续等待",
+            reason="市场未提供足够的安全边际（安全边际（DCF折价≥15%）），继续等待",
             confidence=60, ai_id=self.ai_id,
         )

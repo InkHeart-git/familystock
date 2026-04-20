@@ -104,7 +104,7 @@ class MacroMasterBrain(BaseBrain):
                     score = summary.get("overall_score", 0)
                     pct_chg = info.get("pct_chg", 0)
 
-                    if score >= 70 and pct_chg >= 1.0:
+                    if score >= 60 and pct_chg >= 0.5:
                         candidates.append({
                             "symbol": sym, "name": info.get("name", sym),
                             "price": info.get("price", 0), "pct_chg": pct_chg,
@@ -121,7 +121,7 @@ class MacroMasterBrain(BaseBrain):
                             reason="等待宏观信号（纳指+0.0%）",
                             confidence=50, ai_id=self.ai_id,
                         )
-                    qty = int((my_cash * 0.30) / price / 100) * 100
+                    qty = min(int((my_cash * 0.3) / price / 100) * 100, int(my_cash / price / 100) * 100)
                     return TradingDecision(
                         action=Action.BUY, signal=DecisionSignal.BUY,
                         symbol=best["symbol"], name=best["name"],

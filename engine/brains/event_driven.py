@@ -115,7 +115,7 @@ class EventDrivenBrain(BaseBrain):
                         reason="等待事件催化",
                         confidence=50, ai_id=self.ai_id,
                     )
-                qty = int((my_cash * 0.40) / price / 100) * 100
+                qty = min(int((my_cash * 0.4) / price / 100) * 100, int(my_cash / price / 100) * 100)
                 return TradingDecision(
                     action=Action.BUY, signal=DecisionSignal.BUY,
                     symbol=best["symbol"], name=best["name"],

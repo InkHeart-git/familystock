@@ -102,7 +102,7 @@ class MomentumKidBrain(BaseBrain):
                 main_net = fund.get("main_net_amount", 0)
 
                 # 动量策略：涨幅 ≥3% + 评分 ≥70 + 主力资金确认
-                if pct_chg >= 3.0 and score >= 70 and main_net > 0:
+                if pct_chg >= 2.0 and score >= 65 and main_net > 0:
                     candidates.append({
                         "symbol": sym, "name": info.get("name", sym),
                         "price": info.get("price", 0), "pct_chg": pct_chg,
@@ -119,7 +119,7 @@ class MomentumKidBrain(BaseBrain):
                         reason="无动量机会，空仓观望",
                         confidence=50, ai_id=self.ai_id,
                     )
-                qty = int((my_cash * 0.45) / price / 100) * 100
+                qty = min(int((my_cash * 0.45) / price / 100) * 100, int(my_cash / price / 100) * 100)
                 return TradingDecision(
                     action=Action.BUY,
                     signal=DecisionSignal.STRONG_BUY if best["score"] >= 85 else DecisionSignal.BUY,
