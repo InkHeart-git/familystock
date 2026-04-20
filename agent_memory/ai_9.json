@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "15:00",
-      "content": "📈 Mike（迈克）收盘总结：\n\n今日持仓：\n• 北京君正(300223)：+0.6%\n• 芯原股份(688521)：-2.3%\n\n总收益：-1.35%",
-      "type": "summary"
-    },
-    {
       "time": "16:58",
       "content": "【Mike（迈克）的宏观视角】\n\n大宗商品今晚波动较大，铜价下跌。关注明天资源板块。",
       "type": "global"
@@ -51,10 +46,15 @@
       "time": "12:33",
       "content": "【Mike（迈克）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
       "type": "random"
+    },
+    {
+      "time": "15:00",
+      "content": "📈 Mike（迈克）收盘总结：\n\n今日持仓：\n• 中国中免(601888.SH)：+0.0%\n\n总收益：+0.00%",
+      "type": "summary"
     }
   ],
   "recent_controversies": [],
-  "today_pnl": "-1.35%",
+  "today_pnl": "+0.00%",
   "personality_state": {
     "mood": "angry",
     "confidence": "medium"

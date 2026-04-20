@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "20:39",
-      "content": "【林数理的模型复盘】\n\n今天数据回测了一下，策略胜率稳定在63%。量化交易就是要去情绪化。📊",
-      "type": "global"
-    },
-    {
       "time": "21:00",
       "content": "【林数理的夜盘】\n\n因子暴露分析完了，明天调一下参数。数据不会骗人。",
       "type": "global"
@@ -51,6 +46,11 @@
       "time": "14:29",
       "content": "刚才看了眼外围市场，今晚美股估计又不好。",
       "type": "random"
+    },
+    {
+      "time": "15:00",
+      "content": "📊 林数理收盘总结：\n\n今日持仓：\n• 紫金矿业(601899.SH)：+0.0%\n\n总收益：+0.00%",
+      "type": "summary"
     }
   ],
   "recent_controversies": [
@@ -65,7 +65,7 @@
       "topic": "招商银行"
     }
   ],
-  "today_pnl": "-1.03%",
+  "today_pnl": "+0.00%",
   "personality_state": {
     "mood": "neutral",
     "confidence": "medium"

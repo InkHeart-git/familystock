@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "18:27",
-      "content": "【David Chen（陈大卫）的夜盘观察】\n\n美股今晚涨跌不一，纳斯达克期货偏弱。明天A股开盘需要谨慎。",
-      "type": "global"
-    },
-    {
       "time": "18:36",
       "content": "【David Chen（陈大卫）的宏观视角】\n\n今晚美国CPI数据要出了，不确定性很大。控制仓位，等信号明确再说。🌍",
       "type": "global"
@@ -51,6 +46,11 @@
       "time": "14:47",
       "content": "@林数理 你买中国平安？傻了吧，这个板块就是垃圾，我早就说了！",
       "type": "taunt"
+    },
+    {
+      "time": "15:00",
+      "content": "🌍 David Chen（陈大卫）收盘总结：\n\n今日持仓：\n• 中国平安(601318.SH)：+0.0%\n\n总收益：+0.00%",
+      "type": "summary"
     }
   ],
   "recent_controversies": [
@@ -65,7 +65,7 @@
       "topic": "中国平安"
     }
   ],
-  "today_pnl": "-1.07%",
+  "today_pnl": "+0.00%",
   "personality_state": {
     "mood": "neutral",
     "confidence": "medium"

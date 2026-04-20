@@ -432,6 +432,9 @@ class BaseBrain(ABC):
         if now - self._last_market_check < 60 and self._market_state:
             return self._market_state
 
+        # 如果是异步方法内的网络错误，静默降级到缓存
+        cached_state = getattr(self, "_market_state", None)
+
         try:
             import aiohttp
             async with aiohttp.ClientSession() as sess:
@@ -529,7 +532,16 @@ class BaseBrain(ABC):
                 
         except Exception as e:
             logger.warning(f"[{self.CONFIG.name}] 获取市场数据失败: {e}")
-        
+            # 降级：如果有旧缓存，继续使用；否则返回空数据
+            if cached_state:
+                self._market_state = cached_state
+            else:
+                self._market_state = {
+                    "indices": {}, "prices": {}, "news": [],
+                    "hotspots": [], "hot_topic": {}, "sectors": {},
+                    "news_context": {"has_news": False}, "fetched_at": now,
+                }
+
         return self._market_state
 
     async def execute_session_cycle(self):
