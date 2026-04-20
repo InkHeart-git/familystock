@@ -46,7 +46,7 @@ class MiniMaxProvider:
             or os.getenv("MINIMAX_BASE_URL")
             or "https://api.minimaxi.com/v1"
         )
-        self.model = "MiniMax-M2.7"
+        self.model = "MiniMax-M2.7-highspeed"
 
     async def generate(self, prompt: str, system_prompt: str = "") -> str:
         """调用 MiniMax M2.7（OpenAI 兼容格式 /v1/chat/completions）"""
