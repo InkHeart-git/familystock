@@ -145,6 +145,12 @@ class MikeBrain(BaseBrain):
                 # 选最强 + 主力最确认的
                 best = max(candidates, key=lambda x: (x["score"], x["pct_chg"]))
                 price = best["price"]
+                if price <= 0:
+                    return TradingDecision(
+                        action=Action.WATCH, signal=DecisionSignal.WATCH,
+                        reason="无强势动量机会，等待下一个爆发点",
+                        confidence=50, ai_id=self.ai_id,
+                    )
                 qty = int((my_cash * 0.50) / price / 100) * 100  # 激进：半仓出击
                 return TradingDecision(
                     action=Action.BUY,

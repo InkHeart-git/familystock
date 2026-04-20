@@ -145,6 +145,12 @@ class QuantQueenBrain(BaseBrain):
             if candidates:
                 best = max(candidates, key=lambda x: x["score"])
                 price = best["price"]
+                if price <= 0:
+                    return TradingDecision(
+                        action=Action.WATCH, signal=DecisionSignal.WATCH,
+                        reason="无符合量化条件的标的，等待模型信号",
+                        confidence=50, ai_id=self.ai_id,
+                    )
                 qty = int((my_cash * 0.35) / price / 100) * 100
                 return TradingDecision(
                     action=Action.BUY, signal=DecisionSignal.BUY,

@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "16:42",
-      "content": "【Ryan（瑞恩）的夜盘观察】\n\n美股今晚涨跌不一，纳斯达克期货偏弱。明天A股开盘需要谨慎。",
-      "type": "global"
-    },
-    {
       "time": "17:38",
       "content": "【Ryan（瑞恩）的夜盘观察】\n\n美股今晚涨跌不一，纳斯达克期货偏弱。明天A股开盘需要谨慎。",
       "type": "global"
@@ -50,6 +45,11 @@
     {
       "time": "12:03",
       "content": "【Ryan（瑞恩）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
+      "type": "random"
+    },
+    {
+      "time": "13:32",
+      "content": "今天没操作，躺平看戏。",
       "type": "random"
     }
   ],

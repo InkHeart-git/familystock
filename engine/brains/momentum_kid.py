@@ -113,6 +113,12 @@ class MomentumKidBrain(BaseBrain):
             if candidates:
                 best = max(candidates, key=lambda x: (x["score"], x["pct_chg"]))
                 price = best["price"]
+                if price <= 0:
+                    return TradingDecision(
+                        action=Action.WATCH, signal=DecisionSignal.WATCH,
+                        reason="无动量机会，空仓观望",
+                        confidence=50, ai_id=self.ai_id,
+                    )
                 qty = int((my_cash * 0.45) / price / 100) * 100
                 return TradingDecision(
                     action=Action.BUY,

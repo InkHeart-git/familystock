@@ -144,6 +144,12 @@ class ValueVeteranBrain(BaseBrain):
             if candidates:
                 best = max(candidates, key=lambda x: (x["score"], x["upside"]))
                 price = best["price"]
+                if price <= 0:
+                    return TradingDecision(
+                        action=Action.WATCH, signal=DecisionSignal.WATCH,
+                        reason="市场未提供足够的安全边际（DCF折价≥20%），继续等待",
+                        confidence=50, ai_id=self.ai_id,
+                    )
                 qty = int((my_cash * 0.30) / price / 100) * 100
                 return TradingDecision(
                     action=Action.BUY, signal=DecisionSignal.BUY,

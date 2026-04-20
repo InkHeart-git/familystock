@@ -109,6 +109,12 @@ class EventDrivenBrain(BaseBrain):
             if candidates:
                 best = max(candidates, key=lambda x: x["score"])
                 price = best["price"]
+                if price <= 0:
+                    return TradingDecision(
+                        action=Action.WATCH, signal=DecisionSignal.WATCH,
+                        reason="等待事件催化",
+                        confidence=50, ai_id=self.ai_id,
+                    )
                 qty = int((my_cash * 0.40) / price / 100) * 100
                 return TradingDecision(
                     action=Action.BUY, signal=DecisionSignal.BUY,

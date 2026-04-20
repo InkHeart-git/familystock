@@ -200,6 +200,12 @@ class TrendChaserBrain(BaseBrain):
                 # 选评分最高 + 涨幅最大的
                 best = max(candidates, key=lambda x: (x["score"], x["pct_chg"]))
                 price = best["price"]
+                if price <= 0:
+                    return TradingDecision(
+                        action=Action.WATCH, signal=DecisionSignal.WATCH,
+                        reason="暂无符合条件的机会（评分≥70分且强势），保持空仓",
+                        confidence=50, ai_id=self.ai_id,
+                    )
                 qty = int((my_cash * 0.40) / price / 100) * 100
                 return TradingDecision(
                     action=Action.BUY,
