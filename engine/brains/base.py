@@ -299,7 +299,7 @@ class BaseBrain(ABC):
                                     quantity: int) -> Dict:
         """调用 MiniRock 分层分析"""
         import requests
-        url = f"{self.minirock_api}/api/minirock/analyze-tiered"
+        url = f"{self.minirock_api}/api/ai/analyze-stock"
         payload = {
             "symbol": symbol,
             "name": name,
@@ -307,15 +307,121 @@ class BaseBrain(ABC):
             "avg_cost": avg_cost,
             "quantity": quantity,
             "profit_percent": ((current_price - avg_cost) / avg_cost * 100) if avg_cost > 0 else 0,
-            "user_level": "svip"
         }
         try:
-            resp = requests.post(url, json=payload, timeout=10)
+            resp = requests.post(url, json=payload, timeout=30)
             if resp.status_code == 200:
-                return resp.json()
+                raw = resp.json()
+                # 标准化为 think_like_human 期望的 minirock_analysis 格式
+                summary_text = raw.get("summary", "") or ""
+                # 从 action 字段提取评级
+                action_str = str(raw.get("action", "持有")).lower()
+                if "买入" in action_str or "buy" in action_str:
+                    rating = "买入"
+                elif "卖出" in action_str or "sell" in action_str:
+                    rating = "卖出"
+                else:
+                    rating = "持有"
+                # 简单评分估算（从 summary 文本中提取数字）
+                import re
+                score_match = re.search(r"(?:评分|综合评分|总评分)[：:]*\\s*(\\d+)", summary_text)
+                overall_score = int(score_match.group(1)) if score_match else 60
+                return {
+                    "summary": {
+                        "overall_score": overall_score,
+                        "rating": rating,
+                        "action": raw.get("action", "持有"),
+                        "action_reason": raw.get("action_reason", ""),
+                    },
+                    "analysis": summary_text,
+                    "_raw": raw,
+                }
         except Exception as e:
             logger.warning(f"[{self.CONFIG.name}] MiniRock分析失败 {symbol}: {e}")
         return {}
+
+    # 候选股池（空仓时也需有价格可分析）
+    CANDIDATE_POOL = [
+        "300750.SZ", "002594.SZ", "601899.SH", "600036.SH",
+        "601318.SH", "600519.SH", "601888.SH", "300274.SZ",
+        "300760.SZ", "002466.SZ",
+    ]
+
+    async def pre_analyze_candidates(self, prices: Dict) -> Dict[str, Dict]:
+        """
+        Phase 2: 对候选股池做 MiniRock 算法预分析（每60秒刷新一次）。
+        返回格式兼容 think_like_human() 期望的 minirock_analysis 字典。
+        key字段: summary{overall_score, rating}, technical{score, signal, macd},
+                 fund{score, signal, main_net_amount}, valuation{score, signal, premium_discount}
+        """
+        import requests
+
+        # 初始化候选分析缓存（避免每个brain每次都重复请求）
+        if not hasattr(self, "_candidate_analysis"):
+            self._candidate_analysis = {}
+
+        candidates = {}
+        syms_to_analyze = [s for s in self.CANDIDATE_POOL if prices.get(s)]
+
+        for sym in syms_to_analyze:
+            price_info = prices.get(sym, {})
+            p_price = price_info.get("price", 0)
+            if not p_price or p_price <= 0:
+                continue
+
+            # 缓存命中（60秒内有效，由 _last_market_check 控制）
+            if sym in self._candidate_analysis:
+                candidates[sym] = self._candidate_analysis[sym]
+                continue
+
+            try:
+                resp = requests.post(
+                    f"{self.minirock_api}/api/ymos/stock/analyze",
+                    json={"symbol": sym},
+                    timeout=8,
+                )
+                if resp.status_code == 200:
+                    d = resp.json()
+                    alg = {
+                        "name": d.get("name", sym),
+                        "price": p_price,
+                        "pct_chg": price_info.get("pct_chg", 0),
+                        "summary": {
+                            "overall_score": d.get("score", 50),
+                            "rating": d.get("rating", "持有"),
+                        },
+                        "technical": {
+                            "score": d.get("technical_score", 50),
+                            "signal": d.get("technical_signal", ""),
+                            "macd": d.get("technical_signal", ""),
+                            "rsi": 50,
+                        },
+                        "fund": {
+                            "main_net_amount": 0,
+                            "score": d.get("fund_score", 50),
+                            "signal": d.get("fund_signal", ""),
+                        },
+                        "valuation": {
+                            "premium_discount": 0,
+                            "score": d.get("valuation_score", 50),
+                            "signal": d.get("valuation_signal", ""),
+                        },
+                        "cashflow": {
+                            "score": d.get("valuation_score", 50),
+                            "healthy_years": 3,
+                        },
+                        "fraud_detection": {"risk_level": "低"},
+                        "_raw": d,
+                    }
+                    candidates[sym] = alg
+                    self._candidate_analysis[sym] = alg
+                    logger.info(f"[{self.CONFIG.name}] 候选股 {sym} 评分={d.get('score')}")
+                else:
+                    logger.warning(f"[{self.CONFIG.name}] 候选股 {sym} API失败: {resp.status_code}")
+            except Exception as e:
+                logger.warning(f"[{self.CONFIG.name}] 候选股 {sym} 分析异常: {e}")
+
+        return candidates
 
     async def refresh_market_data(self) -> Dict[str, Any]:
         """
@@ -325,7 +431,7 @@ class BaseBrain(ABC):
         now = time.time()
         if now - self._last_market_check < 60 and self._market_state:
             return self._market_state
-        
+
         try:
             import aiohttp
             async with aiohttp.ClientSession() as sess:
@@ -340,18 +446,11 @@ class BaseBrain(ABC):
                     indices = {item.get("ts_code") or item.get("name"): item for item in indices_raw}
                 else:
                     indices = indices_raw
-                
+
                 # 2. 持仓股 + 候选股实时价格
                 holdings = self.memory.get_holdings()
                 held_symbols = [h["symbol"] for h in holdings]
-
-                # 候选股池（空仓时也需有价格可分析）
-                CANDIDATE_POOL = [
-                    "300750.SZ", "002594.SZ", "601899.SH", "600036.SH",
-                    "601318.SH", "600519.SH", "601888.SH", "300274.SZ",
-                    "300760.SZ", "002466.SZ",
-                ]
-                all_symbols = list(dict.fromkeys(held_symbols + CANDIDATE_POOL))
+                all_symbols = list(dict.fromkeys(held_symbols + self.CANDIDATE_POOL))
 
                 prices = {}
                 for sym in all_symbols:
@@ -457,7 +556,7 @@ class BaseBrain(ABC):
         my_positions = self.get_my_positions()
         holdings = my_positions["holdings"]
         cash = my_positions["cash"]
-        
+
         # Step 2.5: 获取持仓的 MiniRock 分析（如果有持仓）
         minirock_analysis = {}
         if holdings:
@@ -471,7 +570,11 @@ class BaseBrain(ABC):
                 )
                 if analysis:
                     minirock_analysis[sym] = analysis
-        
+        else:
+            # Phase 2: 空仓时对候选股池做预分析（算法驱动建仓的关键！）
+            candidate_analysis = await self.pre_analyze_candidates(market_data.get("prices", {}))
+            minirock_analysis = candidate_analysis  # think_like_human 用同一个 minirock_analysis 参数接收
+
         # 将持仓和 MiniRock 分析加入 market_data
         market_data["my_positions"] = my_positions
         market_data["minirock_analysis"] = minirock_analysis

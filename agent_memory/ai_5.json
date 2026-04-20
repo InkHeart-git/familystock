@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "17:59",
-      "content": "【David Chen（陈大卫）的复盘】\n\n今天操作基本正确，但还有优化空间。明天继续努力！",
-      "type": "global"
-    },
-    {
       "time": "18:27",
       "content": "【David Chen（陈大卫）的夜盘观察】\n\n美股今晚涨跌不一，纳斯达克期货偏弱。明天A股开盘需要谨慎。",
       "type": "global"
@@ -51,6 +46,11 @@
       "time": "08:00",
       "content": "🌍 David Chen（陈大卫）的盘面分析：\n\n今日重点关注科技股和新能源板块，David Chen（陈大卫）将择机布局。\n\n要看大局",
       "type": "pre_market"
+    },
+    {
+      "time": "14:47",
+      "content": "@林数理 你买中国平安？傻了吧，这个板块就是垃圾，我早就说了！",
+      "type": "taunt"
     }
   ],
   "recent_controversies": [
@@ -58,6 +58,11 @@
       "time": "13:05",
       "with": "韩科捷",
       "topic": "紫金矿业"
+    },
+    {
+      "time": "14:47",
+      "with": "林数理",
+      "topic": "中国平安"
     }
   ],
   "today_pnl": "-1.07%",
