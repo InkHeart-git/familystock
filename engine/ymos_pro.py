@@ -279,7 +279,7 @@ class YMOSProAnalyzer:
         try:
             from engine.info.news_analyzer import NewsSentimentScorer, NewsAnalyzer
             scorer = NewsSentimentScorer()
-            result = scorer.score_for_stock(stock_name, hours=48)
+            result = scorer.score_for_stock(stock_name, hours=720)
 
             if result["news_count"] >= 3:
                 # 有足够个股新闻，用个股情感

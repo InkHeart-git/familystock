@@ -256,8 +256,8 @@ class NewsDB:
             ))
         return results
 
-    def get_news_for_stock(self, stock_name: str, hours: int = 48, min_relevance: float = 0.15) -> List[NewsItem]:
-        """获取与某只股票相关的新闻"""
+    def get_news_for_stock(self, stock_name: str, hours: int = 720, min_relevance: float = 0.0) -> List[NewsItem]:
+        """获取与某只股票相关的新闻（默认30天窗口）"""
         import re
         cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -272,10 +272,10 @@ class NewsDB:
         rows = conn.execute("""
             SELECT title, content, source, url, published_at, sentiment, keywords, relevance
             FROM news
-            WHERE published_at > ? AND relevance >= ? AND (title LIKE ? OR content LIKE ?)
-            ORDER BY published_at DESC, relevance DESC
-            LIMIT 20
-        """, (cutoff, min_relevance, like_pat, like_pat)).fetchall()
+            WHERE published_at > ? AND (title LIKE ? OR content LIKE ?)
+            ORDER BY published_at DESC
+            LIMIT 30
+        """, (cutoff, like_pat, like_pat)).fetchall()
 
         # 额外匹配股票代码
         if codes:
@@ -283,10 +283,10 @@ class NewsDB:
             code_rows = conn.execute("""
                 SELECT title, content, source, url, published_at, sentiment, keywords, relevance
                 FROM news
-                WHERE published_at > ? AND relevance >= ? AND (title LIKE ? OR content LIKE ?)
-                ORDER BY published_at DESC, relevance DESC
+                WHERE published_at > ? AND (title LIKE ? OR content LIKE ?)
+                ORDER BY published_at DESC
                 LIMIT 10
-            """, (cutoff, min_relevance, code_pat, code_pat)).fetchall()
+            """, (cutoff, code_pat, code_pat)).fetchall()
             seen = {r[0] for r in rows}
             for r in code_rows:
                 if r[0] not in seen:
