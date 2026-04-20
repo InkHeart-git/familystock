@@ -47,45 +47,98 @@ class DividendHunterBrain(BaseBrain):
         news: List[Dict],
         minirock_analysis: Dict[str, Dict] = {},
     ) -> TradingDecision:
+        """
+        高股息策略（MiniRock 算法驱动）：
+        1. 持仓：现金流必须健康（≥3年），造假 → 止损
+        2. 评分 ≤50 → 减仓（高股息逻辑不再成立）
+        3. 空仓：DCF折价 + 现金流健康 + 跌幅不大
+        4. 止损宽：亏 10% 才走（压舱石定位）
+        """
         prices = market_data.get("prices", {})
 
-        # 高股息止损线宽：亏10%才出
         for h in my_holdings:
             sym = h["symbol"]
-            price_info = prices.get(sym, {})
-            current = price_info.get("price", h.get("avg_cost", 0))
-            if current > 0:
-                pnl_pct = (current - h["avg_cost"]) / h["avg_cost"] * 100
-                if pnl_pct <= -10.0:
-                    return TradingDecision(
-                        action=Action.SELL, signal=DecisionSignal.STRONG_SELL,
-                        symbol=sym, name=h.get("name", sym),
-                        quantity=h["quantity"], price=current,
-                        reason=f"高股息股大跌，触发止损",
-                        confidence=90, urgency="critical", ai_id=self.ai_id,
-                    )
+            alg = minirock_analysis.get(sym, {})
+            summary = alg.get("summary", {})
+            cashflow = alg.get("cashflow", {})
+            fraud = alg.get("fraud_detection", {})
 
-        # 高股息策略：空仓时不追高，等回调或横盘买入
+            current = prices.get(sym, {}).get("price", h.get("avg_cost", 0))
+            avg_cost = h.get("avg_cost", 0)
+            pnl_pct = (current - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0
+            score = summary.get("overall_score", 50)
+
+            # 造假 → 高股息基础崩塌，止损
+            fraud_risk = str(fraud.get("risk_level", "")).lower()
+            if "高" in fraud_risk:
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.STRONG_SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=h["quantity"], price=current,
+                    reason=f"财务造假风险，高股息根基崩塌，止损清仓",
+                    confidence=92, urgency="critical",
+                    ai_id=self.ai_id, risk_level="high",
+                )
+
+            if pnl_pct <= -10.0:
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.STRONG_SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=h["quantity"], price=current,
+                    reason=f"跌破压舱石底线，亏损{pnl_pct:.1f}%，止损",
+                    confidence=90, urgency="critical",
+                    ai_id=self.ai_id, risk_level="high",
+                )
+
+            # 评分低 → 高股息逻辑不再成立
+            if score <= 50:
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=int(h["quantity"] * 0.5), price=current,
+                    reason=f"MiniRock评分{score}分，高股息逻辑弱化，减仓保护",
+                    confidence=78, urgency="normal",
+                    ai_id=self.ai_id, risk_level="medium",
+                )
+
+        # ── 空仓布局 ──────────────────────────────────────
         if not my_holdings and my_cash > 10000:
-            candidates = [
-                (s, i) for s, i in prices.items()
-                if -2 <= i.get("pct_chg", 0) <= 1.5 and i.get("amount", 0) > 200000000
-            ]
+            candidates = []
+            for sym, info in prices.items():
+                alg = minirock_analysis.get(sym, {})
+                summary = alg.get("summary", {})
+                valuation = alg.get("valuation", {})
+                cashflow = alg.get("cashflow", {})
+
+                score = summary.get("overall_score", 0)
+                pct_chg = info.get("pct_chg", 0)
+                cf_score = cashflow.get("score", 0)
+                healthy_yrs = cashflow.get("healthy_years", 0)
+
+                # 高股息：评分 ≥60 + 现金流健康(≥3年) + 今日小跌或横盘
+                if score >= 60 and healthy_yrs >= 3 and -2 <= pct_chg <= 1.5:
+                    candidates.append({
+                        "symbol": sym, "name": info.get("name", sym),
+                        "price": info.get("price", 0), "pct_chg": pct_chg,
+                        "score": score, "cf_score": cf_score,
+                        "confidence": min(score, 88),
+                    })
+
             if candidates:
-                sym, info = candidates[0]
-                price = info.get("price", 0)
-                if price > 0:
-                    qty = int((my_cash * 0.35) / price / 100) * 100
-                    return TradingDecision(
-                        action=Action.BUY, signal=DecisionSignal.BUY,
-                        symbol=sym, name=info.get("name", sym),
-                        quantity=qty, price=price,
-                        reason=f"高股息布局：{info.get('name',sym)}回调提供安全边际，稳健入场",
-                        confidence=75, urgency="normal", ai_id=self.ai_id,
-                    )
+                best = max(candidates, key=lambda x: (x["score"], x["cf_score"]))
+                price = best["price"]
+                qty = int((my_cash * 0.35) / price / 100) * 100
+                return TradingDecision(
+                    action=Action.BUY, signal=DecisionSignal.BUY,
+                    symbol=best["symbol"], name=best["name"],
+                    quantity=qty, price=price,
+                    reason=f"MiniRock评分{best['score']}分，现金流{healthy_yrs}年健康，高股息稳健布局",
+                    confidence=best["confidence"], urgency="normal",
+                    ai_id=self.ai_id,
+                )
 
         return TradingDecision(
-            action=Action.HOLD if my_holdings else Action.WATCH,
+            action=Action.WATCH if not my_holdings else Action.HOLD,
             signal=DecisionSignal.HOLD,
             reason="收息逻辑不变" if my_holdings else "等待高股息机会",
             confidence=65, ai_id=self.ai_id,

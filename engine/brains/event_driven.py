@@ -47,50 +47,77 @@ class EventDrivenBrain(BaseBrain):
         news: List[Dict],
         minirock_analysis: Dict[str, Dict] = {},
     ) -> TradingDecision:
+        """
+        事件驱动逻辑（MiniRock 算法驱动）：
+        1. 持仓：评分 ≤55 → 事件催化消退，离场
+        2. 空仓：从 NewsAnalyzer 情绪数据找催化剂
+        3. 算法评分确认：事件 + 评分 ≥65 才入场
+        4. 止损：亏 6% 必走
+        """
         prices = market_data.get("prices", {})
-        news_list = market_data.get("news", [])
+        news_context = market_data.get("news_context", {})
+        sentiment = news_context.get("overall_sentiment", "neutral")
 
         for h in my_holdings:
             sym = h["symbol"]
-            price_info = prices.get(sym, {})
-            current = price_info.get("price", h.get("avg_cost", 0))
-            if current > 0:
-                pnl_pct = (current - h["avg_cost"]) / h["avg_cost"] * 100
-                if pnl_pct <= -6.0:
-                    return TradingDecision(
-                        action=Action.SELL, signal=DecisionSignal.STRONG_SELL,
-                        symbol=sym, name=h.get("name", sym),
-                        quantity=h["quantity"], price=current,
-                        reason=f"事件驱动失效，触发止损",
-                        confidence=90, urgency="critical", ai_id=self.ai_id,
-                    )
+            alg = minirock_analysis.get(sym, {})
+            summary = alg.get("summary", {})
 
-        # 事件驱动策略：从新闻找催化剂
+            current = prices.get(sym, {}).get("price", h.get("avg_cost", 0))
+            avg_cost = h.get("avg_cost", 0)
+            pnl_pct = (current - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0
+            score = summary.get("overall_score", 50)
+
+            if pnl_pct <= -6.0:
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.STRONG_SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=h["quantity"], price=current,
+                    reason=f"事件催化失效，触发止损{pnl_pct:.1f}%",
+                    confidence=90, urgency="critical",
+                    ai_id=self.ai_id, risk_level="high",
+                )
+
+            if score <= 55:
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=h["quantity"], price=current,
+                    reason=f"MiniRock评分{score}分，事件催化消退，离场",
+                    confidence=80, urgency="normal",
+                    ai_id=self.ai_id, risk_level="medium",
+                )
+
+        # ── 空仓事件驱动 ──────────────────────────────────
         if not my_holdings and my_cash > 10000:
-            # 找相关新闻的股票
-            event_keywords = ["业绩预增", "政策支持", "中标", "合作", "回购"]
-            relevant_news = [
-                n for n in news_list
-                if any(kw in n.get("title", "") for kw in event_keywords)
-            ]
+            candidates = []
+            for sym, info in prices.items():
+                alg = minirock_analysis.get(sym, {})
+                summary = alg.get("summary", {})
+                score = summary.get("overall_score", 0)
+                pct_chg = info.get("pct_chg", 0)
 
-            if relevant_news:
-                target = relevant_news[0]
-                # 从新闻关联到持仓股票
-                # 这里简化处理：找相关新闻关联的股票
-                candidates = [(s, i) for s, i in prices.items() if i.get("pct_chg", 0) >= 2.0]
-                if candidates:
-                    sym, info = candidates[0]
-                    price = info.get("price", 0)
-                    if price > 0:
-                        qty = int((my_cash * 0.40) / price / 100) * 100
-                        return TradingDecision(
-                            action=Action.BUY, signal=DecisionSignal.BUY,
-                            symbol=sym, name=info.get("name", sym),
-                            quantity=qty, price=price,
-                            reason=f"事件催化：{target.get('title', '利好公告')}，事件驱动入场",
-                            confidence=75, urgency="high", ai_id=self.ai_id,
-                        )
+                # 事件驱动：涨幅 ≥2% + 评分 ≥65
+                if pct_chg >= 2.0 and score >= 65:
+                    candidates.append({
+                        "symbol": sym, "name": info.get("name", sym),
+                        "price": info.get("price", 0), "pct_chg": pct_chg,
+                        "score": score,
+                        "confidence": min(score, 90),
+                    })
+
+            if candidates:
+                best = max(candidates, key=lambda x: x["score"])
+                price = best["price"]
+                qty = int((my_cash * 0.40) / price / 100) * 100
+                return TradingDecision(
+                    action=Action.BUY, signal=DecisionSignal.BUY,
+                    symbol=best["symbol"], name=best["name"],
+                    quantity=qty, price=price,
+                    reason=f"MiniRock评分{best['score']}分，{best['pct_chg']:.1f}%涨幅，事件催化启动🎯",
+                    confidence=best["confidence"], urgency="high",
+                    ai_id=self.ai_id,
+                )
 
         return TradingDecision(
             action=Action.HOLD if my_holdings else Action.WATCH,

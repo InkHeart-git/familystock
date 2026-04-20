@@ -47,49 +47,87 @@ class MacroMasterBrain(BaseBrain):
         news: List[Dict],
         minirock_analysis: Dict[str, Dict] = {},
     ) -> TradingDecision:
-        indices = market_data.get("indices", {})
+        """
+        宏观策略逻辑（MiniRock 算法驱动）：
+        1. 全球指数指引（已有）作为宏观背景
+        2. 算法综合评分：≥70 分 A股才有配置价值
+        3. 持仓用算法评分管理，宏观背景决定仓位上限
+        4. 资金流 + 估值判断方向
+        """
         prices = market_data.get("prices", {})
+        indices = market_data.get("indices", {})
 
-        # 止损检查
-        for h in my_holdings:
-            sym = h["symbol"]
-            price_info = prices.get(sym, {})
-            current = price_info.get("price", h.get("avg_cost", 0))
-            if current > 0:
-                pnl_pct = (current - h["avg_cost"]) / h["avg_cost"] * 100
-                if pnl_pct <= -6.0:
-                    return TradingDecision(
-                        action=Action.SELL, signal=DecisionSignal.STRONG_SELL,
-                        symbol=sym, name=h.get("name", sym),
-                        quantity=h["quantity"], price=current,
-                        reason=f"宏观逻辑变化，触发止损",
-                        confidence=90, urgency="critical", ai_id=self.ai_id,
-                    )
-
-        # 美股/港股指引：A股方向
         us_pct = indices.get("NDX", {}).get("pct_chg", 0)
         hk_pct = indices.get("HSI", {}).get("pct_chg", 0)
 
+        for h in my_holdings:
+            sym = h["symbol"]
+            alg = minirock_analysis.get(sym, {})
+            summary = alg.get("summary", {})
+
+            current = prices.get(sym, {}).get("price", h.get("avg_cost", 0))
+            avg_cost = h.get("avg_cost", 0)
+            pnl_pct = (current - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0
+            score = summary.get("overall_score", 50)
+
+            if pnl_pct <= -6.0:
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.STRONG_SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=h["quantity"], price=current,
+                    reason=f"宏观逻辑变化，触发止损{pnl_pct:.1f}%",
+                    confidence=90, urgency="critical",
+                    ai_id=self.ai_id, risk_level="high",
+                )
+
+            # 评分 ≤55 → 宏观配置价值消失
+            if score <= 55:
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=h["quantity"], price=current,
+                    reason=f"MiniRock评分{score}分，宏观配置价值减弱，减持",
+                    confidence=80, urgency="normal",
+                    ai_id=self.ai_id, risk_level="medium",
+                )
+
+        # ── 空仓配置 ──────────────────────────────────────
         if not my_holdings and my_cash > 10000:
-            # 外盘指引：美股涨 > 1% → A股高开，可能追涨
-            if us_pct > 1.5:
-                candidates = [(s, i) for s, i in prices.items() if i.get("pct_chg", 0) >= 1.0]
+            # 宏观背景：美股/港股指引
+            macro_bullish = us_pct > 1.5 or hk_pct > 1.0
+
+            if macro_bullish:
+                candidates = []
+                for sym, info in prices.items():
+                    alg = minirock_analysis.get(sym, {})
+                    summary = alg.get("summary", {})
+                    score = summary.get("overall_score", 0)
+                    pct_chg = info.get("pct_chg", 0)
+
+                    if score >= 70 and pct_chg >= 1.0:
+                        candidates.append({
+                            "symbol": sym, "name": info.get("name", sym),
+                            "price": info.get("price", 0), "pct_chg": pct_chg,
+                            "score": score,
+                            "confidence": min(score, 90),
+                        })
+
                 if candidates:
-                    sym, info = candidates[0]
-                    price = info.get("price", 0)
-                    if price > 0:
-                        qty = int((my_cash * 0.30) / price / 100) * 100
-                        return TradingDecision(
-                            action=Action.BUY, signal=DecisionSignal.BUY,
-                            symbol=sym, name=info.get("name", sym),
-                            quantity=qty, price=price,
-                            reason=f"宏观联动：纳指+{us_pct:.1f}%，顺美股情绪做多A股",
-                            confidence=70, urgency="normal", ai_id=self.ai_id,
-                        )
+                    best = max(candidates, key=lambda x: x["score"])
+                    price = best["price"]
+                    qty = int((my_cash * 0.30) / price / 100) * 100
+                    return TradingDecision(
+                        action=Action.BUY, signal=DecisionSignal.BUY,
+                        symbol=best["symbol"], name=best["name"],
+                        quantity=qty, price=price,
+                        reason=f"宏观联动：纳指{us_pct:+.1f}%/恒指{hk_pct:+.1f}%，MiniRock评分{best['score']}分，顺宏观做多A股",
+                        confidence=best["confidence"], urgency="normal",
+                        ai_id=self.ai_id,
+                    )
 
         return TradingDecision(
             action=Action.HOLD if my_holdings else Action.WATCH,
             signal=DecisionSignal.HOLD,
-            reason="宏观逻辑未变" if my_holdings else "等待宏观信号",
+            reason=f"宏观逻辑未变，持仓（纳指{us_pct:+.1f}%）" if my_holdings else f"等待宏观信号（纳指{us_pct:+.1f}%）",
             confidence=60, ai_id=self.ai_id,
         )
