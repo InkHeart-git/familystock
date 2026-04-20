@@ -656,6 +656,12 @@ class BaseBrain(ABC):
                 self.stats["risk_rejected"] = self.stats.get("risk_rejected", 0) + 1
                 success = False
             else:
+                # 提取 MiniRock 评分
+                alg_data = minirock_analysis.get(sym, {})
+                summary = alg_data.get("summary", {})
+                score = summary.get("overall_score", 0)
+                import json
+                minirock_raw = json.dumps(alg_data.get("_raw", {}), ensure_ascii=False)[:500]
                 success = self.memory.execute_trade(
                     action=action_val,
                     symbol=sym,
@@ -663,6 +669,9 @@ class BaseBrain(ABC):
                     quantity=qty,
                     price=price,
                     reason=getattr(decision, "reason", "") or "",
+                    score=score,
+                    algorithm="minirock",
+                    minirock_raw=minirock_raw,
                 )
             if success:
                 self.stats["trades_today"] += 1

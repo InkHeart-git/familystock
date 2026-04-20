@@ -269,6 +269,9 @@ class AIMemory:
         quantity: int,
         price: float,
         reason: str = "",
+        score: int = 0,                    # MiniRock 评分
+        algorithm: str = "minirock",      # 算法来源
+        minirock_raw: str = "",            # 原始算法输出（JSON字符串）
     ) -> bool:
         """
         Phase 3: 执行真实交易，更新 ai_holdings + ai_portfolios + ai_trades。
@@ -324,9 +327,9 @@ class AIMemory:
 
                 # 记录交易
                 conn.execute(
-                    "INSERT INTO ai_trades (ai_id, symbol, name, action, quantity, price, total_amount, pnl, reason, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
-                    (self.ai_id, symbol, name, "BUY", quantity, price, total_cost, reason, now)
+                    "INSERT INTO ai_trades (ai_id, symbol, name, action, quantity, price, total_amount, pnl, reason, created_at, score, algorithm, minirock_raw) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)",
+                    (self.ai_id, symbol, name, "BUY", quantity, price, total_cost, reason, now, score, algorithm, minirock_raw)
                 )
                 logger.info(f"[{self.ai_id}] 买入 {name} {quantity}股 @{price:.2f}，原因: {reason[:50]}")
 
@@ -372,9 +375,9 @@ class AIMemory:
 
                 # 记录交易
                 conn.execute(
-                    "INSERT INTO ai_trades (ai_id, symbol, name, action, quantity, price, total_amount, pnl, reason, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (self.ai_id, symbol, name, "SELL", quantity, price, proceeds, pnl, reason, now)
+                    "INSERT INTO ai_trades (ai_id, symbol, name, action, quantity, price, total_amount, pnl, reason, created_at, score, algorithm, minirock_raw) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (self.ai_id, symbol, name, "SELL", quantity, price, proceeds, pnl, reason, now, score, algorithm, minirock_raw)
                 )
                 logger.info(f"[{self.ai_id}] 卖出 {name} {quantity}股 @{price:.2f}，盈亏: {pnl:+.2f}")
 
