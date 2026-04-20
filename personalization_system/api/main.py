@@ -123,7 +123,6 @@ if __name__ == "__main__":
 from style_templates import STYLE_TEMPLATES
 from style_recognition import calculate_style_score, update_user_style_preference
 from volcengine_coding_plan import call_volc_coding_plan_api
-from kimi_integration import call_kimi_api
 import traceback
 
 # 个性化分析请求模型
