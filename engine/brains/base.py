@@ -312,25 +312,47 @@ class BaseBrain(ABC):
             resp = requests.post(url, json=payload, timeout=30)
             if resp.status_code == 200:
                 raw = resp.json()
-                # 标准化为 think_like_human 期望的 minirock_analysis 格式
                 summary_text = raw.get("summary", "") or ""
-                # 从 action 字段提取评级
-                action_str = str(raw.get("action", "持有")).lower()
-                if "买入" in action_str or "buy" in action_str:
-                    rating = "买入"
-                elif "卖出" in action_str or "sell" in action_str:
-                    rating = "卖出"
-                else:
-                    rating = "持有"
-                # 简单评分估算（从 summary 文本中提取数字）
                 import re
-                score_match = re.search(r"(?:评分|综合评分|总评分)[：:]*\\s*(\\d+)", summary_text)
-                overall_score = int(score_match.group(1)) if score_match else 60
+
+                # 主要来源：从 summary 文本提取评分（最可靠）
+                # 匹配: "评分: XX" / "综合评分:XX" / "得分: XX" 等
+                score_match = re.search(
+                    r"(?:评分|综合评分|总评分|得分|投资建议评分)[：:\s]*(\d+)",
+                    summary_text
+                )
+                if score_match:
+                    overall_score = int(score_match.group(1))
+                    # 根据评分推算 action 和 rating
+                    if overall_score >= 75:
+                        rating = "增持"
+                        action_for_brain = "增持"
+                    elif overall_score >= 55:
+                        rating = "持有"
+                        action_for_brain = "持有"
+                    else:
+                        rating = "卖出"
+                        action_for_brain = "卖出"
+                else:
+                    # 兜底：基于 summary 文本关键词判断
+                    overall_score = 60
+                    if any(k in summary_text for k in ("买入", "增持", "看好", "推荐", "关注")):
+                        overall_score = 68
+                        rating = "增持"
+                        action_for_brain = "增持"
+                    elif any(k in summary_text for k in ("卖出", "减持", "风险", "谨慎", "回避")):
+                        overall_score = 42
+                        rating = "卖出"
+                        action_for_brain = "卖出"
+                    else:
+                        rating = "持有"
+                        action_for_brain = "持有"
+
                 return {
                     "summary": {
                         "overall_score": overall_score,
                         "rating": rating,
-                        "action": raw.get("action", "持有"),
+                        "action": action_for_brain,
                         "action_reason": raw.get("action_reason", ""),
                     },
                     "analysis": summary_text,
