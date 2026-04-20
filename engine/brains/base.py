@@ -160,7 +160,7 @@ class BaseBrain(ABC):
     def __init__(self, db_path: str, minirock_api: str = "http://127.0.0.1:8000"):
         self.db_path = db_path
         self.minirock_api = minirock_api
-        self.ai_id = self.CONFIG.ai_id
+        self.ai_id = str(self.CONFIG.db_id)  # DB 查询用整数字符串
         self.db_id = self.CONFIG.db_id  # DB primary key
         
         # 子系统初始化
