@@ -337,22 +337,42 @@ class BaseBrain(ABC):
                 indices_raw = (await indices_resp.json()) if indices_resp.status == 200 else {}
                 # 统一转换为 dict 格式：{symbol: info}
                 if isinstance(indices_raw, list):
-                    indices = {item.get("symbol") or item.get("name"): item for item in indices_raw}
+                    indices = {item.get("ts_code") or item.get("name"): item for item in indices_raw}
                 else:
                     indices = indices_raw
                 
-                # 2. 我的持仓实时价格
+                # 2. 持仓股 + 候选股实时价格
                 holdings = self.memory.get_holdings()
-                symbols = [h["symbol"] for h in holdings]
+                held_symbols = [h["symbol"] for h in holdings]
+
+                # 候选股池（空仓时也需有价格可分析）
+                CANDIDATE_POOL = [
+                    "300750.SZ", "002594.SZ", "601899.SH", "600036.SH",
+                    "601318.SH", "600519.SH", "601888.SH", "300274.SZ",
+                    "300760.SZ", "002466.SZ",
+                ]
+                all_symbols = list(dict.fromkeys(held_symbols + CANDIDATE_POOL))
+
                 prices = {}
-                if symbols:
-                    price_resp = await sess.post(
-                        f"{self.minirock_api}/api/tushare/realtime",
-                        json={"symbols": symbols},
-                        timeout=aiohttp.ClientTimeout(total=5)
-                    )
-                    if price_resp.status == 200:
-                        prices = await price_resp.json()
+                for sym in all_symbols:
+                    try:
+                        p_resp = await sess.get(
+                            f"{self.minirock_api}/api/tushare/quote/{sym}",
+                            timeout=aiohttp.ClientTimeout(total=3)
+                        )
+                        if p_resp.status == 200:
+                            q = await p_resp.json()
+                            prices[sym] = {
+                                "name": q.get("name", sym),
+                                "price": q.get("close", 0),
+                                "pct_chg": q.get("pct_chg", 0),
+                                "high": q.get("high", 0),
+                                "low": q.get("low", 0),
+                                "open": q.get("open", 0),
+                                "volume": q.get("vol", 0),
+                            }
+                    except Exception:
+                        pass
                 
                 # 3. 最新新闻 + 情感分析（NewsAnalyzer）
                 news_resp = await sess.get(
