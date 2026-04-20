@@ -224,7 +224,21 @@ class ContentGenerator:
             emoji = "📈" if pct > 0 else "📉" if pct < 0 else "➡️"
             indices_text.append(f"{emoji} {info.get('name', sym)}: {info.get('price','--')} ({pct:+.2f}%)")
         indices_str = "\n".join(indices_text) if indices_text else "暂无数据"
-        
+
+        # 市场情绪（来自 NewsAnalyzer）
+        news_ctx = market_data.get("news_context") or {}
+        if news_ctx.get("has_news"):
+            sentiment = news_ctx.get("overall_sentiment", "中性")
+            top_news = news_ctx.get("top_news", [])
+            news_bull = news_ctx.get("bullish_count", 0)
+            news_bear = news_ctx.get("bearish_count", 0)
+            sentiment_block = f"📰 市场情绪：{sentiment}（利好{news_bull}条/利空{news_bear}条）"
+            if top_news:
+                top_items = "\n".join([f"  • {n['title']}（{n['sentiment']}）" for n in top_news[:3]])
+                sentiment_block += f"\n近期热点：\n{top_items}"
+        else:
+            sentiment_block = "📰 市场情绪：暂无数据"
+
         # 持仓概览
         holding_summary = ""
         if holdings:
@@ -232,17 +246,19 @@ class ContentGenerator:
             holding_summary = f"当前持仓 {len(holdings)} 只，{gain_count} 只飘红"
         else:
             holding_summary = "当前空仓，等待机会"
-        
+
         # 人设语气
         bubble = self.injector.get_speech_bubble(self.config.ai_id, "neutral")
         style_note = self._get_style_intro()
-        
+
         content = f"""【{now.strftime('%H:%M')} {self.config.name}开盘战略】
 
 {style_note}
 
 🌏 全球市况：
 {indices_str}
+
+{sentiment_block}
 
 💼 {self.config.name}今日策略：
 {holding_summary}

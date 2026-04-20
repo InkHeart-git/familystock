@@ -9,6 +9,7 @@ from engine.trading.decision_engine import TradingDecision, Action, DecisionSign
 
 MOMENTUM_KID_CONFIG = CharacterConfig(
     ai_id="momentum_kid",
+    db_id=4,  # DB primary key id=4 (Ryan（瑞恩）)
     name="Ryan（瑞恩）",
     emoji="⚡",
     style="动量投资",
@@ -37,7 +38,14 @@ class MomentumKidBrain(BaseBrain):
     def get_config(self) -> CharacterConfig:
         return self.CONFIG
 
-    async def think_like_human(self, market_data, my_holdings, my_cash, news):
+    async def think_like_human(
+        self,
+        market_data: Dict[str, Any],
+        my_holdings: List[Dict],
+        my_cash: float,
+        news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},
+    ) -> TradingDecision:
         prices = market_data.get("prices", {})
 
         # 止损：亏4%就走

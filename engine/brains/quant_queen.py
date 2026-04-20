@@ -15,6 +15,7 @@ logger = logging.getLogger("QuantQueen")
 
 QUANT_QUEEN_CONFIG = CharacterConfig(
     ai_id="quant_queen",
+    db_id=2,  # DB primary key id=2 (林数理)
     name="林数理",
     emoji="📊",
     style="量化分析",
@@ -59,6 +60,7 @@ class QuantQueenBrain(BaseBrain):
         my_holdings: List[Dict],
         my_cash: float,
         news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},
     ) -> TradingDecision:
         """
         量化决策逻辑：

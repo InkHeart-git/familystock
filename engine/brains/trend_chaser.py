@@ -22,6 +22,7 @@ logger = logging.getLogger("TrendChaser")
 
 TREND_CHASER_CONFIG = CharacterConfig(
     ai_id="trend_chaser",
+    db_id=1,  # DB primary key id=1 (Tyler（泰勒）)
     name="Tyler（泰勒）",
     emoji="🚀",
     style="趋势跟踪",
@@ -80,122 +81,156 @@ class TrendChaserBrain(BaseBrain):
         my_holdings: List[Dict],
         my_cash: float,
         news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},
     ) -> TradingDecision:
         """
-        趋势跟踪决策逻辑：
-        1. 优先检查止损（跌5%必走）
-        2. 检查持仓是否还在趋势中
-        3. 如果空仓，寻找今日强势股（涨幅 > 3%）
-        4. 追入强势股，预期持有1-2天
+        趋势跟踪决策逻辑（MiniRock 算法驱动）：
+        
+        决策优先级：
+        1. 硬止损：亏 ≥8% 必走（不管算法说什么）
+        2. 算法决策：MiniRock 综合评分 + 裁判系统 action
+        3. 资金流确认：主力净流入才考虑买
+        4. 趋势保护：MACD/KDJ 技术面恶化则走
+        5. 空仓时：综合评分 ≥75 分才考虑追入
         """
         import random
-        
         prices = market_data.get("prices", {})
         
-        # 1. 止损检查
+        # ── 1. 持仓检查：算法驱动决策 ─────────────────────────────
         for h in my_holdings:
             sym = h["symbol"]
-            price_info = prices.get(sym, {})
-            current = price_info.get("price", h.get("avg_cost", 0))
+            alg = minirock_analysis.get(sym, {})
+            summary = alg.get("summary", {})
+            tech = alg.get("technical", {})
+            fund = alg.get("fund", {})
+            
+            current = prices.get(sym, {}).get("price", h.get("avg_cost", 0))
             avg_cost = h.get("avg_cost", 0)
+            pnl_pct = (current - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0
             
-            if current > 0 and avg_cost > 0:
-                pnl_pct = (current - avg_cost) / avg_cost * 100
-                
-                # 止损线：亏5%必走
-                if pnl_pct <= -5.0:
-                    return TradingDecision(
-                        action=Action.SELL,
-                        signal=DecisionSignal.STRONG_SELL,
-                        symbol=sym,
-                        name=h.get("name", sym),
-                        quantity=h["quantity"],
-                        price=current,
-                        reason=f"触发止损线，亏损{pnl_pct:.1f}%",
-                        confidence=95,
-                        urgency="critical",
-                        ai_id=self.ai_id,
-                        risk_level="high",
-                    )
-                
-                # 止盈线：赚10%走一半
-                if pnl_pct >= 10.0:
-                    sell_qty = int(h["quantity"] * 0.5)
-                    return TradingDecision(
-                        action=Action.SELL,
-                        signal=DecisionSignal.SELL,
-                        symbol=sym,
-                        name=h.get("name", sym),
-                        quantity=sell_qty,
-                        price=current,
-                        reason=f"达到止盈目标，锁定利润",
-                        confidence=90,
-                        urgency="high",
-                        ai_id=self.ai_id,
-                    )
-        
-        # 2. 持仓趋势检查（如果持仓超过1天且趋势走坏）
-        for h in my_holdings:
-            sym = h["symbol"]
-            price_info = prices.get(sym, {})
-            pct_chg = price_info.get("pct_chg", 0)
-            
-            if pct_chg < -2:  # 盘中下跌超过2%
+            # 硬止损：亏8%必走
+            if pnl_pct <= -8.0:
                 return TradingDecision(
-                    action=Action.SELL,
-                    signal=DecisionSignal.SELL,
-                    symbol=sym,
-                    name=h.get("name", sym),
-                    quantity=h["quantity"],
-                    price=price_info.get("price", h.get("avg_cost", 0)),
-                    reason=f"趋势走坏，盘中下跌{pct_chg:.1f}%",
-                    confidence=75,
-                    urgency="high",
+                    action=Action.SELL, signal=DecisionSignal.STRONG_SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=h["quantity"], price=current,
+                    reason=f"触发硬止损，亏损{pnl_pct:.1f}%，纪律优先",
+                    confidence=98, urgency="critical",
+                    ai_id=self.ai_id, risk_level="high",
+                )
+            
+            # 硬止盈：赚20%走一半
+            if pnl_pct >= 20.0:
+                sell_qty = int(h["quantity"] * 0.5)
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=sell_qty, price=current,
+                    reason=f"达到止盈目标+20%，锁定利润",
+                    confidence=92, urgency="high",
+                    ai_id=self.ai_id,
+                )
+            
+            # 算法裁判系统：评分 ≤45 分 → 卖出
+            score = summary.get("overall_score", 50)
+            action = summary.get("action", "持有")
+            if score <= 45:
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=h["quantity"], price=current,
+                    reason=f"MiniRock综合评分{score}分（{action}），趋势走坏，果断离场",
+                    confidence=85, urgency="high",
+                    ai_id=self.ai_id, risk_level="high",
+                )
+            
+            # 资金流恶化：主力大幅流出 → 减仓
+            main_net = fund.get("main_net_amount", 0)
+            if main_net < -50000000 and score < 65:  # 主力净流出超5千万且评分偏低
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=int(h["quantity"] * 0.5), price=current,
+                    reason=f"主力净流出{abs(main_net)/1e8:.1f}亿元，资金面恶化，半仓观望",
+                    confidence=80, urgency="high",
+                    ai_id=self.ai_id, risk_level="medium",
+                )
+            
+            # 技术面恶化：MACD 死叉 → 减仓
+            macd = tech.get("macd", "")
+            if "死叉" in str(macd) or "向下" in str(macd):
+                return TradingDecision(
+                    action=Action.SELL, signal=DecisionSignal.SELL,
+                    symbol=sym, name=h.get("name", sym),
+                    quantity=int(h["quantity"] * 0.5), price=current,
+                    reason=f"MACD出现死叉，技术面转弱，半仓保护利润",
+                    confidence=78, urgency="normal",
                     ai_id=self.ai_id,
                 )
         
-        # 3. 空仓时寻找机会
+        # ── 2. 空仓时寻找机会：算法评分驱动 ─────────────────────
         if not my_holdings and my_cash > 10000:
-            # 找今日强势股
             candidates = []
             for sym, info in prices.items():
-                pct = info.get("pct_chg", 0)
-                if pct >= 3.0:  # 涨幅>=3%才考虑
-                    candidates.append((sym, info, pct))
+                alg = minirock_analysis.get(sym, {})
+                summary = alg.get("summary", {})
+                tech = alg.get("technical", {})
+                fund = alg.get("fund", {})
+                
+                score = summary.get("overall_score", 0)
+                action = summary.get("action", "观望")
+                pct_chg = info.get("pct_chg", 0)
+                
+                # 趋势跟踪：只追涨幅 ≥3% 且 评分 ≥70 分 的标的
+                if pct_chg >= 3.0 and score >= 70 and action in ("买入", "增持"):
+                    # 主力资金确认（当日净流入）
+                    main_net = fund.get("main_net_amount", 0)
+                    # 强势股：主力净流入 OR 大盘情绪好
+                    if main_net > 0 or score >= 80:
+                        candidates.append({
+                            "symbol": sym, "name": info.get("name", sym),
+                            "price": info.get("price", 0),
+                            "pct_chg": pct_chg,
+                            "score": score,
+                            "action": action,
+                            "confidence": min(score, 95),
+                        })
             
             if candidates:
-                sym, info, pct = random.choice(candidates[:5])
-                price = info.get("price", 0)
-                if price > 0:
-                    qty = int((my_cash * 0.4) / price / 100) * 100
-                    return TradingDecision(
-                        action=Action.BUY,
-                        signal=DecisionSignal.STRONG_BUY if pct >= 5 else DecisionSignal.BUY,
-                        symbol=sym,
-                        name=info.get("name", sym),
-                        quantity=qty,
-                        price=price,
-                        reason=f"发现强势股，今日涨幅{pct:.2f}%，趋势确立，跟进！",
-                        confidence=70 + min(pct, 15),
-                        urgency="high" if pct >= 5 else "normal",
-                        ai_id=self.ai_id,
-                    )
+                # 选评分最高 + 涨幅最大的
+                best = max(candidates, key=lambda x: (x["score"], x["pct_chg"]))
+                price = best["price"]
+                qty = int((my_cash * 0.40) / price / 100) * 100
+                return TradingDecision(
+                    action=Action.BUY,
+                    signal=DecisionSignal.STRONG_BUY if best["score"] >= 85 else DecisionSignal.BUY,
+                    symbol=best["symbol"],
+                    name=best["name"],
+                    quantity=qty, price=price,
+                    reason=f"MiniRock评分{best['score']}分（{best['action']}），"
+                           f"今日涨幅{best['pct_chg']:.2f}%，趋势确立，趋势跟踪启动！🚀",
+                    confidence=best["confidence"],
+                    urgency="high" if best["score"] >= 85 else "normal",
+                    ai_id=self.ai_id,
+                )
         
-        # 4. 持仓观望
+        # ── 3. 持仓观望 ─────────────────────────────────────────
         if my_holdings:
+            top_holding = my_holdings[0]
+            sym = top_holding["symbol"]
+            alg = minirock_analysis.get(sym, {})
+            summary = alg.get("summary", {})
+            score = summary.get("overall_score", 50)
             return TradingDecision(
-                action=Action.HOLD,
-                signal=DecisionSignal.HOLD,
-                reason="持仓中，趋势未破，耐心持有",
-                confidence=60,
-                ai_id=self.ai_id,
+                action=Action.HOLD, signal=DecisionSignal.HOLD,
+                reason=f"持仓中，MiniRock评分{score}分，趋势未破，耐心持有",
+                confidence=65, ai_id=self.ai_id,
             )
         
-        # 5. 空仓且无机会
+        # ── 4. 空仓且无机会 ──────────────────────────────────────
         return TradingDecision(
-            action=Action.WATCH,
-            signal=DecisionSignal.WATCH,
-            reason="暂无强势机会，保持空仓观望",
+            action=Action.WATCH, signal=DecisionSignal.WATCH,
+            reason="暂无符合条件的机会（评分≥70分且强势），保持空仓",
             confidence=50,
             ai_id=self.ai_id,
         )

@@ -14,7 +14,7 @@ from enum import Enum
 import logging
 
 from core.characters import get_character, get_all_characters
-from engine.trading import TradeDecision, ActionType
+from engine.trading import TradingDecision, Action
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -702,10 +702,10 @@ async def test():
     bbs = BBSSystem()
     
     # 测试交易发帖
-    from engine.trading import TradeDecision, ActionType
+    from engine.trading import TradingDecision, Action
     
-    trade = TradeDecision(
-        action=ActionType.BUY,
+    trade = TradingDecision(
+        action=Action.BUY,
         symbol="000001.SZ",
         name="平安银行",
         quantity=1000,

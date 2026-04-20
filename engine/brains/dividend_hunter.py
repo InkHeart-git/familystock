@@ -9,6 +9,7 @@ from engine.trading.decision_engine import TradingDecision, Action, DecisionSign
 
 DIVIDEND_HUNTER_CONFIG = CharacterConfig(
     ai_id="dividend_hunter",
+    db_id=7,  # DB primary key id=7 (James Wong（黄詹姆斯）)
     name="James Wong（黄詹姆斯）",
     emoji="💰",
     style="高股息策略",
@@ -37,7 +38,14 @@ class DividendHunterBrain(BaseBrain):
     def get_config(self) -> CharacterConfig:
         return self.CONFIG
 
-    async def think_like_human(self, market_data, my_holdings, my_cash, news):
+    async def think_like_human(
+        self,
+        market_data: Dict[str, Any],
+        my_holdings: List[Dict],
+        my_cash: float,
+        news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},
+    ) -> TradingDecision:
         prices = market_data.get("prices", {})
 
         # 高股息止损线宽：亏10%才出

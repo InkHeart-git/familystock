@@ -120,7 +120,8 @@ class Personality:
 @dataclass 
 class CharacterConfig:
     """AI角色完整配置"""
-    ai_id: str
+    ai_id: str          # brain标识字符串，如 "trend_chaser"
+    db_id: int          # DB主键 id (ai_characters.id)
     name: str
     emoji: str
     style: str
@@ -160,6 +161,7 @@ class BaseBrain(ABC):
         self.db_path = db_path
         self.minirock_api = minirock_api
         self.ai_id = self.CONFIG.ai_id
+        self.db_id = self.CONFIG.db_id  # DB primary key
         
         # 子系统初始化
         self.memory = AIMemory(self.ai_id, self.db_path)
@@ -199,11 +201,20 @@ class BaseBrain(ABC):
         my_holdings: List[Dict],
         my_cash: float,
         news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},  # {symbol: MiniRock算法输出}
     ) -> TradingDecision:
         """
         核心决策逻辑：模拟人类交易员思维
-        输入: 市场数据 + 我的持仓 + 现金 + 新闻
+        输入: 市场数据 + 我的持仓 + 现金 + 新闻 + MiniRock算法分析结果
         输出: TradingDecision (买入/卖出/持有/观望)
+        
+        minirock_analysis 每个标的包含:
+        - summary.overall_score (0-100), rating (S/A+/B...), action (买入/增持/持有...)
+        - technical: MACD/KDJ/RSI 等指标
+        - fund: 主力/散户资金流
+        - valuation: DCF估值 + 溢价/折价
+        - cashflow: 现金流健康度
+        - fraud_detection: 造假风险
         
         这个方法体现了每个AI独特的"性格"和决策风格
         """
@@ -265,17 +276,17 @@ class BaseBrain(ABC):
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         
-        # 读取持仓
+        # 读取持仓（ai_holdings.ai_id 是 INTEGER，对应 ai_characters.id）
         holdings = conn.execute("""
             SELECT symbol, name, quantity, avg_cost, current_price, updated_at
             FROM ai_holdings WHERE ai_id=? AND quantity > 0
-        """, (self.ai_id,)).fetchall()
+        """, (self.db_id,)).fetchall()
         
-        # 读取资金
+        # 读取资金（ai_portfolios.ai_id 是 TEXT，对应 ai_characters.id）
         cash_row = conn.execute("""
             SELECT cash FROM ai_portfolios WHERE ai_id=? 
             ORDER BY updated_at DESC LIMIT 1
-        """, (self.ai_id,)).fetchone()
+        """, (str(self.db_id),)).fetchone()
         
         conn.close()
         return {
@@ -343,13 +354,23 @@ class BaseBrain(ABC):
                     if price_resp.status == 200:
                         prices = await price_resp.json()
                 
-                # 3. 最新新闻（相关行业）
+                # 3. 最新新闻 + 情感分析（NewsAnalyzer）
                 news_resp = await sess.get(
                     f"{self.minirock_api}/api/news/?limit=20",
                     timeout=aiohttp.ClientTimeout(total=5)
                 )
                 news_list = (await news_resp.json()) if news_resp.status == 200 else []
-                
+
+                # NewsAnalyzer 做情感分析（富化决策上下文）
+                try:
+                    from engine.info.news_analyzer import NewsAnalyzer
+                    _na = NewsAnalyzer()
+                    ctx = await _na.get_market_context(hours=24)
+                    market_news_context = ctx  # 完整情感上下文
+                except Exception as e:
+                    logger.warning(f"[{self.CONFIG.name}] NewsAnalyzer失败: {e}")
+                    market_news_context = {"has_news": False}
+
                 # 4. 市场热点/板块 (MiniRock Eyes)
                 hotspots_resp = await sess.get(
                     f"{self.minirock_api}/api/minirock/eyes/hotspots",
@@ -382,6 +403,7 @@ class BaseBrain(ABC):
                     "hotspots": hotspots,
                     "hot_topic": hot_topic,
                     "sectors": sectors,
+                    "news_context": market_news_context,  # 情感分析后的新闻上下文
                     "fetched_at": now,
                 }
                 self._last_market_check = now
@@ -447,6 +469,7 @@ class BaseBrain(ABC):
                         my_holdings=holdings,
                         my_cash=cash,
                         news=market_data.get("news", []),
+                        minirock_analysis=minirock_analysis,
                     )
                     self._pending_decisions.append(decision)
                     self.stats["decisions_made"] += 1

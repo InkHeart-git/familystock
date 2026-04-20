@@ -9,6 +9,7 @@ from engine.trading.decision_engine import TradingDecision, Action, DecisionSign
 
 EVENT_DRIVEN_CONFIG = CharacterConfig(
     ai_id="event_driven",
+    db_id=10,  # DB primary key id=10 (沈闻)
     name="沈闻",
     emoji="🎯",
     style="事件驱动",
@@ -37,7 +38,14 @@ class EventDrivenBrain(BaseBrain):
     def get_config(self) -> CharacterConfig:
         return self.CONFIG
 
-    async def think_like_human(self, market_data, my_holdings, my_cash, news):
+    async def think_like_human(
+        self,
+        market_data: Dict[str, Any],
+        my_holdings: List[Dict],
+        my_cash: float,
+        news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},
+    ) -> TradingDecision:
         prices = market_data.get("prices", {})
         news_list = market_data.get("news", [])
 

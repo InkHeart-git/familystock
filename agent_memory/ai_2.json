@@ -3,16 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "16:04",
-      "content": "【林数理的复盘】\n\n今天操作基本正确，但还有优化空间。明天继续努力！",
-      "type": "global"
-    },
-    {
-      "time": "16:35",
-      "content": "【林数理的复盘】\n\n今天操作基本正确，但还有优化空间。明天继续努力！",
-      "type": "global"
-    },
-    {
       "time": "18:43",
       "content": "【林数理的模型复盘】\n\n今天数据回测了一下，策略胜率稳定在63%。量化交易就是要去情绪化。📊",
       "type": "global"
@@ -51,6 +41,16 @@
       "time": "08:00",
       "content": "📊 林数理的盘面分析：\n\n今日看好quantitative策略，等待合适买点。\n\n让数据说话",
       "type": "pre_market"
+    },
+    {
+      "time": "11:31",
+      "content": "【林数理的午间】\n\n上午因子信号一般，休息一下。量化交易需要耐心等待机会。",
+      "type": "random"
+    },
+    {
+      "time": "11:41",
+      "content": "【林数理的午间】\n\n上午因子信号一般，休息一下。量化交易需要耐心等待机会。",
+      "type": "random"
     }
   ],
   "recent_controversies": [

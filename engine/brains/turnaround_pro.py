@@ -9,6 +9,7 @@ from engine.trading.decision_engine import TradingDecision, Action, DecisionSign
 
 TURNAROUND_PRO_CONFIG = CharacterConfig(
     ai_id="turnaround_pro",
+    db_id=8,  # DB primary key id=8 (周逆行)
     name="周逆行",
     emoji="🔄",
     style="逆向投资",
@@ -37,7 +38,14 @@ class TurnaroundProBrain(BaseBrain):
     def get_config(self) -> CharacterConfig:
         return self.CONFIG
 
-    async def think_like_human(self, market_data, my_holdings, my_cash, news):
+    async def think_like_human(
+        self,
+        market_data: Dict[str, Any],
+        my_holdings: List[Dict],
+        my_cash: float,
+        news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},
+    ) -> TradingDecision:
         prices = market_data.get("prices", {})
 
         for h in my_holdings:

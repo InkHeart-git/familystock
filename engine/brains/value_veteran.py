@@ -14,6 +14,7 @@ logger = logging.getLogger("ValueVeteran")
 
 VALUE_VETERAN_CONFIG = CharacterConfig(
     ai_id="value_veteran",
+    db_id=3,  # DB primary key id=3 (方守成)
     name="方守成",
     emoji="🦉",
     style="价值投资",
@@ -58,6 +59,7 @@ class ValueVeteranBrain(BaseBrain):
         my_holdings: List[Dict],
         my_cash: float,
         news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},
     ) -> TradingDecision:
         """
         价值投资逻辑：

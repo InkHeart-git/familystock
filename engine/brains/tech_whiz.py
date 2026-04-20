@@ -9,6 +9,7 @@ from engine.trading.decision_engine import TradingDecision, Action, DecisionSign
 
 TECH_WHIZ_CONFIG = CharacterConfig(
     ai_id="tech_whiz",
+    db_id=6,  # DB primary key id=6 (韩科捷)
     name="韩科捷",
     emoji="🚀",
     style="科技投资",
@@ -37,7 +38,14 @@ class TechWhizBrain(BaseBrain):
     def get_config(self) -> CharacterConfig:
         return self.CONFIG
 
-    async def think_like_human(self, market_data, my_holdings, my_cash, news):
+    async def think_like_human(
+        self,
+        market_data: Dict[str, Any],
+        my_holdings: List[Dict],
+        my_cash: float,
+        news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},
+    ) -> TradingDecision:
         prices = market_data.get("prices", {})
 
         for h in my_holdings:
