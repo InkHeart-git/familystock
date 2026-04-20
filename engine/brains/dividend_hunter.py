@@ -101,11 +101,13 @@ class DividendHunterBrain(BaseBrain):
                     ai_id=self.ai_id, risk_level="medium",
                 )
 
-        # ── 空仓布局 ──────────────────────────────────────
+        # ── 空仓布局（Phase 2: 评分排序选最优）─────────────
         if not my_holdings and my_cash > 10000:
             candidates = []
             for sym, info in prices.items():
                 alg = minirock_analysis.get(sym, {})
+                if not alg:
+                    continue
                 summary = alg.get("summary", {})
                 valuation = alg.get("valuation", {})
                 cashflow = alg.get("cashflow", {})
@@ -115,14 +117,15 @@ class DividendHunterBrain(BaseBrain):
                 cf_score = cashflow.get("score", 0)
                 healthy_yrs = cashflow.get("healthy_years", 0)
 
-                # 高股息：评分 ≥60 + 现金流健康(≥3年) + 今日小跌或横盘
-                if score >= 60 and healthy_yrs >= 3 and -2 <= pct_chg <= 1.5:
-                    candidates.append({
-                        "symbol": sym, "name": info.get("name", sym),
-                        "price": info.get("price", 0), "pct_chg": pct_chg,
-                        "score": score, "cf_score": cf_score,
-                        "confidence": min(score, 88),
-                    })
+                # Phase 2: 高股息底仓逻辑（保留现金流要求），其余交给算法评分排序
+                if score < 50 or healthy_yrs < 3:
+                    continue
+                candidates.append({
+                    "symbol": sym, "name": info.get("name", sym),
+                    "price": info.get("price", 0), "pct_chg": pct_chg,
+                    "score": score, "cf_score": cf_score,
+                    "confidence": min(score, 88),
+                })
 
             if candidates:
                 best = max(candidates, key=lambda x: (x["score"], x["cf_score"]))

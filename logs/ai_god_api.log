@@ -3307,3 +3307,11 @@ PG connection error: substring not found
 PG connection error: substring not found
 [10:12:35] "GET /api/ai/characters HTTP/1.0" 200 -
 [10:12:36] "GET /api/ai/posts?limit=100 HTTP/1.0" 200 -
+PG connection error: substring not found
+[15:37:45] "GET /api/ai/characters HTTP/1.1" 200 -
+[15:37:55] "POST /api/social/posts/generate HTTP/1.1" 404 -
+[15:37:57] "GET / HTTP/1.1" 200 -
+[15:37:57] "GET / HTTP/1.1" 200 -
+[15:39:07] "GET /api/ai/posts/latest?limit=5 HTTP/1.1" 200 -
+PG connection error: substring not found
+[15:39:10] "GET /api/ai/rankings HTTP/1.1" 200 -

@@ -117,33 +117,40 @@ class QuantQueenBrain(BaseBrain):
                     ai_id=self.ai_id,
                 )
 
-        # ── 空仓选股 ──────────────────────────────────────
+        # ── 空仓选股（Phase 2: 评分排序选最优）─────────────
         if not my_holdings and my_cash > 10000:
             candidates = []
             for sym, info in prices.items():
                 alg = minirock_analysis.get(sym, {})
+                if not alg:
+                    continue
                 summary = alg.get("summary", {})
                 tech = alg.get("technical", {})
 
                 score = summary.get("overall_score", 0)
+                tech_score = tech.get("score", 50)
                 pct_chg = info.get("pct_chg", 0)
-
-                # 量化策略：等回调买，不追高（涨幅 ≤2%），评分 ≥65，有金叉或超卖
                 macd = str(tech.get("macd", ""))
                 rsi = tech.get("rsi", 50)
+
+                # Phase 2: 评分≥50且技术面正向即可纳入候选
+                if score < 50 or tech_score < 40:
+                    continue
+
                 is_golden = "金叉" in macd or "向上" in macd
                 is_oversold = isinstance(rsi, (int, float)) and rsi < 35
+                signal = "MACD金叉" if is_golden else ("RSI超卖" if is_oversold else "技术支撑")
 
-                if pct_chg <= 2.0 and score >= 65 and (is_golden or is_oversold):
-                    candidates.append({
-                        "symbol": sym, "name": info.get("name", sym),
-                        "price": info.get("price", 0), "pct_chg": pct_chg,
-                        "score": score, "confidence": min(score, 92),
-                        "signal": "MACD金叉" if is_golden else "RSI超卖",
-                    })
+                candidates.append({
+                    "symbol": sym, "name": info.get("name", sym),
+                    "price": info.get("price", 0), "pct_chg": pct_chg,
+                    "score": score, "tech_score": tech_score,
+                    "confidence": min(score, 92),
+                    "signal": signal,
+                })
 
             if candidates:
-                best = max(candidates, key=lambda x: x["score"])
+                best = max(candidates, key=lambda x: (x["score"], x["tech_score"]))
                 price = best["price"]
                 if price <= 0:
                     return TradingDecision(
