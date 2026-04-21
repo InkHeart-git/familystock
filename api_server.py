@@ -213,6 +213,10 @@ class Handler(BaseHTTPRequestHandler):
                         return self.get_competition_vote_results, {}
                     if rest2[0] == "settle":
                         return self.settle_predictions, {}
+                    if rest2[0] == "comments":
+                        return self.get_competition_comments, {}
+                    if rest2[0] == "my-comments" and len(rest2) >= 2:
+                        return self.get_competition_my_comments, {"user_id": rest2[1]}
                 if rest[0] == "my-votes" and len(rest) >= 2:
                     return self.get_competition_my_votes, {"user_id": rest[1]}
                 if rest[0] == "trades":
@@ -221,6 +225,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self.execute_trade, {}
                 if rest[0] == "posts" and len(rest) == 1:
                     return self.create_post, {}
+                if rest[0] == "comments" and len(rest) == 1:
+                    return self.get_comments, {}
+            if sub[0] == "comments":
+                rest = sub[1:]
+                if not rest or len(rest) == 0:
+                    return self.get_comments, {}
+                if len(rest) == 1:
+                    if rest[0] == "latest":
+                        return self.get_latest_comments, {}
+                    return self.get_comments, {"target_id": rest[0]}
+                if len(rest) == 2 and rest[1] == "like":
+                    return self.like_comment, {"id": rest[0]}
             if sub[0] == "competition":
                 rest = sub[1:]
                 if not rest or rest[0] == "leaderboard":
@@ -1355,6 +1371,163 @@ class Handler(BaseHTTPRequestHandler):
             import traceback; traceback.print_exc()
             return {"error": str(e)}, 500
 
+    # ─── Phase 3.2: 用户评论 ───────────────────────────────────────
+
+    def get_comments(self, target_id=None):
+        """获取评论列表
+
+        GET /api/comments              - 所有评论（最新）
+        GET /api/comments/{target_id}  - 指定目标的评论
+        GET /api/comments/latest       - 最新评论
+        """
+        conn = get_db()
+        try:
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            limit = 50
+            if 'limit' in params and params['limit']:
+                try:
+                    limit = max(1, min(200, int(params['limit'][0])))
+                except:
+                    pass
+
+            if target_id == "latest":
+                rows = conn.execute(f"""
+                    SELECT c.id, c.user_id, c.user_name, c.user_phone, c.ai_id, c.ai_name,
+                           c.target_type, c.target_id, c.content, c.parent_id, c.likes,
+                           c.created_at, p.title
+                    FROM user_comments c
+                    LEFT JOIN ai_posts p ON c.target_id = p.post_id
+                    ORDER BY c.created_at DESC LIMIT {limit}
+                """).fetchall()
+            elif target_id:
+                rows = conn.execute(f"""
+                    SELECT c.id, c.user_id, c.user_name, c.user_phone, c.ai_id, c.ai_name,
+                           c.target_type, c.target_id, c.content, c.parent_id, c.likes,
+                           c.created_at, p.title
+                    FROM user_comments c
+                    LEFT JOIN ai_posts p ON c.target_id = p.post_id
+                    WHERE c.target_id=? OR c.target_id=?
+                    ORDER BY c.created_at DESC LIMIT {limit}
+                """, (str(target_id), f"post_{target_id}")).fetchall()
+            else:
+                rows = conn.execute(f"""
+                    SELECT c.id, c.user_id, c.user_name, c.user_phone, c.ai_id, c.ai_name,
+                           c.target_type, c.target_id, c.content, c.parent_id, c.likes,
+                           c.created_at, p.title
+                    FROM user_comments c
+                    LEFT JOIN ai_posts p ON c.target_id = p.post_id
+                    ORDER BY c.created_at DESC LIMIT {limit}
+                """).fetchall()
+
+            comments = []
+            for r in rows:
+                comments.append({
+                    "id": r[0], "user_id": r[1], "user_name": r[2] or "匿名用户",
+                    "user_phone": r[3][-4:] if r[3] and len(r[3]) >= 4 else r[3] or "",
+                    "ai_id": r[4], "ai_name": r[5],
+                    "target_type": r[6], "target_id": r[7],
+                    "content": r[8], "parent_id": r[9], "likes": r[10] or 0,
+                    "created_at": r[11], "post_title": r[12]
+                })
+
+            # 按parent_id组织回复
+            root_comments = [c for c in comments if c["parent_id"] is None]
+            replies_map = {}
+            for c in comments:
+                if c["parent_id"]:
+                    replies_map.setdefault(c["parent_id"], []).append(c)
+            for c in root_comments:
+                c["replies"] = replies_map.get(c["id"], [])
+
+            return {"data": {"comments": root_comments, "total": len(comments)}}
+        finally:
+            conn.close()
+
+    def get_latest_comments(self):
+        """获取最新评论"""
+        return self.get_comments(target_id="latest")
+
+    def create_comment(self):
+        """创建评论
+
+        POST /api/comments
+        Body: {user_id, user_name, ai_id, ai_name, target_type, target_id, content, parent_id}
+        """
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(body)
+        except:
+            return {"error": "invalid JSON"}, 400
+
+        required = ["content", "user_id"]
+        for f in required:
+            if f not in data:
+                return {"error": f"missing field: {f}"}, 400
+
+        content = data["content"].strip()
+        if len(content) < 2:
+            return {"error": "content too short (min 2 chars)"}, 400
+        if len(content) > 500:
+            return {"error": "content too long (max 500 chars)"}, 400
+
+        user_id = str(data["user_id"])
+        user_name = data.get("user_name", "")
+        user_phone = data.get("user_phone", user_id if len(user_id) >= 11 else "")
+        ai_id = data.get("ai_id")
+        ai_name = data.get("ai_name", "")
+        target_type = data.get("target_type", "general")
+        target_id = data.get("target_id", "")
+        parent_id = data.get("parent_id")
+
+        if target_type not in ("post", "ai", "prediction", "general"):
+            return {"error": "invalid target_type"}, 400
+
+        conn = get_db()
+        try:
+            cur = conn.execute("""
+                INSERT INTO user_comments
+                    (user_id, user_name, user_phone, ai_id, ai_name, target_type, target_id, content, parent_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, user_name, user_phone, ai_id, ai_name, target_type, target_id, content, parent_id))
+            comment_id = cur.lastrowid
+            conn.commit()
+
+            # 更新 ai_posts 的回复计数
+            if target_type == "post" and target_id:
+                conn.execute("UPDATE ai_posts SET replies = replies + 1 WHERE post_id=?", (str(target_id),))
+                conn.commit()
+
+            conn.close()
+            return {"data": {"success": True, "id": comment_id, "message": "评论已发布"}}
+        except Exception as e:
+            conn.close()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+
+    def like_comment(self, id):
+        """点赞评论
+
+        GET /api/comments/{id}/like
+        """
+        conn = get_db()
+        try:
+            row = conn.execute("SELECT id, likes FROM user_comments WHERE id=?", (int(id),)).fetchone()
+            if not row:
+                conn.close()
+                return {"error": "comment not found"}, 404
+
+            new_likes = (row[1] or 0) + 1
+            conn.execute("UPDATE user_comments SET likes=? WHERE id=?", (new_likes, int(id)))
+            conn.commit()
+            conn.close()
+            return {"data": {"success": True, "id": int(id), "likes": new_likes}}
+        except Exception as e:
+            conn.close()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+
     def do_GET(self):
         handler, params = self.route(self.path)
         if not handler:
@@ -1409,6 +1582,17 @@ class Handler(BaseHTTPRequestHandler):
                 data, status = result, 200
             self.send_json(data, status)
             return
+
+        # 特殊处理POST /api/comments
+        if len(parts) >= 2 and parts[0] == "api" and parts[1] == "comments":
+            if len(parts) == 2:
+                result = self.create_comment()
+                if isinstance(result, tuple):
+                    data, status = result[0], result[1]
+                else:
+                    data, status = result, 200
+                self.send_json(data, status)
+                return
 
         handler, params = self.route(self.path)
         if not handler:

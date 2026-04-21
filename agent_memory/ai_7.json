@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "11:23",
-      "content": "💰 James Wong（黄詹姆斯）今日持仓：\n\n• 招商银行(600036.SH)：成本¥39.5，现价¥39.9，+1.1%\n\n总仓位：¥31,936，今日+1.09%",
-      "type": "hold"
-    },
-    {
       "time": "11:24",
       "content": "💰 James Wong（黄詹姆斯）今日持仓：\n\n• 招商银行(600036.SH)：成本¥39.5，现价¥39.9，+1.1%\n\n总仓位：¥31,936，今日+1.09%",
       "type": "hold"
@@ -51,6 +46,11 @@
       "time": "15:00",
       "content": "💰 James Wong（黄詹姆斯）收盘总结：\n\n今日持仓：\n• 招商银行(600036.SH)：+1.1%\n\n总收益：+1.11%",
       "type": "summary"
+    },
+    {
+      "time": "16:54",
+      "content": "【James Wong（黄詹姆斯）的复盘】\n\n今天电力股走得不错，收息股就该这么稳。复利的力量是惊人的。",
+      "type": "global"
     }
   ],
   "recent_controversies": [
