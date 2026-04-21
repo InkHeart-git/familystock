@@ -217,6 +217,12 @@ class Handler(BaseHTTPRequestHandler):
                         return self.get_competition_comments, {}
                     if rest2[0] == "my-comments" and len(rest2) >= 2:
                         return self.get_competition_my_comments, {"user_id": rest2[1]}
+                    # Phase 3.3: 互动积分
+                    if rest2[0] == "interaction":
+                        if len(rest2) >= 2 and rest2[1] == "ranking":
+                            return self.get_interaction_ranking, {}
+                        if len(rest2) >= 3 and rest2[1] == "me":
+                            return self.get_interaction_me, {"user_id": rest2[2]}
                 if rest[0] == "my-votes" and len(rest) >= 2:
                     return self.get_competition_my_votes, {"user_id": rest[1]}
                 if rest[0] == "trades":
@@ -249,6 +255,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_competition_comments, {}
                 if rest[0] == "my-comments" and len(rest) >= 2:
                     return self.get_competition_my_comments, {"user_id": rest[1]}
+                # Phase 3.3: 互动积分
+                if rest[0] == "interaction":
+                    if len(rest) >= 2 and rest[1] == "ranking":
+                        return self.get_interaction_ranking, {}
+                    if len(rest) >= 3 and rest[1] == "me":
+                        return self.get_interaction_me, {"user_id": rest[2]}
             if sub[0] == "my-votes" and len(sub) >= 2:
                 return self.get_competition_my_votes, {"user_id": sub[1]}
             if sub[0] == "settle":
@@ -1566,6 +1578,275 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             conn.close()
 
+    def compute_user_points(self, user_id):
+        """根据投票+评论数据计算用户积分，保存到 user_interaction_scores 表 (Phase 3.3)
+
+        积分规则:
+        - 投票积分 = 准确率×100 (最多100分)
+        - 评论积分 = min(comment_count×2, 50) + min(likes_received×1, 30) + min(replies×3, 20)
+        - 总分 = vote_score×50% + comment_score×50%
+        - 等级: 0=新手, 1=活跃, 2=专家, 3=大师, 4=传奇
+        """
+        conn = get_db()
+        try:
+            user_id_str = str(user_id)
+
+            # 投票准确率（settle_date IS NOT NULL 表示已结算）
+            pred = conn.execute("""
+                SELECT COUNT(*), SUM(CASE WHEN is_correct=1 THEN 1 ELSE 0 END)
+                FROM prediction_results WHERE user_id=? AND settle_date IS NOT NULL
+            """, (user_id_str,)).fetchone()
+            total_votes = pred[0] or 0
+            correct_votes = pred[1] or 0
+            vote_accuracy = (correct_votes / total_votes * 100) if total_votes > 0 else 0.0
+            vote_score = vote_accuracy  # 准确率×100
+
+            # 评论积分
+            comment_count = conn.execute(
+                "SELECT COUNT(*) FROM user_comments WHERE user_id=?", (user_id_str,)
+            ).fetchone()[0]
+            likes_received = conn.execute(
+                "SELECT COALESCE(SUM(likes), 0) FROM user_comments WHERE user_id=?", (user_id_str,)
+            ).fetchone()[0] or 0
+            replies_received = conn.execute(
+                "SELECT COUNT(*) FROM user_comments WHERE parent_id IS NOT NULL AND user_id=?", (user_id_str,)
+            ).fetchone()[0]
+
+            comment_score = min(comment_count * 2, 50) + min(likes_received, 30) + min(replies_received * 3, 20)
+
+            # 总分和等级
+            total_score = vote_score * 0.5 + comment_score * 0.5
+            level = 0
+            if total_score >= 80: level = 4
+            elif total_score >= 60: level = 3
+            elif total_score >= 40: level = 2
+            elif total_score >= 20: level = 1
+
+            # 用户信息
+            row = conn.execute(
+                "SELECT user_name, user_phone FROM user_comments WHERE user_id=? LIMIT 1",
+                (user_id_str,)
+            ).fetchone()
+            user_name = row[0] if row else ""
+            user_phone = row[1] if row else user_id_str
+
+            # UPSERT
+            conn.execute("""
+                INSERT INTO user_interaction_scores
+                    (user_id, user_name, user_phone, total_votes, correct_votes, vote_accuracy,
+                     vote_score, comment_count, likes_received, replies_received, comment_score,
+                     total_score, level, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))
+                ON CONFLICT(user_id) DO UPDATE SET
+                    user_name=excluded.user_name, user_phone=excluded.user_phone,
+                    total_votes=excluded.total_votes, correct_votes=excluded.correct_votes,
+                    vote_accuracy=excluded.vote_accuracy, vote_score=excluded.vote_score,
+                    comment_count=excluded.comment_count, likes_received=excluded.likes_received,
+                    replies_received=excluded.replies_received, comment_score=excluded.comment_score,
+                    total_score=excluded.total_score, level=excluded.level,
+                    updated_at=excluded.updated_at
+            """, (user_id_str, user_name, user_phone, total_votes, correct_votes, vote_accuracy,
+                  vote_score, comment_count, likes_received, replies_received, comment_score,
+                  total_score, level))
+            conn.commit()
+            return {"data": {"total_score": round(total_score, 1), "vote_score": round(vote_score, 1),
+                             "comment_score": comment_score, "level": level}}
+        finally:
+            conn.close()
+
+    def get_interaction_ranking(self):
+        """获取用户互动积分排行榜 (Phase 3.3)
+
+        GET /api/competition/interaction/ranking
+        Query: limit, offset
+        """
+        conn = get_db()
+        try:
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            limit = min(int(params.get("limit", ["20"])[0]) if params.get("limit") else 20, 100)
+            offset = int(params.get("offset", ["0"])[0]) if params.get("offset") else 0
+
+            rows = conn.execute("""
+                SELECT user_id, user_name, user_phone, total_votes, correct_votes,
+                       vote_accuracy, vote_score, comment_count, likes_received,
+                       comment_score, total_score, level, updated_at
+                FROM user_interaction_scores
+                ORDER BY total_score DESC
+                LIMIT ? OFFSET ?
+            """, (limit, offset)).fetchall()
+
+            level_names = ["新手", "活跃", "专家", "大师", "传奇"]
+            items = []
+            for rank, row in enumerate(rows, start=offset + 1):
+                items.append({
+                    "rank": rank,
+                    "user_id": row[0],
+                    "user_name": row[1] or "匿名用户",
+                    "user_phone": (row[2][-4:] if row[2] and len(row[2]) >= 4 else row[2] or ""),
+                    "total_votes": row[3] or 0,
+                    "correct_votes": row[4] or 0,
+                    "vote_accuracy": round(row[5] or 0, 1),
+                    "vote_score": round(row[6] or 0, 1),
+                    "comment_count": row[7] or 0,
+                    "likes_received": row[8] or 0,
+                    "comment_score": row[9] or 0,
+                    "total_score": round(row[10] or 0, 1),
+                    "level": row[11] or 0,
+                    "level_name": level_names[row[11] or 0],
+                    "updated_at": row[12] or ""
+                })
+
+            total = conn.execute("SELECT COUNT(*) FROM user_interaction_scores").fetchone()[0]
+            return {"data": {"items": items, "total": total, "limit": limit, "offset": offset}}
+        finally:
+            conn.close()
+
+    def get_interaction_me(self, user_id):
+        """获取指定用户的互动积分详情 (Phase 3.3)
+
+        GET /api/competition/interaction/me/{user_id}
+        """
+        conn = get_db()
+        try:
+            # 先计算最新积分
+            calc_result = self.compute_user_points(str(user_id))
+
+            # 再读取
+            row = conn.execute("""
+                SELECT user_id, user_name, user_phone, total_votes, correct_votes,
+                       vote_accuracy, vote_score, comment_count, likes_received,
+                       replies_received, comment_score, total_score, level, updated_at
+                FROM user_interaction_scores WHERE user_id=?
+            """, (str(user_id),)).fetchone()
+
+            if not row:
+                return {"data": {"user_id": str(user_id), "total_score": 0, "level_name": "新手", "items": []}}
+
+            level_names = ["新手", "活跃", "专家", "大师", "传奇"]
+            rank_row = conn.execute("""
+                SELECT COUNT(*) + 1 FROM user_interaction_scores
+                WHERE total_score > ?
+            """, (row[11] or 0,)).fetchone()
+
+            return {"data": {
+                "rank": rank_row[0],
+                "user_id": row[0],
+                "user_name": row[1] or "匿名用户",
+                "user_phone": (row[2][-4:] if row[2] and len(row[2]) >= 4 else row[2] or ""),
+                "total_votes": row[3] or 0,
+                "correct_votes": row[4] or 0,
+                "vote_accuracy": round(row[5] or 0, 1),
+                "vote_score": round(row[6] or 0, 1),
+                "comment_count": row[7] or 0,
+                "likes_received": row[8] or 0,
+                "replies_received": row[9] or 0,
+                "comment_score": row[10] or 0,
+                "total_score": round(row[11] or 0, 1),
+                "level": row[12] or 0,
+                "level_name": level_names[row[12] or 0],
+                "updated_at": row[13] or ""
+            }}
+        finally:
+            conn.close()
+
+    def calc_interaction_score(self):
+        """重新计算所有用户积分 (Phase 3.3)
+
+        POST /api/competition/interaction/calc
+        可选body: {user_id} - 仅重算指定用户
+        """
+        conn = get_db()
+        try:
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            data = json.loads(body) if body != "{}" else {}
+            target_user = data.get("user_id")
+
+            if target_user:
+                result = self.compute_user_points(str(target_user))
+                return {"data": {"recalculated": 1, **result.get("data", {})}}
+            else:
+                # 重算所有有活动的用户
+                user_ids = conn.execute("""
+                    SELECT DISTINCT user_id FROM user_comments
+                    UNION SELECT DISTINCT user_id FROM user_votes
+                """).fetchall()
+                count = 0
+                for (uid,) in user_ids:
+                    self.compute_user_points(str(uid))
+                    count += 1
+                return {"data": {"recalculated": count}}
+        except Exception as e:
+            return {"error": str(e)}, 500
+        finally:
+            conn.close()
+
+    def get_user_leaderboard(self):
+        """获取用户互动积分排行榜
+
+        GET /api/competition/user-leaderboard
+        Query: limit, offset
+        """
+        from urllib.parse import parse_qs, urlparse
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        limit = min(int(params.get("limit", ["20"])[0]) if params.get("limit") else 20, 100)
+        offset = int(params.get("offset", ["0"])[0]) if params.get("offset") else 0
+
+        conn = get_db()
+        try:
+            # 先同步所有人的积分
+            all_users = conn.execute("SELECT DISTINCT user_id FROM user_comments UNION SELECT DISTINCT user_id FROM prediction_results").fetchall()
+            for (uid,) in all_users:
+                try:
+                    self.compute_user_points(uid)
+                except:
+                    pass
+
+            rows = conn.execute("""
+                SELECT user_id, user_name, user_phone, total_score,
+                       prediction_points, prediction_total, prediction_correct,
+                       comment_count, like_received, streak_days, updated_at
+                FROM user_interaction_points
+                ORDER BY total_score DESC, updated_at ASC
+                LIMIT ? OFFSET ?
+            """, (limit, offset)).fetchall()
+
+            # 计算排名
+            rank_rows = conn.execute("""
+                SELECT user_id FROM user_interaction_points
+                ORDER BY total_score DESC
+            """).fetchall()
+            rank_map = {uid: i + 1 for i, (uid,) in enumerate(rank_rows)}
+
+            items = []
+            for r in rows:
+                uid = r[0]
+                rank = rank_map.get(uid, offset + len(items) + 1)
+                items.append({
+                    "rank": rank,
+                    "user_id": uid,
+                    "user_name": r[1] or "匿名用户",
+                    "user_phone": (r[2][-4:] if r[2] and len(r[2]) >= 4 else r[2]) if r[2] else "",
+                    "total_score": r[3] or 0,
+                    "prediction_points": r[4] or 0,
+                    "prediction_total": r[5] or 0,
+                    "prediction_correct": r[6] or 0,
+                    "prediction_accuracy": round(r[6] / r[5] * 100, 1) if (r[5] or 0) > 0 else 0,
+                    "comment_count": r[7] or 0,
+                    "like_received": r[8] or 0,
+                    "streak_days": r[9] or 0,
+                    "updated_at": r[10]
+                })
+
+            total = conn.execute("SELECT COUNT(*) FROM user_interaction_points").fetchone()[0]
+            return {"data": {"items": items, "total": total, "limit": limit, "offset": offset}}
+        finally:
+            conn.close()
+
     def create_competition_comment(self):
         """创建AI股神争霸评论
 
@@ -1756,6 +2037,16 @@ class Handler(BaseHTTPRequestHandler):
         # 特殊处理POST /api/competition/comment
         if len(parts) >= 3 and parts[0] == "api" and parts[1] == "competition" and parts[2] == "comment":
             result = self.create_competition_comment()
+            if isinstance(result, tuple):
+                data, status = result[0], result[1]
+            else:
+                data, status = result, 200
+            self.send_json(data, status)
+            return
+
+        # 特殊处理POST /api/competition/interaction/calc
+        if len(parts) >= 4 and parts[0] == "api" and parts[1] == "competition" and parts[2] == "interaction" and parts[3] == "calc":
+            result = self.calc_interaction_score()
             if isinstance(result, tuple):
                 data, status = result[0], result[1]
             else:

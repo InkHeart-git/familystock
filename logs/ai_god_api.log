@@ -4470,3 +4470,57 @@ AI股神争霸赛 API Server running on port 18085
 [17:13:57] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
 [17:13:59] "GET /api/competition/predictions HTTP/1.0" 200 -
 [17:13:59] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+[17:14:29] "GET /api/competition/predictions HTTP/1.0" 200 -
+[17:14:29] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+[17:14:59] "GET /api/competition/predictions HTTP/1.0" 200 -
+[17:14:59] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+[17:15:29] "GET /api/competition/predictions HTTP/1.0" 200 -
+[17:15:29] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+[17:15:59] "GET /api/competition/predictions HTTP/1.0" 200 -
+[17:15:59] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+AI股神争霸赛 API Server running on port 18085
+[17:18:37] "GET /api/competition/comments HTTP/1.1" 500 -
+AI股神争霸赛 API Server running on port 18085
+[17:19:26] "GET /api/competition/comments?limit=3 HTTP/1.1" 200 -
+[17:19:32] "POST /api/competition/comment HTTP/1.1" 200 -
+[17:19:34] "GET /api/competition/my-comments/18651993693 HTTP/1.1" 500 -
+AI股神争霸赛 API Server running on port 18085
+[17:19:48] "GET /api/competition/my-comments/18651993693 HTTP/1.1" 200 -
+[17:22:36] "GET /api/competition/comments?limit=2 HTTP/1.1" 200 -
+[17:22:36] "POST /api/competition/comment HTTP/1.1" 200 -
+[17:22:36] "GET /api/competition/my-comments/18651993693 HTTP/1.1" 200 -
+PG connection error: substring not found
+[17:47:49] "GET /api/ai/characters HTTP/1.0" 200 -
+PG connection error: substring not found
+[17:47:49] "GET /api/ai/characters HTTP/1.0" 200 -
+PG connection error: substring not found
+[17:47:52] "GET /api/ai/characters HTTP/1.0" 200 -
+PG connection error: substring not found
+[17:47:58] "GET /api/ai/characters HTTP/1.0" 200 -
+PG connection error: substring not found
+[17:47:58] "GET /api/ai/rankings HTTP/1.0" 200 -
+[17:48:12] "GET /api/bbs/posts?page=1&page_size=5 HTTP/1.0" 404 -
+[17:48:17] "GET /api/bbs/posts?limit=5 HTTP/1.0" 404 -
+[17:48:17] "GET /api/bbs/stats HTTP/1.0" 404 -
+[17:48:21] "GET / HTTP/1.0" 200 -
+[17:48:21] "GET / HTTP/1.0" 200 -
+[17:48:27] "GET /api/bbs/posts?limit=3 HTTP/1.1" 404 -
+[17:48:27] "GET /api/bbs/posts?limit=3 HTTP/1.1" 404 -
+PG connection error: substring not found
+[17:48:31] "GET /api/ai/characters HTTP/1.1" 200 -
+[17:48:31] "GET /api/ HTTP/1.1" 200 -
+[17:48:31] "GET /api/ HTTP/1.1" 200 -
+[17:48:31] "GET /api/ HTTP/1.1" 500 -
+[17:48:35] "GET /api/ai/posts?limit=3 HTTP/1.1" 200 -
+[17:48:35] "GET /docs HTTP/1.1" 404 -
+[17:48:40] "GET /api/ai/posts?limit=3 HTTP/1.0" 200 -
+[19:14:29] "GET /api/competition/summary HTTP/1.1" 200 -
+[19:14:40] "GET /api/competition/summary HTTP/1.1" 200 -
+AI股神争霸赛 API Server running on port 18085
+[19:47:13] "GET /api/competition/interaction/ranking?limit=3 HTTP/1.1" 200 -
+[19:47:13] "GET /api/competition/interaction/me/18651993693 HTTP/1.1" 500 -
+[19:47:13] "POST /api/competition/interaction/calc HTTP/1.1" 500 -
+AI股神争霸赛 API Server running on port 18085
+[19:47:31] "GET /api/competition/interaction/ranking?limit=3 HTTP/1.1" 200 -
+[19:47:31] "GET /api/competition/interaction/me/18651993693 HTTP/1.1" 200 -
+[19:47:31] "POST /api/competition/interaction/calc HTTP/1.1" 200 -
