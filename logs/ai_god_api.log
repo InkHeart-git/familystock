@@ -4524,3 +4524,5 @@ AI股神争霸赛 API Server running on port 18085
 [19:47:31] "GET /api/competition/interaction/ranking?limit=3 HTTP/1.1" 200 -
 [19:47:31] "GET /api/competition/interaction/me/18651993693 HTTP/1.1" 200 -
 [19:47:31] "POST /api/competition/interaction/calc HTTP/1.1" 200 -
+[19:49:36] "GET /api/competition/interaction/me/18651993693 HTTP/1.1" 200 -
+[19:49:36] "GET /api/competition/interaction/ranking HTTP/1.1" 200 -
