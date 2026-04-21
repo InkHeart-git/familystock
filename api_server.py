@@ -201,6 +201,8 @@ class Handler(BaseHTTPRequestHandler):
                         return self.get_competition_summary, {}
                     if rest2[0] == "scoring":
                         return self.get_competition_scoring, {}
+                    if rest2[0] == "social":
+                        return self.get_competition_social, {}
                 if rest[0] == "trades":
                     return self.get_all_trades, {}
                 if rest[0] == "execute_trade":
@@ -219,6 +221,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_competition_summary, {}
                 if rest[0] == "scoring":
                     return self.get_competition_scoring, {}
+                if rest[0] == "social":
+                    return self.get_competition_social, {}
             if sub[0] == "stats":
                 return self.get_stats, {}
             if sub[0] == "trades":
@@ -707,6 +711,181 @@ class Handler(BaseHTTPRequestHandler):
                 item["total_score_rank"] = rank
 
             return {"data": {"rankings": results}}
+        finally:
+            conn.close()
+
+    def get_competition_social(self):
+        """
+        AI 社交互动数据 (Phase 4.8)
+        双数据源：
+        - bbs_posts (post_type=global/watch/summary) → 真实社交事件
+        - ai_posts content 关键词推断 → 算法推断互动关系
+        关系类型：jeer(嘲讽) / support(站台) / watch(围观) / rivalry(对手)
+        """
+        conn = get_db()
+        try:
+            import re
+            mention_pat = re.compile(r'@(.{2,14})')
+
+            # 收集所有 AI 角色信息
+            ai_chars = {}
+            for r in conn.execute("SELECT id, name, emoji FROM ai_characters").fetchall():
+                ai_chars[str(r[0])] = {"name": r[1], "emoji": r[2] or "🤖"}
+
+            # ── 数据源1: bbs_posts (真实社交) ─────────────────────────
+            bbs_rows = conn.execute("""
+                SELECT id, ai_id, ai_name, post_type, content, signal, timestamp
+                FROM bbs_posts
+                ORDER BY timestamp DESC
+                LIMIT 200
+            """).fetchall()
+
+            # post_type → 关系类型映射
+            type_map = {"global": "watch", "watch": "watch", "summary": "support"}
+
+            # (src_id, tgt_id) → list[event]
+            relations = {}
+            social_events = []
+
+            for r in bbs_rows:
+                pid, src_id, src_name, ptype, content, signal, ts = r
+                if not content:
+                    continue
+                src_id = str(src_id)
+                rel_type = type_map.get(ptype, "watch")
+
+                # 提取 @mention
+                mentions = mention_pat.findall(content)
+                targets = []
+                for mentioned in mentions:
+                    for aid, ainfo in ai_chars.items():
+                        if aid != src_id and (
+                            mentioned.strip() in ainfo["name"]
+                            or ainfo["name"].replace("（", "(").replace("）", ")") in mentioned
+                        ):
+                            targets.append(aid)
+
+                # 全局广播型（无特定target）→ 围观事件
+                if not targets and ptype in ("global", "watch"):
+                    social_events.append({
+                        "post_id": pid,
+                        "src_id": src_id,
+                        "src_name": src_name or f"AI-{src_id}",
+                        "src_emoji": ai_chars.get(src_id, {}).get("emoji", "🤖"),
+                        "content": re.sub(r'[#*📊📈💰]+', '', content)[:200],
+                        "type": rel_type,
+                        "signal": signal or "",
+                        "target_id": None,
+                        "target_name": None,
+                        "created_at": ts
+                    })
+
+                # 定向提及 → 关系
+                for tgt_id in set(targets):
+                    key = (src_id, tgt_id)
+                    if key not in relations:
+                        relations[key] = []
+                    relations[key].append({
+                        "post_id": pid,
+                        "type": rel_type,
+                        "content": re.sub(r'[#*📊📈💰]+', '', content)[:150],
+                        "created_at": ts
+                    })
+
+            # ── 数据源2: ai_posts 关键词推断 ─────────────────────────
+            # 收益率相似 → rivalry (对手盘)
+            p_rows = conn.execute("""
+                SELECT DISTINCT ai_id, total_value, seed_capital
+                FROM ai_portfolios
+            """).fetchall()
+            perf = {}
+            for row in p_rows:
+                seed = row[2] or 1000000.0
+                perf[str(row[0])] = (row[1] - seed) / seed * 100 if seed > 0 else 0.0
+
+            # 持仓重叠 → rivalry
+            h_rows = conn.execute("""
+                SELECT ai_id, symbol FROM ai_holdings
+            """).fetchall()
+            holdings = {}
+            for r in h_rows:
+                aid = str(r[0])
+                if aid not in holdings:
+                    holdings[aid] = set()
+                holdings[aid].add(r[1])
+
+            rivalry_pairs = set()
+            ai_list = list(holdings.keys())
+            for i in range(len(ai_list)):
+                for j in range(i + 1, len(ai_list)):
+                    a1, a2 = ai_list[i], ai_list[j]
+                    overlap = holdings[a1] & holdings[a2]
+                    if overlap:
+                        rivalry_pairs.add(tuple(sorted([a1, a2])))
+                        # 双向 rivalry 关系
+                        for (src, tgt) in [(a1, a2), (a2, a1)]:
+                            key = (src, tgt)
+                            if key not in relations:
+                                relations[key] = []
+                            relations[key].append({
+                                "post_id": None,
+                                "type": "rivalry",
+                                "content": f"双方均持仓 {', '.join(overlap)}",
+                                "created_at": None
+                            })
+
+            # ── 构建关系图 ───────────────────────────────────────────
+            graph = []
+            for (src_id, tgt_id), events in relations.items():
+                src_info = ai_chars.get(src_id, {"name": f"AI-{src_id}", "emoji": "🤖"})
+                tgt_info = ai_chars.get(tgt_id, {"name": f"AI-{tgt_id}", "emoji": "🤖"})
+                types = list(set(e["type"] for e in events))
+                valid_events = [e for e in events if e["created_at"]]
+                latest = max((e["created_at"] for e in valid_events), default=None)
+                graph.append({
+                    "src_id": src_id,
+                    "src_name": src_info["name"],
+                    "src_emoji": src_info["emoji"],
+                    "tgt_id": tgt_id,
+                    "tgt_name": tgt_info["name"],
+                    "tgt_emoji": tgt_info["emoji"],
+                    "interaction_count": len(events),
+                    "types": types,
+                    "dominant_type": max(set(t for t in types), default="watch"),
+                    "latest_at": latest,
+                    "sample_content": next((e["content"] for e in events if e["content"]), "")[:80]
+                })
+
+            graph.sort(key=lambda x: x["interaction_count"], reverse=True)
+
+            # ── 每AI统计 ─────────────────────────────────────────────
+            ai_stats = {}
+            for src_id in ai_chars:
+                outgoing = sum(1 for (s, _), evs in relations.items() if s == src_id for _ in evs)
+                incoming = sum(1 for (_, t), evs in relations.items() if t == src_id for _ in evs)
+                jeer = sum(1 for (s, _), evs in relations.items() if s == src_id for e in evs if e["type"] == "jeer")
+                support = sum(1 for (s, _), evs in relations.items() if s == src_id for e in evs if e["type"] == "support")
+                ai_stats[src_id] = {
+                    "ai_id": src_id,
+                    "ai_name": ai_chars[src_id]["name"],
+                    "emoji": ai_chars[src_id]["emoji"],
+                    "outgoing": outgoing,
+                    "incoming": incoming,
+                    "jeer_count": jeer,
+                    "support_count": support,
+                    "total_interactions": outgoing + incoming
+                }
+
+            stats_list = sorted(ai_stats.values(), key=lambda x: x["total_interactions"], reverse=True)
+
+            return {
+                "data": {
+                    "relations": graph,
+                    "events": social_events[:30],
+                    "ai_stats": stats_list,
+                    "update_time": datetime.now().isoformat()
+                }
+            }
         finally:
             conn.close()
 
