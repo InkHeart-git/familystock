@@ -3,16 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "11:22",
-      "content": "🌍 David Chen（陈大卫）今日持仓：\n\n• 中国平安(601318.SH)：成本¥56.7，现价¥58.4，+3.1%\n\n总仓位：¥303,836，今日+3.09%",
-      "type": "hold"
-    },
-    {
-      "time": "11:23",
-      "content": "🌍 David Chen（陈大卫）今日持仓：\n\n• 中国平安(601318.SH)：成本¥56.7，现价¥58.4，+3.1%\n\n总仓位：¥303,836，今日+3.09%",
-      "type": "hold"
-    },
-    {
       "time": "11:24",
       "content": "🌍 David Chen（陈大卫）今日持仓：\n\n• 中国平安(601318.SH)：成本¥56.7，现价¥58.4，+3.1%\n\n总仓位：¥303,836，今日+3.09%",
       "type": "hold"
@@ -51,6 +41,16 @@
       "time": "12:48",
       "content": "【David Chen（陈大卫）的午间】\n\n上午分析了全球市场，下午等宏观数据。方向比选股重要。",
       "type": "random"
+    },
+    {
+      "time": "15:00",
+      "content": "🌍 David Chen（陈大卫）收盘总结：\n\n今日持仓：\n• 中国平安(601318.SH)：+2.9%\n\n总收益：+2.89%",
+      "type": "summary"
+    },
+    {
+      "time": "15:33",
+      "content": "【David Chen（陈大卫）的前瞻】\n\nFED会议纪要明天公布，流动性预期是关键。全球联动时代，大局观不能少。",
+      "type": "global"
     }
   ],
   "recent_controversies": [
@@ -65,7 +65,7 @@
       "topic": "中国平安"
     }
   ],
-  "today_pnl": "+0.00%",
+  "today_pnl": "+2.89%",
   "personality_state": {
     "mood": "neutral",
     "confidence": "medium"

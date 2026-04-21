@@ -203,6 +203,18 @@ class Handler(BaseHTTPRequestHandler):
                         return self.get_competition_scoring, {}
                     if rest2[0] == "social":
                         return self.get_competition_social, {}
+                    if rest2[0] == "predictions":
+                        return self.get_competition_predictions, {}
+                    if rest2[0] == "my-votes" and len(rest2) >= 2:
+                        return self.get_competition_my_votes, {"user_id": rest2[1]}
+                    if rest2[0] == "vote" and len(rest2) == 1:
+                        return self.post_competition_vote, {}
+                    if rest2[0] == "vote-results":
+                        return self.get_competition_vote_results, {}
+                    if rest2[0] == "settle":
+                        return self.settle_predictions, {}
+                if rest[0] == "my-votes" and len(rest) >= 2:
+                    return self.get_competition_my_votes, {"user_id": rest[1]}
                 if rest[0] == "trades":
                     return self.get_all_trades, {}
                 if rest[0] == "execute_trade":
@@ -223,6 +235,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_competition_scoring, {}
                 if rest[0] == "social":
                     return self.get_competition_social, {}
+                if rest[0] == "predictions":
+                    return self.get_competition_predictions, {}
+                if rest[0] == "my-votes" and len(rest) >= 2:
+                    return self.get_competition_my_votes, {"user_id": rest[1]}
+                if rest[0] == "vote-results":
+                    return self.get_competition_vote_results, {}
+            if sub[0] == "my-votes" and len(sub) >= 2:
+                return self.get_competition_my_votes, {"user_id": sub[1]}
+            if sub[0] == "settle":
+                return self.settle_predictions, {}
             if sub[0] == "stats":
                 return self.get_stats, {}
             if sub[0] == "trades":
@@ -893,6 +915,233 @@ class Handler(BaseHTTPRequestHandler):
         pg_portfolios, pg_holdings = get_pg_conn()
         return {"data": build_ai_record(str(id), pg_portfolios, pg_holdings, get_db())}
 
+    # ─── Phase 3: 用户投票预测 ────────────────────────────────────
+
+    def get_competition_predictions(self):
+        """获取当日可投票的AI持仓股票列表"""
+        conn = get_db()
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+            # 获取各AI当前持仓股（从ai_holdings）
+            rows = conn.execute("""
+                SELECT DISTINCT h.ai_id, c.name, c.emoji,
+                       h.symbol, h.name AS stock_name, h.current_price,
+                       h.quantity, h.avg_cost
+                FROM ai_holdings h
+                JOIN ai_characters c ON CAST(h.ai_id AS INTEGER) = c.id
+                WHERE h.quantity > 0 AND h.current_price > 0
+                ORDER BY h.ai_id
+            """).fetchall()
+
+            items = []
+            for r in rows:
+                # 检查用户是否已投票
+                items.append({
+                    "ai_id": r[0], "ai_name": r[1], "ai_emoji": r[2] or "🤖",
+                    "symbol": r[3], "stock_name": r[4], "current_price": float(r[5]),
+                    "quantity": r[6], "avg_cost": float(r[7])
+                })
+
+            # 按AI分组
+            ai_groups = {}
+            for item in items:
+                aid = item["ai_id"]
+                if aid not in ai_groups:
+                    ai_groups[aid] = {"ai_id": aid, "ai_name": item["ai_name"],
+                                      "ai_emoji": item["ai_emoji"], "holdings": []}
+                ai_groups[aid]["holdings"].append({
+                    "symbol": item["symbol"], "stock_name": item["stock_name"],
+                    "current_price": item["current_price"], "quantity": item["quantity"],
+                    "avg_cost": item["avg_cost"]
+                })
+
+            return {"data": {"ais": list(ai_groups.values()), "total": len(items),
+                              "date": today}}
+        finally:
+            conn.close()
+
+    def post_competition_vote(self):
+        """提交投票预测"""
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(body)
+        except:
+            return {"error": "invalid JSON"}, 400
+
+        required = ["user_id", "ai_id", "direction"]
+        for f in required:
+            if f not in data:
+                return {"error": f"missing field: {f}"}, 400
+
+        user_id = str(data["user_id"]).strip()
+        ai_id = int(data["ai_id"])
+        direction = data["direction"]
+        stock_symbol = data.get("stock_symbol", None)
+        stock_name = data.get("stock_name", stock_symbol or "")
+
+        if direction not in ("up", "down"):
+            return {"error": "direction must be 'up' or 'down'"}, 400
+
+        # user_phone 从 user_id 推断（手机号格式）
+        user_phone = user_id if len(user_id) >= 11 else "unknown"
+
+        conn = get_db()
+        try:
+            # 验证AI存在
+            ai = conn.execute("SELECT name FROM ai_characters WHERE id=?", (ai_id,)).fetchone()
+            if not ai:
+                return {"error": "AI not found"}, 404
+            ai_name = ai[0]
+
+            today = datetime.now().strftime("%Y-%m-%d")
+
+            # UPSERT（允许同一用户对同一AI同一股票每天多次改票）
+            conn.execute("""
+                INSERT INTO user_votes (user_id, user_phone, ai_id, ai_name, stock_symbol, stock_name, direction, vote_date, settled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                ON CONFLICT(user_id, ai_id, stock_symbol, vote_date) DO UPDATE SET
+                    direction=excluded.direction,
+                    created_at=datetime('now', '+8 hours')
+            """, (user_id, user_phone, ai_id, ai_name, stock_symbol, stock_name, direction, today))
+            conn.commit()
+
+            return {"data": {"success": True, "message": f"预测已提交: {ai_name} {'涨' if direction=='up' else '跌'}", "vote_date": today}}
+        finally:
+            conn.close()
+
+    def get_competition_my_votes(self, user_id=None):
+        """获取用户的投票历史"""
+        uid = user_id or "unknown"
+        conn = get_db()
+        try:
+            rows = conn.execute("""
+                SELECT v.id, v.ai_id, v.ai_name, v.stock_symbol, v.stock_name,
+                       v.direction, v.vote_date, v.settled,
+                       r.is_correct, r.points_earned, r.settle_date
+                FROM user_votes v
+                LEFT JOIN prediction_results r ON
+                    r.user_id=v.user_id AND r.ai_id=v.ai_id
+                    AND r.stock_symbol=v.stock_symbol AND r.vote_date=v.vote_date
+                WHERE v.user_id=?
+                ORDER BY v.vote_date DESC, v.created_at DESC
+                LIMIT 50
+            """, (uid,)).fetchall()
+
+            votes = [{
+                "id": r[0], "ai_id": r[1], "ai_name": r[2],
+                "stock_symbol": r[3], "stock_name": r[4],
+                "direction": r[5], "vote_date": r[6], "settled": bool(r[7]),
+                "is_correct": r[8], "points_earned": r[9] or 0,
+                "settle_date": r[10]
+            } for r in rows]
+
+            # 统计
+            total = len(votes)
+            correct = sum(1 for v in votes if v["settled"] and v["is_correct"] == 1)
+            total_points = sum(v["points_earned"] for v in votes if v["points_earned"])
+
+            return {"data": {"votes": votes, "total": total, "correct": correct,
+                              "accuracy": round(correct/total*100, 1) if total > 0 else 0,
+                              "total_points": total_points}}
+        finally:
+            conn.close()
+
+    def get_competition_vote_results(self):
+        """获取往期预测结算结果（所有用户）"""
+        conn = get_db()
+        try:
+            rows = conn.execute("""
+                SELECT user_id, user_phone, ai_id, ai_name, stock_symbol, stock_name,
+                       direction, vote_date, settle_date, is_correct, points_earned
+                FROM prediction_results
+                ORDER BY settle_date DESC, created_at DESC
+                LIMIT 100
+            """).fetchall()
+
+            results = [{
+                "user_id": r[0], "user_phone": r[1][-4:] if len(r[1]) >= 4 else r[1],
+                "ai_id": r[2], "ai_name": r[3],
+                "stock_symbol": r[4], "stock_name": r[5],
+                "direction": r[6], "vote_date": r[7], "settle_date": r[8],
+                "is_correct": bool(r[9]), "points_earned": r[10]
+            } for r in rows]
+
+            return {"data": {"results": results, "total": len(results)}}
+        finally:
+            conn.close()
+
+    def settle_predictions(self):
+        """每日收盘后结算预测（可由cron调用）
+        逻辑：读取上一交易日的未结算投票，对比收盘价涨跌，写入prediction_results
+        """
+        conn = get_db()
+        try:
+            # 找上一交易日（周一到周五）
+            today = datetime.now()
+            weekday = today.weekday()  # 0=Mon, 4=Fri
+            if weekday == 0:  # 周一 → 取上周五
+                last_trade = (today - timedelta(days=3)).strftime("%Y-%m-%d")
+            else:
+                last_trade = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+
+            unsettled = conn.execute("""
+                SELECT v.id, v.user_id, v.user_phone, v.ai_id, v.ai_name,
+                       v.stock_symbol, v.stock_name, v.direction, v.vote_date
+                FROM user_votes v
+                WHERE v.settled=0 AND v.vote_date < ?
+            """, (last_trade,)).fetchall()
+
+            if not unsettled:
+                return {"data": {"message": "no unsettled votes", "count": 0}}
+
+            settled = 0
+            for v in unsettled:
+                vid, uid, uphone, aid, aname, sym, sname, direction, vdate = v
+                if not sym:
+                    conn.execute("UPDATE user_votes SET settled=1 WHERE id=?", (vid,))
+                    settled += 1
+                    continue
+
+                # 获取收盘价（从quotes表取）
+                price_row = conn.execute("""
+                    SELECT close FROM quotes
+                    WHERE ts_code=? AND trade_date<=?
+                    ORDER BY trade_date DESC LIMIT 1
+                """, (sym, last_trade)).fetchone()
+
+                prev_row = conn.execute("""
+                    SELECT close FROM quotes
+                    WHERE ts_code=? AND trade_date<? AND trade_date<=?
+                    ORDER BY trade_date DESC LIMIT 1
+                """, (sym, last_trade, vdate)).fetchone()
+
+                if price_row and prev_row:
+                    close = float(price_row[0])
+                    prev = float(prev_row[0])
+                    stock_up = 1 if close > prev else 0
+                    is_correct = 1 if stock_up == (1 if direction == "up" else 0) else 0
+                    points = 10 if is_correct else 0
+                else:
+                    stock_up = None
+                    is_correct = 0
+                    points = 0
+
+                conn.execute("""
+                    INSERT INTO prediction_results
+                        (user_id, user_phone, ai_id, ai_name, stock_symbol, stock_name,
+                         direction, vote_date, settle_date, stock_close_up, is_correct, points_earned)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (uid, uphone, aid, aname, sym, sname, direction, vdate, last_trade, stock_up, is_correct, points))
+
+                conn.execute("UPDATE user_votes SET settled=1 WHERE id=?", (vid,))
+                settled += 1
+
+            conn.commit()
+            return {"data": {"message": "settled", "count": settled}}
+        finally:
+            conn.close()
+
     def get_all_trades(self):
         conn = get_db()
         rows = conn.execute("""
@@ -1140,7 +1389,27 @@ class Handler(BaseHTTPRequestHandler):
             elif len(parts) == 4:
                 # POST /api/ai/posts/{id}/reply 或 like
                 pass  # 继续走route
-        
+
+        # 特殊处理POST /api/competition/vote
+        if len(parts) >= 3 and parts[0] == "api" and parts[1] == "competition" and parts[2] == "vote":
+            result = self.post_competition_vote()
+            if isinstance(result, tuple):
+                data, status = result[0], result[1]
+            else:
+                data, status = result, 200
+            self.send_json(data, status)
+            return
+
+        # 特殊处理POST /api/competition/settle
+        if len(parts) >= 3 and parts[0] == "api" and parts[1] == "competition" and parts[2] == "settle":
+            result = self.settle_predictions()
+            if isinstance(result, tuple):
+                data, status = result[0], result[1]
+            else:
+                data, status = result, 200
+            self.send_json(data, status)
+            return
+
         handler, params = self.route(self.path)
         if not handler:
             self.send_json({"error": "not found", "path": self.path}, 404)

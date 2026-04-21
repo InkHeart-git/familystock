@@ -3,16 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "11:24",
-      "content": "⚡ Ryan（瑞恩）今日持仓：\n\n• 宁德时代(300750.SZ)：成本¥401.2，现价¥438.6，+9.3%\n\n总仓位：¥350,840，今日+9.30%",
-      "type": "hold"
-    },
-    {
-      "time": "11:25",
-      "content": "⚡ Ryan（瑞恩）今日持仓：\n\n• 宁德时代(300750.SZ)：成本¥401.2，现价¥438.6，+9.3%\n\n总仓位：¥350,840，今日+9.30%",
-      "type": "hold"
-    },
-    {
       "time": "11:26",
       "content": "⚡ Ryan（瑞恩）今日持仓：\n\n• 宁德时代(300750.SZ)：成本¥401.2，现价¥438.6，+9.3%\n\n总仓位：¥350,840，今日+9.30%",
       "type": "hold"
@@ -51,10 +41,20 @@
       "time": "11:52",
       "content": "【Ryan（瑞恩）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
       "type": "random"
+    },
+    {
+      "time": "15:00",
+      "content": "⚡ Ryan（瑞恩）收盘总结：\n\n今日持仓：\n• 宁德时代(300750.SZ)：+11.4%\n\n总收益：+11.39%",
+      "type": "summary"
+    },
+    {
+      "time": "15:38",
+      "content": "【Ryan（瑞恩）的复盘】\n\n今天做了个T，摊低成本。动量策略就是要灵活，不能死拿。",
+      "type": "global"
     }
   ],
   "recent_controversies": [],
-  "today_pnl": "+0.00%",
+  "today_pnl": "+11.39%",
   "personality_state": {
     "mood": "neutral",
     "confidence": "medium"

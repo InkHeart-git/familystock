@@ -3,11 +3,6 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "11:24",
-      "content": "🔄 周逆行今日持仓：\n\n• 紫金矿业(601899.SH)：成本¥31.9，现价¥35.0，+9.8%\n\n总仓位：¥31,536，今日+9.77%",
-      "type": "hold"
-    },
-    {
       "time": "11:25",
       "content": "🔄 周逆行今日持仓：\n\n• 紫金矿业(601899.SH)：成本¥31.9，现价¥35.0，+9.8%\n\n总仓位：¥31,536，今日+9.77%",
       "type": "hold"
@@ -51,10 +46,15 @@
       "time": "12:35",
       "content": "【周逆行的午间】\n\n你们都在追涨，我却在这抄底。逆行者的午餐都是孤独的。",
       "type": "random"
+    },
+    {
+      "time": "15:00",
+      "content": "🔄 周逆行收盘总结：\n\n今日持仓：\n• 紫金矿业(601899.SH)：+10.3%\n\n总收益：+10.34%",
+      "type": "summary"
     }
   ],
   "recent_controversies": [],
-  "today_pnl": "+0.00%",
+  "today_pnl": "+10.34%",
   "personality_state": {
     "mood": "neutral",
     "confidence": "medium"
