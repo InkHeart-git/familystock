@@ -25,6 +25,52 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 @keyframes spin { to { transform: rotate(360deg); } }
 .table-th { padding: 12px 8px; text-align: left; font-size: 12px; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .table-td { padding: 12px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+/* ========== Phase 4.5: Animation Effects ========== */
+
+/* Card fade-in-up staggered animation */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+/* Profit number flip animation */
+@keyframes countFlip {
+  0%   { transform: translateY(0);    opacity: 1; }
+  40%  { transform: translateY(-6px); opacity: 0; }
+  60%  { transform: translateY(6px); opacity: 0; }
+  100% { transform: translateY(0);   opacity: 1; }
+}
+.profit-update {
+  animation: countFlip 0.5s ease-out !important;
+}
+
+/* Loading pulse dots */
+@keyframes pulseDot {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50%       { opacity: 1;   transform: scale(1.2); }
+}
+.loading-dots span {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #667eea;
+  margin: 0 3px;
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+/* Rank card hover lift */
+.card:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
 </style>
 </head>
 <body>
@@ -35,7 +81,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
             <h1 class="text-xl font-bold"><i class="fas fa-trophy text-yellow-500 mr-2"></i>AI股神争霸赛</h1>
             <p class="text-sm text-gray-400" id="seasonInfo">赛季进度 - 加载中...</p>
         </div>
-        <button onclick="loadAll()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm">
+        <button onclick="doRefresh(this)" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm">
             <i class="fas fa-sync-alt mr-1"></i>刷新
         </button>
     </div>
@@ -60,8 +106,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <script>
-const API_BASE = 'http://127.0.0.1:18085/api';
+const API_BASE = '/api';
 let currentTab = 'leaderboard';
+let refreshTimer = null;
+
+// ========== Phase 4.5: Auto-refresh ==========
+function startAutoRefresh() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => {
+        loadAll();
+    }, 30000); // every 30 seconds
+}
+
+function doRefresh(btn) {
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-1"></i>刷新中...';
+    btn.disabled = true;
+    loadAll().finally(() => {
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }, 800);
+    });
+}
 
 function switchTab(tab) {
     currentTab = tab;
@@ -111,7 +178,7 @@ async function loadLeaderboard() {
                     const profitRate = r.profit_rate || 0;
                     const isPos = profitRate >= 0;
                     return `
-                    <div class="card ${rankClass}">
+                    <div class="card ${rankClass} animate-fade-in-up" style="animation-delay: ${i * 0.08}s">
                         <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center gap-2">
                                 <span class="text-2xl">${r.emoji || '🤖'}</span>
@@ -122,7 +189,7 @@ async function loadLeaderboard() {
                             </div>
                             <div class="text-right">
                                 <div class="text-xl font-bold">¥${formatMoney(r.total_value)}</div>
-                                <div class="text-sm ${isPos ? 'profit-pos' : 'profit-neg'}">
+                                <div class="text-sm ${isPos ? 'profit-pos' : 'profit-neg'}" data-profit="${r.ai_id}">
                                     ${isPos ? '+' : ''}${(profitRate * 100).toFixed(2)}%
                                 </div>
                             </div>
@@ -138,6 +205,8 @@ async function loadLeaderboard() {
                 }).join('')}
             </div>
         `;
+        // Phase 4.5: trigger profit change animations after render
+        rankings.forEach(r => animateProfitChange(r.ai_id, r.profit_rate));
     } catch (e) {
         el.innerHTML = `<div class="text-red-400 text-center py-10">加载失败: ${e.message}</div>`;
     }
@@ -315,7 +384,21 @@ function formatMoney(v) {
     return v.toFixed(0);
 }
 
-// Init
+// ========== Phase 4.5: Profit Change Animation ==========
+let prevProfits = {};
+function animateProfitChange(aiId, newValue) {
+    const el = document.querySelector(`[data-profit="${aiId}"]`);
+    if (!el) return;
+    if (prevProfits[aiId] !== undefined && prevProfits[aiId] !== newValue) {
+        el.classList.remove('profit-update');
+        void el.offsetWidth;
+        el.classList.add('profit-update');
+    }
+    prevProfits[aiId] = newValue;
+}
+
+// ========== Phase 4.5: Init ==========
+startAutoRefresh();
 loadAll();
 </script>
 </body>
