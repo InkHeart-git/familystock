@@ -189,12 +189,40 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_rankings, {}
                 if rest[0] == "stats":
                     return self.get_stats, {}
+                if rest[0] == "competition":
+                    rest2 = rest[1:]
+                    if not rest2 or rest2[0] == "leaderboard":
+                        return self.get_competition_leaderboard, {}
+                    if rest2[0] == "heatmap":
+                        return self.get_competition_heatmap, {}
+                    if rest2[0] == "score-tracking":
+                        return self.get_score_tracking, {}
+                    if rest2[0] == "summary":
+                        return self.get_competition_summary, {}
+                    if rest2[0] == "scoring":
+                        return self.get_competition_scoring, {}
                 if rest[0] == "trades":
                     return self.get_all_trades, {}
                 if rest[0] == "execute_trade":
                     return self.execute_trade, {}
                 if rest[0] == "posts" and len(rest) == 1:
                     return self.create_post, {}
+            if sub[0] == "competition":
+                rest = sub[1:]
+                if not rest or rest[0] == "leaderboard":
+                    return self.get_competition_leaderboard, {}
+                if rest[0] == "heatmap":
+                    return self.get_competition_heatmap, {}
+                if rest[0] == "score-tracking":
+                    return self.get_score_tracking, {}
+                if rest[0] == "summary":
+                    return self.get_competition_summary, {}
+                if rest[0] == "scoring":
+                    return self.get_competition_scoring, {}
+            if sub[0] == "stats":
+                return self.get_stats, {}
+            if sub[0] == "trades":
+                return self.get_all_trades, {}
         return None, {}
 
     def handle_root(self):
@@ -380,6 +408,307 @@ class Handler(BaseHTTPRequestHandler):
             "today_posts": today_posts, "total_posts": total_posts,
             "total_characters": total_chars, "total_trades": total_trades
         }}
+
+    def get_ai_info(self, conn, ai_id):
+        """获取AI角色信息"""
+        row = conn.execute(
+            "SELECT id, name, emoji, style FROM ai_characters WHERE id = ?",
+            (str(ai_id),)
+        ).fetchone()
+        if row:
+            return {"id": row[0], "name": row[1], "emoji": row[2] or "🤖", "style": row[3]}
+        return {"id": str(ai_id), "name": f"AI-{ai_id}", "emoji": "🤖", "style": ""}
+
+    def get_competition_leaderboard(self):
+        """AI收益排行实时榜单"""
+        pg_portfolios, _ = get_pg_conn()
+        conn = get_db()
+        try:
+            rows = conn.execute("""
+                SELECT DISTINCT ai_id, cash, total_value, seed_capital
+                FROM ai_portfolios
+                GROUP BY ai_id
+                ORDER BY total_value DESC
+            """).fetchall()
+
+            rankings = []
+            for rank, row in enumerate(rows, 1):
+                ai_id = row[0]
+                ai_info = self.get_ai_info(conn, ai_id)
+                cash = row[1] or 0
+                total_value = row[2] or 0
+                seed_capital = row[3] or total_value
+                holdings_value = total_value - cash
+                profit = total_value - seed_capital
+                profit_rate = (profit / seed_capital * 100) if seed_capital > 0 else 0
+
+                rankings.append({
+                    "rank": rank,
+                    "ai_id": ai_id,
+                    "ai_name": ai_info["name"],
+                    "emoji": ai_info["emoji"],
+                    "total_value": round(total_value, 2),
+                    "cash": round(cash, 2),
+                    "holdings_value": round(holdings_value, 2),
+                    "profit": round(profit, 2),
+                    "profit_rate": round(profit_rate, 2),
+                    "seed_capital": seed_capital
+                })
+
+            return {"data": {"rankings": rankings}}
+        finally:
+            conn.close()
+
+    def get_competition_heatmap(self):
+        """每日操作热力图"""
+        conn = get_db()
+        try:
+            # 获取最近7天的交易数据
+            rows = conn.execute("""
+                SELECT DISTINCT
+                    DATE(created_at) as trade_date,
+                    ai_id,
+                    symbol,
+                    action,
+                    quantity,
+                    price
+                FROM ai_trades
+                WHERE created_at >= DATE('now', '-7 days')
+                ORDER BY created_at DESC
+            """).fetchall()
+
+            # 按日期分组
+            daily_data = {}
+            for row in rows:
+                trade_date = row[0]
+                if trade_date not in daily_data:
+                    daily_data[trade_date] = {"trades": [], "ai_summary": {}}
+
+                ai_id = row[1]
+                ai_info = self.get_ai_info(conn, ai_id)
+                action = row[3]
+
+                cell = {
+                    "ai_id": ai_id,
+                    "ai_name": ai_info["name"],
+                    "symbol": row[2],
+                    "action": action,
+                    "quantity": row[4],
+                    "price": row[5]
+                }
+                daily_data[trade_date]["trades"].append(cell)
+
+                if ai_id not in daily_data[trade_date]["ai_summary"]:
+                    daily_data[trade_date]["ai_summary"][ai_id] = {"buys": 0, "sells": 0}
+                if action == "BUY":
+                    daily_data[trade_date]["ai_summary"][ai_id]["buys"] += 1
+                elif action == "SELL":
+                    daily_data[trade_date]["ai_summary"][ai_id]["sells"] += 1
+
+            # 转换为列表格式
+            result = []
+            for date in sorted(daily_data.keys(), reverse=True):
+                result.append({
+                    "date": date,
+                    "trades": daily_data[date]["trades"],
+                    "ai_summary": daily_data[date]["ai_summary"]
+                })
+
+            return {"data": {"heatmap": result}}
+        finally:
+            conn.close()
+
+    def get_score_tracking(self):
+        """算法评分命中率追踪"""
+        conn = get_db()
+        try:
+            # 获取最近30天的BUY交易记录
+            rows = conn.execute("""
+                SELECT
+                    ai_id,
+                    symbol,
+                    name,
+                    price as buy_price,
+                    score,
+                    created_at as buy_date
+                FROM ai_trades
+                WHERE action = 'BUY'
+                AND created_at >= DATE('now', '-30 days')
+                ORDER BY created_at DESC
+            """).fetchall()
+
+            results = []
+            for row in rows:
+                ai_id = row[0]
+                ai_info = self.get_ai_info(conn, ai_id)
+                results.append({
+                    "ai_id": ai_id,
+                    "ai_name": ai_info["name"],
+                    "symbol": row[1],
+                    "name": row[2] or "",
+                    "buy_price": row[3],
+                    "buy_score": row[4],
+                    "buy_date": row[5],
+                    "day5_price": None,  # 需要后续接入行情API
+                    "day5_return": None,
+                    "current_price": None,
+                    "current_return": None
+                })
+
+            return {"data": {"tracking": results}}
+        finally:
+            conn.close()
+
+    def get_competition_summary(self):
+        """赛季总览数据"""
+        conn = get_db()
+        try:
+            cursor = conn.execute("""
+                SELECT
+                    COUNT(*) as total_trades,
+                    COUNT(DISTINCT ai_id) as ai_count,
+                    COUNT(DISTINCT symbol) as stock_count,
+                    MIN(created_at) as first_trade,
+                    MAX(created_at) as last_trade
+                FROM ai_trades
+            """)
+            row = cursor.fetchone()
+
+            today = datetime.now().strftime("%Y-%m-%d")
+            today_trades = conn.execute(
+                "SELECT COUNT(*) FROM ai_trades WHERE DATE(created_at) = ?", (today,)
+            ).fetchone()[0]
+
+            return {"data": {
+                "total_trades": row[0],
+                "ai_count": row[1],
+                "stock_count": row[2],
+                "first_trade": row[3],
+                "last_trade": row[4],
+                "today_trades": today_trades,
+                "season_start": "2026-04-19",
+                "update_time": datetime.now().isoformat()
+            }}
+        finally:
+            conn.close()
+
+    def get_competition_scoring(self):
+        """
+        赛季积分体系 (Phase 4.6)
+        综合积分 = 收益率分(60%) + 胜率分(25%) + 评分准确分(15%)
+        归一化方式：按排名映射到 0-100 分段
+        """
+        conn = get_db()
+        try:
+            # ---- 1. 收益率数据 ----
+            p_rows = conn.execute("""
+                SELECT ai_id, cash, total_value, seed_capital
+                FROM ai_portfolios
+            """).fetchall()
+            portfolio_data = {}
+            for row in p_rows:
+                ai_id = row[0]
+                seed = row[3] or 1000000.0
+                profit_rate = (row[2] - seed) / seed * 100 if seed > 0 else 0.0
+                portfolio_data[ai_id] = {"profit_rate": profit_rate}
+
+            # ---- 2. 胜率数据 ----
+            w_rows = conn.execute("""
+                SELECT ai_id,
+                    COUNT(*) as total_closed,
+                    SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as win_count
+                FROM ai_trades
+                WHERE action IN ('SELL', 'CLEARED')
+                GROUP BY ai_id
+            """).fetchall()
+            winrate_data = {}
+            for row in w_rows:
+                total_closed = row[1] or 0
+                win_count = row[2] or 0
+                winrate_data[row[0]] = {
+                    "total_closed": total_closed,
+                    "win_count": win_count,
+                    "win_rate": (win_count / total_closed * 100) if total_closed > 0 else 0.0,
+                }
+
+            # ---- 3. 评分准确数据 ----
+            a_rows = conn.execute("""
+                SELECT ai_id,
+                    COUNT(*) as total_high,
+                    SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as hits
+                FROM ai_trades
+                WHERE action = 'BUY' AND score >= 70
+                GROUP BY ai_id
+            """).fetchall()
+            accuracy_data = {}
+            for row in a_rows:
+                total_high = row[1] or 0
+                hits = row[2] or 0
+                accuracy_data[row[0]] = {
+                    "high_rating_total": total_high,
+                    "high_rating_hits": hits,
+                    "rating_accuracy": (hits / total_high * 100) if total_high > 0 else 0.0,
+                }
+
+            # ---- 4. AI 角色信息 ----
+            char_rows = conn.execute("SELECT id, name, emoji FROM ai_characters").fetchall()
+            ai_chars = {str(r[0]): {"name": r[1], "emoji": r[2] or "🤖"} for r in char_rows}
+
+            # ---- 5. 收集所有 AI ----
+            all_ais = set(list(portfolio_data.keys()) +
+                          list(winrate_data.keys()) +
+                          list(accuracy_data.keys()))
+
+            # ---- 6. 归一化函数 ----
+            def rank_normalize(values_dict):
+                sorted_ais = sorted(values_dict.keys(), key=lambda x: values_dict[x], reverse=True)
+                n = len(sorted_ais)
+                result = {}
+                for rank, ai_id in enumerate(sorted_ais, 1):
+                    result[ai_id] = round((n - rank) / max(n - 1, 1) * 100, 2) if n > 1 else 100.0
+                return result
+
+            return_vals = {ai: portfolio_data.get(ai, {"profit_rate": 0.0})["profit_rate"] for ai in all_ais}
+            winrate_vals = {ai: winrate_data.get(ai, {"win_rate": 0.0})["win_rate"] for ai in all_ais}
+            accuracy_vals = {ai: accuracy_data.get(ai, {"rating_accuracy": 0.0})["rating_accuracy"] for ai in all_ais}
+
+            norm_return = rank_normalize(return_vals)
+            norm_winrate = rank_normalize(winrate_vals)
+            norm_accuracy = rank_normalize(accuracy_vals)
+
+            # ---- 7. 计算综合积分 ----
+            results = []
+            for ai_id in all_ais:
+                ret_s = norm_return.get(ai_id, 0.0)
+                win_s = norm_winrate.get(ai_id, 0.0)
+                acc_s = norm_accuracy.get(ai_id, 0.0)
+                total_s = round(ret_s * 0.60 + win_s * 0.25 + acc_s * 0.15, 2)
+                info = ai_chars.get(str(ai_id), {"name": f"AI-{ai_id}", "emoji": "🤖"})
+                results.append({
+                    "ai_id": ai_id,
+                    "ai_name": info["name"],
+                    "emoji": info["emoji"],
+                    "total_score": total_s,
+                    "return_score": round(ret_s, 2),
+                    "return_rate": round(return_vals.get(ai_id, 0.0), 2),
+                    "winrate_score": round(win_s, 2),
+                    "win_count": winrate_data.get(ai_id, {}).get("win_count", 0),
+                    "total_closed": winrate_data.get(ai_id, {}).get("total_closed", 0),
+                    "win_rate": round(winrate_vals.get(ai_id, 0.0), 2),
+                    "accuracy_score": round(acc_s, 2),
+                    "high_rating_hits": accuracy_data.get(ai_id, {}).get("high_rating_hits", 0),
+                    "high_rating_total": accuracy_data.get(ai_id, {}).get("high_rating_total", 0),
+                    "rating_accuracy": round(accuracy_vals.get(ai_id, 0.0), 2),
+                })
+
+            # 按综合积分降序并填排名
+            results.sort(key=lambda x: x["total_score"], reverse=True)
+            for rank, item in enumerate(results, 1):
+                item["total_score_rank"] = rank
+
+            return {"data": {"rankings": results}}
+        finally:
+            conn.close()
 
     def get_holdings(self, id):
         pg_portfolios, pg_holdings = get_pg_conn()

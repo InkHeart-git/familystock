@@ -5,7 +5,7 @@ FastAPI应用主文件
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import portfolio, ai_analysis, tushare, auth, stock
+from app.routers import portfolio, ai_analysis, tushare, auth, stock, review, competition_progress
 
 app = FastAPI(
     title="MiniRock API",
@@ -28,6 +28,8 @@ app.include_router(ai_analysis.router, prefix="/api")
 app.include_router(tushare.router_tushare, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(stock.router_stock, prefix="/api")
+app.include_router(review.router, prefix="/api")
+app.include_router(competition_progress.router, prefix="/api")
 
 @app.get("/health")
 async def health_check():
