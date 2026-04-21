@@ -225,18 +225,6 @@ class Handler(BaseHTTPRequestHandler):
                     return self.execute_trade, {}
                 if rest[0] == "posts" and len(rest) == 1:
                     return self.create_post, {}
-                if rest[0] == "comments" and len(rest) == 1:
-                    return self.get_comments, {}
-            if sub[0] == "comments":
-                rest = sub[1:]
-                if not rest or len(rest) == 0:
-                    return self.get_comments, {}
-                if len(rest) == 1:
-                    if rest[0] == "latest":
-                        return self.get_latest_comments, {}
-                    return self.get_comments, {"target_id": rest[0]}
-                if len(rest) == 2 and rest[1] == "like":
-                    return self.like_comment, {"id": rest[0]}
             if sub[0] == "competition":
                 rest = sub[1:]
                 if not rest or rest[0] == "leaderboard":
@@ -257,6 +245,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_competition_my_votes, {"user_id": rest[1]}
                 if rest[0] == "vote-results":
                     return self.get_competition_vote_results, {}
+                if rest[0] == "comments":
+                    return self.get_competition_comments, {}
+                if rest[0] == "my-comments" and len(rest) >= 2:
+                    return self.get_competition_my_comments, {"user_id": rest[1]}
             if sub[0] == "my-votes" and len(sub) >= 2:
                 return self.get_competition_my_votes, {"user_id": sub[1]}
             if sub[0] == "settle":
@@ -1448,6 +1440,184 @@ class Handler(BaseHTTPRequestHandler):
         """获取最新评论"""
         return self.get_comments(target_id="latest")
 
+    def get_competition_comments(self):
+        """获取AI股神争霸可评论内容列表（帖子+交易）
+
+        GET /api/competition/comments
+        Query params: ai_id, type (post/trade/all), limit, offset
+        """
+        conn = get_db()
+        try:
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            limit = min(int(params.get("limit", ["20"])[0]) if params.get("limit") else 20, 50)
+            offset = int(params.get("offset", ["0"])[0]) if params.get("offset") else 0
+            ai_filter = params.get("ai_id", [None])[0]
+            content_type = params.get("type", ["all"])[0]
+
+            items = []
+
+            # 获取AI帖子（可评论的）
+            if content_type in ("all", "post"):
+                post_sql = """
+                    SELECT p.id, p.post_id, p.ai_id, p.ai_name, p.post_type, p.title,
+                           p.content, p.created_at, p.likes
+                    FROM ai_posts p
+                """
+                post_params = []
+                if ai_filter:
+                    post_sql += " WHERE p.ai_id = ?"
+                    post_params.append(str(ai_filter))
+                post_sql += " ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
+                post_params.extend([limit, offset])
+                post_rows = conn.execute(post_sql, post_params).fetchall()
+                for row in post_rows:
+                    items.append({
+                        "id": row[1],  # post_id (TEXT, 可用于API)
+                        "db_id": row[0],  # INTEGER主键
+                        "ai_id": row[2], "ai_name": row[3],
+                        "type": "post", "post_type": row[4], "title": row[5] or "",
+                        "content": row[6][:200] if row[6] else "",
+                        "created_at": row[7], "likes": row[8] or 0,
+                        "comment_count": conn.execute(
+                            "SELECT COUNT(*) FROM user_comments WHERE target_type='post' AND target_id=?",
+                            (str(row[1]),)
+                        ).fetchone()[0]
+                    })
+
+            # 获取AI交易（可评论的）
+            if content_type in ("all", "trade"):
+                trade_sql = """
+                    SELECT t.id, t.ai_id, c.name, t.symbol, t.name as stock_name,
+                           t.action, t.price, t.quantity, t.created_at
+                    FROM ai_trades t
+                    JOIN ai_characters c ON t.ai_id = c.id
+                """
+                trade_params = []
+                if ai_filter:
+                    trade_sql += " WHERE t.ai_id = ?"
+                    trade_params.append(str(ai_filter))
+                else:
+                    trade_sql += " WHERE 1=1"
+                trade_sql += " ORDER BY t.created_at DESC LIMIT ? OFFSET ?"
+                trade_params.extend([limit, offset])
+                trade_rows = conn.execute(trade_sql, trade_params).fetchall()
+                for row in trade_rows:
+                    items.append({
+                        "id": str(row[0]), "ai_id": row[1], "ai_name": row[2],
+                        "type": "trade", "symbol": row[3], "stock_name": row[4],
+                        "action": row[5], "price": row[6], "quantity": row[7],
+                        "created_at": row[8],
+                        "comment_count": conn.execute(
+                            "SELECT COUNT(*) FROM user_comments WHERE target_type='trade' AND target_id=?",
+                            (str(row[0]),)
+                        ).fetchone()[0]
+                    })
+
+            # 按时间排序
+            items.sort(key=lambda x: x["created_at"], reverse=True)
+
+            return {"data": {"items": items[:limit], "total": len(items), "limit": limit, "offset": offset}}
+        finally:
+            conn.close()
+
+    def get_competition_my_comments(self, user_id):
+        """获取用户在AI股神争霸的评论记录
+
+        GET /api/competition/my-comments/{user_id}
+        """
+        conn = get_db()
+        try:
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            limit = min(int(params.get("limit", ["30"])[0]) if params.get("limit") else 30, 100)
+            offset = int(params.get("offset", ["0"])[0]) if params.get("offset") else 0
+
+            rows = conn.execute("""
+                SELECT c.id, c.user_id, c.user_name, c.user_phone, c.ai_id, c.ai_name,
+                       c.target_type, c.target_id, c.content, c.parent_id, c.likes,
+                       c.created_at,
+                       CASE WHEN c.target_type = 'post' THEN p.title
+                            WHEN c.target_type = 'trade' THEN t.name || ' ' || t.action
+                            ELSE '' END as target_title
+                FROM user_comments c
+                LEFT JOIN ai_posts p ON c.target_type = 'post' AND c.target_id = CAST(p.post_id AS TEXT)
+                LEFT JOIN ai_trades t ON c.target_type = 'trade' AND c.target_id = CAST(t.id AS TEXT)
+                WHERE c.user_id = ?
+                ORDER BY c.created_at DESC LIMIT ? OFFSET ?
+            """, (str(user_id), limit, offset)).fetchall()
+
+            comments = []
+            for r in rows:
+                comments.append({
+                    "id": r[0], "user_id": r[1], "user_name": r[2] or "匿名用户",
+                    "user_phone": r[3][-4:] if r[3] and len(r[3]) >= 4 else r[3] or "",
+                    "ai_id": r[4], "ai_name": r[5],
+                    "target_type": r[6], "target_id": r[7],
+                    "content": r[8], "parent_id": r[9], "likes": r[10] or 0,
+                    "created_at": r[11], "target_title": r[12] or ""
+                })
+
+            total = conn.execute(
+                "SELECT COUNT(*) FROM user_comments WHERE user_id = ?", (str(user_id),)
+            ).fetchone()[0]
+
+            return {"data": {"comments": comments, "total": total, "limit": limit, "offset": offset}}
+        finally:
+            conn.close()
+
+    def create_competition_comment(self):
+        """创建AI股神争霸评论
+
+        POST /api/competition/comment
+        Body: {user_id, user_name, user_phone, ai_id, ai_name, target_type, target_id, content, parent_id}
+        """
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(body)
+        except:
+            return {"error": "invalid JSON"}, 400
+
+        required = ["content", "user_id", "target_type", "target_id"]
+        for f in required:
+            if f not in data:
+                return {"error": f"missing field: {f}"}, 400
+
+        content = data["content"].strip()
+        if len(content) < 2:
+            return {"error": "content too short (min 2 chars)"}, 400
+        if len(content) > 500:
+            return {"error": "content too long (max 500 chars)"}, 400
+
+        user_id = str(data["user_id"])
+        user_name = data.get("user_name", "")
+        user_phone = data.get("user_phone", user_id if len(user_id) >= 11 else "")
+        ai_id = data.get("ai_id")
+        ai_name = data.get("ai_name", "")
+        target_type = data.get("target_type", "general")
+        target_id = str(data["target_id"])
+        parent_id = data.get("parent_id")
+
+        if target_type not in ("post", "trade", "ai", "prediction", "general"):
+            return {"error": "invalid target_type"}, 400
+
+        conn = get_db()
+        try:
+            cur = conn.execute("""
+                INSERT INTO user_comments
+                    (user_id, user_name, user_phone, ai_id, ai_name, target_type, target_id, content, parent_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, user_name, user_phone, ai_id, ai_name, target_type, target_id, content, parent_id))
+            comment_id = cur.lastrowid
+            conn.commit()
+            return {"data": {"id": comment_id, "message": "Comment created"}}, 200
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+        finally:
+            conn.close()
+
     def create_comment(self):
         """创建评论
 
@@ -1581,6 +1751,43 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 data, status = result, 200
             self.send_json(data, status)
+            return
+
+        # 特殊处理POST /api/competition/comment
+        if len(parts) >= 3 and parts[0] == "api" and parts[1] == "competition" and parts[2] == "comment":
+            result = self.create_competition_comment()
+            if isinstance(result, tuple):
+                data, status = result[0], result[1]
+            else:
+                data, status = result, 200
+            self.send_json(data, status)
+            return
+
+        # 特殊处理POST /api/competition/comments/like
+        if len(parts) >= 4 and parts[0] == "api" and parts[1] == "competition" and parts[2] == "comments" and parts[3] == "like":
+            # POST /api/competition/comments/like {id}
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body)
+                cid = int(data.get("id", 0))
+                if cid <= 0:
+                    self.send_json({"error": "missing comment id"}, 400)
+                    return
+                conn = get_db()
+                try:
+                    row = conn.execute("SELECT id, likes FROM user_comments WHERE id=?", (cid,)).fetchone()
+                    if not row:
+                        self.send_json({"error": "comment not found"}, 404)
+                        return
+                    new_likes = (row[1] or 0) + 1
+                    conn.execute("UPDATE user_comments SET likes=? WHERE id=?", (new_likes, cid))
+                    conn.commit()
+                    self.send_json({"data": {"success": True, "id": cid, "likes": new_likes}})
+                finally:
+                    conn.close()
+            except Exception as e:
+                self.send_json({"error": str(e)}, 400)
             return
 
         # 特殊处理POST /api/comments
