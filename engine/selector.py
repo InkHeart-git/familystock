@@ -656,36 +656,14 @@ OpenClaw Agent 需要设计股票分析和选股决策算法
                 return str(result)
     
     async def _call_deepseek_api(self, prompt: str) -> str:
-        """调用 DeepSeek API（备用方案）"""
-        headers = {
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": DEEPSEEK_MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 1500,
-            "temperature": 0.7
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                DEEPSEEK_API_URL,
-                headers=headers,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise Exception(f"DeepSeek API调用失败: {response.status}, {error_text}")
-                
-                result = await response.json()
-                
-                # 解析 DeepSeek API 响应格式
-                if "choices" in result and len(result["choices"]) > 0:
-                    return result["choices"][0]["message"]["content"]
-                return str(result)
+        """调用 LLM（通过 llm_guardian 自动 fallback）"""
+        from engine.llm_guardian import call as guardian_call
+        ok, content, provider = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: guardian_call(prompt, model_preference='deepseek')
+        )
+        if not ok:
+            raise Exception(f"LLM调用失败 (all providers down): {content}")
+        return content
     
     # 保留旧方法名作为别名（兼容）
     async def _call_kimi_api(self, prompt: str) -> str:

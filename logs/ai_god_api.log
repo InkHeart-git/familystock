@@ -4715,3 +4715,15 @@ PG connection error: substring not found
 [15:26:58] "GET /api/news?type=black&limit=2 HTTP/1.1" 200 -
 [15:26:58] "GET /api/news?type=blogger&limit=2 HTTP/1.1" 200 -
 [15:26:58] "GET /api/news?type=all&limit=2 HTTP/1.1" 200 -
+AI股神争霸赛 API Server running on port 18085
+PG connection error: substring not found
+[01:21:25] "GET /api/competition/leaderboard?limit=1 HTTP/1.1" 200 -
+PG connection error: substring not found
+[01:41:06] "GET /api/competition/leaderboard?limit=3 HTTP/1.1" 200 -
+PG connection error: substring not found
+[02:11:22] "GET /api/competition/leaderboard?limit=3 HTTP/1.1" 200 -
+[02:36:00] "GET / HTTP/1.1" 200 -
+[02:36:00] "GET / HTTP/1.1" 200 -
+[02:38:02] "GET / HTTP/1.1" 200 -
+[02:38:02] "GET / HTTP/1.1" 200 -
+[02:38:02] "GET / HTTP/1.1" 500 -

@@ -37,40 +37,25 @@ def load_env():
                     k, v = line.split('=', 1)
                     os.environ.setdefault(k, v)
     os.environ.setdefault('MINIMAX_CN_BASE_URL', 'https://api.minimaxi.com/v1')
-
 load_env()
 
-# ========== MiniMax API ==========
-MINIMAX_KEY = os.getenv('MINIMAX_CN_API_KEY', os.getenv('MINIMAX_API_KEY', ''))
-MINIMAX_URL = os.getenv('MINIMAX_CN_BASE_URL', 'https://api.minimaxi.com/v1') + '/chat/completions'
-MODEL = 'MiniMax-M2.7-highspeed'
+import sys
+sys.path.insert(0, '/var/www/ai-god-of-stocks')
+from engine.llm_guardian import call as guardian_call
 
-async def call_minimax(prompt: str, system: str = '') -> str:
-    """直接调用MiniMax API"""
-    headers = {
-        'Authorization': f'Bearer {MINIMAX_KEY}',
-        'Content-Type': 'application/json',
-    }
-    messages = []
-    if system:
-        messages.append({'role': 'system', 'content': system})
-    messages.append({'role': 'user', 'content': prompt})
-    
-    payload = {
-        'model': MODEL,
-        'messages': messages,
-        'max_tokens': 600,
-        'temperature': 0.1,
-    }
-    
-    async with aiohttp.ClientSession() as sess:
-        async with sess.post(MINIMAX_URL, headers=headers, json=payload,
-                           timeout=aiohttp.ClientTimeout(total=30)) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f'HTTP {resp.status}: {text[:200]}')
-            data = json.loads(text)
-            return data['choices'][0]['message']['content']
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.FileHandler('/var/log/sentiment_analyzer.log'), logging.StreamHandler(sys.stdout)])
+logger = logging.getLogger(__name__)
+
+async def call_llm(prompt, system=''):
+    """统一LLM调用（通过llm_guardian自动fallback）"""
+    loop = asyncio.get_event_loop()
+    ok, content, provider = await loop.run_in_executor(
+        None, lambda: guardian_call(prompt, system=system, model_preference='minimax')
+    )
+    if not ok:
+        raise Exception(f'LLM all providers failed: {content}')
+    return content
 
 # ========== 日志 ==========
 logging.basicConfig(
@@ -202,13 +187,8 @@ def get_stats(conn):
 
 # ========== 主函数 ==========
 async def main_async():
+    logger.info(f'MiniRock 情感评分系统 v2.0 | {datetime.now()} | llm_guardian protected')
     logger.info('=' * 60)
-    logger.info(f'MiniRock 情感评分系统 v2.0 | {datetime.now()}')
-    logger.info('=' * 60)
-    
-    if not MINIMAX_KEY:
-        logger.error('MINIMAX_API_KEY not set'); sys.exit(1)
-    logger.info(f'MiniMax API: {MINIMAX_KEY[:15]}...')
 
     conn = get_conn()
     stats = get_stats(conn)
@@ -227,7 +207,7 @@ async def main_async():
         
         logger.info(f'批次 #{batch_num}: {len(batch)}条...')
         
-        scores = await score_batch(batch, call_minimax)
+        scores = await score_batch(batch, call_llm)
         
         if scores:
             saved = update_sentiments(conn, scores)

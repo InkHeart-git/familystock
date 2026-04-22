@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """只对有正文(>30字)的新闻评分"""
-import sqlite3, os, time, json, logging, sys, asyncio, aiohttp, re
+import sqlite3, os, time, json, logging, sys, asyncio, re
 from datetime import datetime
 
 SQLITE_PATH = '/var/www/familystock/api/data/family_stock.db'
-MODEL = 'MiniMax-M2.7-highspeed'
 BATCH_SIZE = 10
 SLEEP_BETWEEN = 3
 
@@ -20,52 +19,50 @@ def load_env():
                     os.environ.setdefault(k, v)
 
 load_env()
-MINIMAX_KEY = os.getenv('MINIMAX_CN_API_KEY', os.getenv('MINIMAX_API_KEY', ''))
-MINIMAX_URL = os.getenv('MINIMAX_CN_BASE_URL', 'https://api.minimaxi.com/v1') + '/chat/completions'
+
+import sys as _sys
+_sys.path.insert(0, '/var/www/ai-god-of-stocks')
+from engine.llm_guardian import call as guardian_call
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[logging.FileHandler('/tmp/sentiment_focused.log'), logging.StreamHandler(sys.stdout)])
+    handlers=[logging.FileHandler('/var/log/sentiment_focused.log'), logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger(__name__)
 
-async def call_minimax(prompt, system=''):
-    headers = {'Authorization': f'Bearer {MINIMAX_KEY}', 'Content-Type': 'application/json'}
-    messages = [{'role': 'system', 'content': system}] if system else []
-    messages.append({'role': 'user', 'content': prompt})
-    payload = {'model': MODEL, 'messages': messages, 'max_tokens': 600, 'temperature': 0.1}
-    async with aiohttp.ClientSession() as sess:
-        async with sess.post(MINIMAX_URL, headers=headers, json=payload,
-                           timeout=aiohttp.ClientTimeout(total=30)) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f'HTTP {resp.status}')
-            return json.loads(text)['choices'][0]['message']['content']
+async def call_llm(prompt, system=''):
+    """统一LLM调用（通过llm_guardian自动fallback）"""
+    loop = asyncio.get_event_loop()
+    ok, content, provider = await loop.run_in_executor(
+        None, lambda: guardian_call(prompt, system=system, model_preference='minimax')
+    )
+    if not ok:
+        raise Exception(f'LLM all providers failed: {content}')
+    logger.info(f'  [LLM] via {provider}')
+    return content
 
 def get_conn():
-    conn = sqlite3.connect(SQLITE_PATH, timeout=60)
+    conn = sqlite3.connect(SQLITE_PATH)
     conn.execute('PRAGMA journal_mode=WAL')
-    conn.execute('PRAGMA busy_timeout=30000')
     return conn
 
 def get_batch(conn):
-    """只取有正文且未评分的"""
-    cur = conn.execute('''
-        SELECT id, title, content FROM news 
-        WHERE length(content) > 30
-          AND sentiment IS NULL
-        ORDER BY id DESC LIMIT ?
-    ''', (BATCH_SIZE,))
-    return [(str(r[0]), r[1], r[2]) for r in cur.fetchall()]
+    cur = conn.execute(
+        "SELECT id, title, content FROM news WHERE sentiment IS NULL AND LENGTH(COALESCE(content,'')) > 30 ORDER BY published_at DESC LIMIT ?",
+        (BATCH_SIZE,)
+    )
+    return cur.fetchall()
 
 def update(conn, scores):
-    if not scores: return 0
-    cur = conn.cursor()
-    cur.executemany('UPDATE news SET sentiment=? WHERE id=?', [(s, i) for i, s in scores])
+    n = 0
+    for nid, score in scores:
+        conn.execute("UPDATE news SET sentiment=? WHERE id=?", (score, nid))
+        n += 1
     conn.commit()
-    return len(scores)
+    return n
 
 def parse_scores(text, batch):
     try:
-        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        # 过滤思考标签
+        text = re.sub(r'<think>[^\]]*?\]\s*', '', text, flags=re.DOTALL)
         text = re.sub(r'^```json\s*', '', text)
         text = re.sub(r'\s*```$', '', text).strip()
         m = re.search(r'\{\s*"r"\s*:\s*\[.*?\]\s*\}', text, re.DOTALL)
@@ -85,8 +82,7 @@ def parse_scores(text, batch):
         return []
 
 async def main():
-    if not MINIMAX_KEY:
-        logger.error('No API key'); return
+    logger.info('情感评分系统 v2 (llm_guardian protected)')
     conn = get_conn()
     batch_num = 0
     total = 0
@@ -95,11 +91,11 @@ async def main():
         if not batch: logger.info('全部完成!'); break
         batch_num += 1
         logger.info(f'批次 #{batch_num}: {len(batch)}条...')
-        lines = [f'{i+1}|{nid}|{title[:40]}|{(c or "")[:80].replace(chr(10)," ")}' 
+        lines = [f'{i+1}|{nid}|{title[:40]}|{(c or "")[:80].replace(chr(10)," ")}'
                  for i,(nid,title,c) in enumerate(batch)]
         prompt = '财经新闻情感评分，返回JSON: {"r":[{"i":"ID","s":分数}]}\n分数: 1极利好,0.5利好,0中性,-0.5利空,-1极利空\n' + '\n'.join(lines)
         try:
-            resp = await call_minimax(prompt, system='你是专业财经分析师。返回严格JSON格式。')
+            resp = await call_llm(prompt, system='你是专业财经分析师。返回严格JSON格式。')
             scores = parse_scores(resp, batch)
             saved = update(conn, scores)
             total += saved
