@@ -96,6 +96,9 @@ class UnifiedScheduler:
         self.running = False
         self._last_session = None
         self._night_round_robin = 0  # 夜盘轮播索引
+        # 防卡：每个AI的冷却跟踪（ai_id -> timestamp）
+        self._brain_cooldown: Dict[str, float] = {}
+        self._brain_cooldown_seconds = 120  # 同一AI至少间隔2分钟才能再次触发
     
     async def run(self, check_interval: int = 30):
         """
@@ -151,13 +154,25 @@ class UnifiedScheduler:
                 logger.error(f"调度器异常: {e}")
                 await asyncio.sleep(60)
     
+    def _can_trigger_brain(self, brain) -> bool:
+        """检查AI是否在冷却期内"""
+        import time
+        ai_id = brain.ai_id
+        now = time.time()
+        last_run = self._brain_cooldown.get(ai_id, 0)
+        if now - last_run < self._brain_cooldown_seconds:
+            logger.debug(f"[Scheduler] {brain.CONFIG.name} 冷却中（{self._brain_cooldown_seconds - (now - last_run):.0f}秒），跳过")
+            return False
+        self._brain_cooldown[ai_id] = now
+        return True
+    
     async def _run_monitor_cycle(self):
         """盘中监控：只运行有持仓或需要关注的AI"""
         tasks = []
         for brain in self.brains:
-            # 有持仓的AI需要监控
+            # 有持仓的AI需要监控 + 冷却检查
             holdings = brain.memory.get_holdings()
-            if holdings or brain.memory.get_cash() > 50000:
+            if (holdings or brain.memory.get_cash() > 50000) and self._can_trigger_brain(brain):
                 tasks.append(brain.execute_session_cycle())
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -170,8 +185,8 @@ class UnifiedScheduler:
             key=lambda b: b.CONFIG.personality.expressiveness, 
             reverse=True
         )
-        # 只让前3个AI发帖
-        tasks = [b.execute_session_cycle() for b in sorted_brains[:3]]
+        # 只让前3个AI发帖 + 冷却检查
+        tasks = [b.execute_session_cycle() for b in sorted_brains[:3] if self._can_trigger_brain(b)]
         await asyncio.gather(*tasks, return_exceptions=True)
     
     async def _run_night_cycle(self):

@@ -17,7 +17,7 @@ logger = logging.getLogger("NewsAnalyzer")
 
 # Tushare path
 TUSHARE_BIN = "/var/www/familystock/api/venv/bin/python3"
-NEWS_DB_PATH = "/var/www/ai-god-of-stocks/data/news.db"
+NEWS_DB_PATH = "/var/www/familystock/api/data/family_stock.db"
 
 
 @dataclass
@@ -247,10 +247,20 @@ class NewsDB:
 
         results = []
         for r in rows:
+            pub_at_str = r[4]
+            try:
+                pub_at = datetime.strptime(pub_at_str, "%Y-%m-%d %H:%M:%S") if pub_at_str else datetime.now()
+            except:
+                pub_at = datetime.now()
+            sent = r[5]
+            try:
+                sent = float(sent) if sent is not None else 0.0
+            except:
+                sent = 0.0
             results.append(NewsItem(
                 title=r[0], content=r[1], source=r[2], url=r[3],
-                published_at=datetime.strptime(r[4], "%Y-%m-%d %H:%M:%S"),
-                sentiment=r[5],
+                published_at=pub_at,
+                sentiment=sent,
                 keywords=r[6].split(",") if r[6] else [],
                 relevance_score=r[7]
             ))
@@ -295,16 +305,26 @@ class NewsDB:
 
         conn.close()
 
-        return [
-            NewsItem(
+        out = []
+        for r in rows:
+            pub_at_str = r[4]
+            try:
+                pub_at = datetime.strptime(pub_at_str, "%Y-%m-%d %H:%M:%S") if pub_at_str else datetime.now()
+            except:
+                pub_at = datetime.now()
+            sent = r[5]
+            try:
+                sent = float(sent) if sent is not None else 0.0
+            except:
+                sent = 0.0
+            out.append(NewsItem(
                 title=r[0], content=r[1], source=r[2], url=r[3],
-                published_at=datetime.strptime(r[4], "%Y-%m-%d %H:%M:%S"),
-                sentiment=r[5],
+                published_at=pub_at,
+                sentiment=sent,
                 keywords=r[6].split(",") if r[6] else [],
                 relevance_score=r[7]
-            )
-            for r in rows
-        ]
+            ))
+        return out
 
 
 class NewsSentimentScorer:

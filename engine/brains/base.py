@@ -177,12 +177,21 @@ class BaseBrain(ABC):
         self._session = Session.CLOSED
         self._pending_decisions: List[TradingDecision] = []
         
+        # 防卡机制：决策冷却跟踪
+        self._last_decision: Optional[TradingDecision] = None
+        self._last_decision_time: float = 0
+        self._decision_cooldown: int = 300  # 5分钟同类决策冷却（秒）
+        self._consecutive_rejections: int = 0  # 连续被拦截计数
+        self._circuit_broken: bool = False  # 熔断标志
+        self._circuit_break_time: float = 0
+        
         # 统计
         self.stats = {
             "posts_today": 0,
             "trades_today": 0,
             "decisions_made": 0,
             "social_interactions": 0,
+            "risk_rejected": 0,
         }
         
         logger.info(f"[{self.CONFIG.name}] 大脑初始化完成 | 人设: {self.CONFIG.personality.speech_pattern}")
@@ -633,12 +642,44 @@ class BaseBrain(ABC):
             except Exception as e:
                 logger.error(f"[{self.CONFIG.name}] 决策出错: {e}")
         
+        # ===== 防卡机制：决策冷却 + 熔断 =====
+        now_ts = time.time()
+        
+        # 熔断检查：如果连续3次被拦截，熔断10分钟
+        if self._circuit_broken:
+            if now_ts - self._circuit_break_time < 600:
+                logger.warning(f"[{self.CONFIG.name}] 🔴 熔断中，暂停 {600 - (now_ts - self._circuit_break_time):.0f}秒")
+                return  # 跳过本次循环
+            else:
+                logger.warning(f"[{self.CONFIG.name}] 🟢 熔断恢复")
+                self._circuit_broken = False
+                self._consecutive_rejections = 0
+        
+        # 防重复冷却：同一标的同方向决策，5分钟内不重复执行
+        if decision and decision.action not in (Action.HOLD, Action.WATCH):
+            sym = getattr(decision, "symbol", "") or ""
+            action_val = str(decision.action.value).upper()
+            decision_key = f"{sym}:{action_val}"
+            
+            if (self._last_decision is not None and 
+                now_ts - self._last_decision_time < self._decision_cooldown):
+                last_sym = getattr(self._last_decision, "symbol", "") or ""
+                last_action = str(self._last_decision.action.value).upper()
+                if last_sym == sym and last_action == action_val:
+                    logger.info(f"[{self.CONFIG.name}] ⏸️ 决策冷却中（{self._decision_cooldown - (now_ts - self._last_decision_time):.0f}秒），跳过重复执行")
+                    # 仍然允许发帖，但不执行交易
+                    decision = None  # 清空以跳过执行，仅保留发帖
+        
         # Step 4: 执行交易（Phase 3: 决策落地 + 风控）
         if decision and decision.action not in (Action.HOLD, Action.WATCH):
             action_val = str(decision.action.value).upper()
             sym = getattr(decision, "symbol", "") or ""
             qty = getattr(decision, "quantity", 0) or 0
             price = getattr(decision, "price", 0) or 0
+
+            # 记录本次决策用于冷却跟踪
+            self._last_decision = decision
+            self._last_decision_time = now_ts
 
             # Phase 3.3: 风控检查
             from engine.risk_control import get_risk_controller
@@ -655,6 +696,13 @@ class BaseBrain(ABC):
                 # 决策降级为 WATCH（记录但不执行）
                 self.stats["risk_rejected"] = self.stats.get("risk_rejected", 0) + 1
                 success = False
+                
+                # ===== 熔断触发：连续3次拦截 → 暂停10分钟 =====
+                self._consecutive_rejections += 1
+                if self._consecutive_rejections >= 3:
+                    self._circuit_broken = True
+                    self._circuit_break_time = now_ts
+                    logger.warning(f"[{self.CONFIG.name}] 🔴 连续{self._consecutive_rejections}次拦截，触发熔断10分钟！")
             else:
                 # 提取 MiniRock 评分
                 alg_data = minirock_analysis.get(sym, {})

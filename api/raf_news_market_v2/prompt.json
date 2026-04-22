@@ -1,0 +1,11 @@
+{
+  "project": "info_market_v2",
+  "name": "MiniRock信息市场 v2.0（含主站集成）",
+  "created": "2026-04-22",
+  "status": "in_progress",
+  "current_task": "raf_im_01",
+  "total_tasks": 7,
+  "completed_tasks": 0,
+  "tasks": ["raf_im_01","raf_im_02","raf_im_03","raf_im_04","raf_im_05","raf_im_06","raf_im_07"],
+  "log": ["2026-04-22T22:XX: 主站新闻API扩展+s情感评分+信息市场展示层 启动"]
+}

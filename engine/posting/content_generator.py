@@ -446,31 +446,51 @@ class ContentGenerator:
     async def _generate_random(
         self, market_data: Dict, holdings: List[Dict]
     ) -> str:
-        """生成随机话题帖（市场点评/闲聊）"""
-        topics = [
-            f"聊聊{self.config.style}的那些事儿",
-            "今天的市场让人",
-            "作为{0}风格的交易员，谈谈我的理解",
-            "为什么我坚持这套策略",
-        ]
+        """生成随机话题帖（市场点评/闲聊）- 强制LLM增强，消除模板废话"""
+        # 注入真实市场数据让 LLM 有料可写
+        indices_raw = market_data.get("indices", {})
+        indices = indices_raw if isinstance(indices_raw, dict) else {}
         
-        topic = random.choice(topics).format(self.config.style)
+        # 构建市场快讯块（让 LLM 写得有根据）
+        market_block = "【今日市场概况】\n"
+        for sym, info in list(indices.items())[:3]:
+            pct = info.get("pct_chg", 0)
+            emoji = "📈" if pct > 0 else "📉" if pct < 0 else "➡️"
+            market_block += f"  {emoji} {info.get('name', sym)}: {pct:+.2f}%\n"
+        
+        news_ctx = market_data.get("news_context") or {}
+        if news_ctx.get("has_news"):
+            top_news = news_ctx.get("top_news", [])
+            if top_news:
+                market_block += "【近期热点新闻】\n"
+                for n in top_news[:3]:
+                    s = n.get("sentiment", "中性")
+                    market_block += f"  • {n.get('title', '')[:50]}（{s}）\n"
+        
+        holdings_summary = ""
+        if holdings:
+            gains = [h for h in holdings if h.get("pct_chg", 0) > 0]
+            losses = [h for h in holdings if h.get("pct_chg", 0) < 0]
+            holdings_summary = f"当前持仓{len(holdings)}只，{len(gains)}只飘红，{len(losses)}只飘绿。"
+        else:
+            holdings_summary = "当前空仓。"
+        
+        topic = random.choice([
+            "聊聊今天的市场",
+            "谈谈最近的交易心得",
+            "对当前行情的看法",
+        ])
         
         content = f"""【{topic} - {self.config.name}】
 
-{random.choice([
-    '市场每天都在教育我们，保持谦卑。',
-    '交易不是预测，而是应对。',
-    '好的策略是控制亏损，让利润奔跑。',
-    '耐心是散户最大的武器。',
-    '每次操作都要有足够的理由支撑。',
-])}
+{market_block}
 
-💬 {self.injector.get_speech_bubble(self.config.ai_id, 'neutral')}
+{holdings_summary}
 
-#{self.config.style} #交易感悟"""
-        
-        return self.injector.inject(self.config.ai_id, content, intensity=0.4)
+（AI根据市场数据和个人持仓生成有观点的内容）"""
+
+        # 强制走 LLM 增强，不用模板
+        return content  # LLM 增强在 generate() 主流程里处理
 
     # ==================== 新场景发帖生成 ====================
 
@@ -683,7 +703,7 @@ class ContentGenerator:
 2. 要有人味——可以有观点、有情绪、有不确定性
 3. 符合交易员的口吻（不要像写报告）
 4. 长度适中（微博风格，200字以内）
-5. 参考【历史记忆】中的风格和偏好，保持一致性{memory_block}
+5. 参考【历史记忆】中的风格和偏好，保持一致性
 
 素材：
 {base_content}
@@ -705,9 +725,13 @@ class ContentGenerator:
         # 优先使用 LLM 的类型
         if post_type in (PostType.CLOSING, PostType.OPENING):
             return True
-        # 30% 概率使用 LLM
-        if post_type in (PostType.HOLD_REASON, PostType.NIGHT_ANALYSIS):
-            return random.random() < 0.3
+        # 强制 LLM：RANDOM/HOLD/STRATEGY/NEW 类型（消除模板废话）
+        if post_type in (PostType.RANDOM, PostType.HOLD_REASON, PostType.STRATEGY_SHARE,
+                         PostType.SOCIAL, PostType.MOCK):
+            return True
+        # 50% 概率使用 LLM
+        if post_type in (PostType.NIGHT_ANALYSIS,):
+            return random.random() < 0.5
         # 其他类型不使用 LLM
         return False
     

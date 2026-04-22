@@ -223,6 +223,8 @@ class Handler(BaseHTTPRequestHandler):
                             return self.get_interaction_ranking, {}
                         if len(rest2) >= 3 and rest2[1] == "me":
                             return self.get_interaction_me, {"user_id": rest2[2]}
+                if rest[0] == "news":
+                    return self.get_news_market, {}
                 if rest[0] == "my-votes" and len(rest) >= 2:
                     return self.get_competition_my_votes, {"user_id": rest[1]}
                 if rest[0] == "trades":
@@ -261,6 +263,8 @@ class Handler(BaseHTTPRequestHandler):
                         return self.get_interaction_ranking, {}
                     if len(rest) >= 3 and rest[1] == "me":
                         return self.get_interaction_me, {"user_id": rest[2]}
+            if sub[0] == "news":
+                return self.get_news_market, {}
             if sub[0] == "my-votes" and len(sub) >= 2:
                 return self.get_competition_my_votes, {"user_id": sub[1]}
             if sub[0] == "settle":
@@ -604,6 +608,89 @@ class Handler(BaseHTTPRequestHandler):
             return {"data": {"tracking": results}}
         finally:
             conn.close()
+
+    # ========== 信息市场 API ==========
+    def get_news_market(self):
+        """信息市场 - GET /api/news?type=xxx&page=1&limit=20"""
+        import sqlite3 as sq3
+        
+        # 解析参数
+        from urllib.parse import parse_qs, urlparse
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        
+        news_type = params.get('type', ['all'])[0]
+        page = max(1, int(params.get('page', [1])[0]))
+        limit = min(50, max(1, int(params.get('limit', [20])[0])))
+        offset = (page - 1) * limit
+        
+        # 映射type到过滤条件
+        NEWS_DB = '/var/www/familystock/api/data/family_stock.db'
+        
+        # 构建WHERE条件
+        where_clauses = []
+        params = []
+        
+        if news_type == 'finance':
+            where_clauses.append("source_platform IN (?, ?)")
+            params.extend(['cls', 'ths'])
+        elif news_type == 'social':
+            where_clauses.append("source_platform IN (?, ?)")
+            params.extend(['weibo', 'douyin'])
+        elif news_type == 'black':
+            # 黑天鹅监控：event_type 为风险类型
+            where_clauses.append("event_type IN (?, ?, ?, ?)")
+            params.extend(['black_swan', 'gray_rhinoceros', 'macro_risk', 'sector_risk'])
+        elif news_type == 'blogger':
+            where_clauses.append("source_platform = ?")
+            params.append('bilibili')
+        # 'all': 不加过滤条件
+        
+        where_sql = ' AND '.join(where_clauses) if where_clauses else '1=1'
+        
+        try:
+            conn = sq3.connect(NEWS_DB, timeout=30)
+            conn.execute('PRAGMA journal_mode=WAL')
+            
+            # 统计
+            total = conn.execute(f'SELECT COUNT(*) FROM news WHERE {where_sql}', params).fetchone()[0]
+            rows = conn.execute(
+                f'''SELECT id, title, content, source, source_platform, published_at,
+                          sentiment, event_type, keywords, category, url, blogger_source
+                   FROM news WHERE {where_sql} ORDER BY id DESC LIMIT ? OFFSET ?''',
+                params + [limit, offset]
+            ).fetchall()
+            
+            conn.close()
+            
+            items = []
+            for row in rows:
+                items.append({
+                    'id': row[0],
+                    'title': row[1] or '',
+                    'content': (row[2] or '')[:200],
+                    'source': row[3] or '',
+                    'source_platform': row[4] or '',
+                    'published_at': row[5] or '',
+                    'sentiment': round(float(row[6] or 0), 2),
+                    'event_type': row[7] or 'normal',
+                    'keywords': row[8] or '',
+                    'category': row[9] or '',
+                    'url': row[10] or '',
+                    'blogger_source': row[11] or ''
+                })
+            
+            return {'data': {
+                'list': items,
+                'total': total,
+                'page': page,
+                'limit': limit,
+                'pages': (total + limit - 1) // limit,
+                'type': news_type
+            }}
+            
+        except Exception as e:
+            return {'data': {'list': [], 'total': 0, 'page': page, 'limit': limit, 'pages': 0, 'type': news_type, 'error': str(e)}}
 
     def get_competition_summary(self):
         """赛季总览数据"""

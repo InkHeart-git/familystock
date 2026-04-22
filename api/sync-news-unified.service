@@ -1,0 +1,15 @@
+[Unit]
+Description=MiniRock Unified News Fetcher (财联社+同花顺+Tushare)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/var/www/familystock/api/venv/bin/python3 /var/www/ai-god-of-stocks/api/sync_news_unified.py
+User=root
+StandardOutput=journal
+StandardError=journal
+TimeoutSec=120
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+{
+  "project": "info_market_v1",
+  "name": "MiniRock信息市场数据层 v1.0",
+  "created": "2026-04-22 21:00",
+  "status": "in_progress",
+  "total_tasks": 5,
+  "completed_tasks": 0,
+  "current_task": "imkt_01",
+  "tasks": [
+    {"id":"imkt_01","title":"情感评分系统","status":"pending","result":""},
+    {"id":"imkt_02","title":"信息市场API路由","status":"pending","result":""},
+    {"id":"imkt_03","title":"信息市场前端页面","status":"pending","result":""},
+    {"id":"imkt_04","title":"AI股神news.db切换","status":"pending","result":""},
+    {"id":"imkt_05","title":"主站底部导航集成","status":"pending","result":""}
+  ],
+  "log": ["2026-04-22 21:00: 项目重启，先生8小时工作制，今晚交付信息市场数据层v1.0+AI股神集成+主站集成"]
+}

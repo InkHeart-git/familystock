@@ -137,6 +137,45 @@ class KimiProvider:
                 raise Exception(f"Kimi HTTP {resp.status}: {text[:300]}")
 
 
+class SiliconFlowProvider:
+    """硅基流动 LLM 提供商（第二兜底）- OpenAI 兼容格式"""
+    name = "SiliconFlow"
+
+    def __init__(self):
+        self.api_key = os.getenv("SILICONFLOW_API_KEY", os.getenv("SF_API_KEY"))
+        self.base_url = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
+        # 优先用 Qwen/QwQ 模型，也支持 deepseek
+        self.model = "deepseek-ai/DeepSeek-V3"
+
+    async def generate(self, prompt: str, system_prompt: str = "") -> str:
+        if not self.api_key:
+            raise Exception("SILICONFLOW_API_KEY not configured")
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": 500,
+        }
+        async with aiohttp.ClientSession() as sess:
+            async with sess.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
+                text = await resp.text()
+                if resp.status == 200:
+                    import json as _json
+                    data = _json.loads(text)
+                    return data["choices"][0]["message"]["content"]
+                raise Exception(f"SiliconFlow HTTP {resp.status}: {text[:300]}")
+
+
 class DeepSeekProvider:
     """DeepSeek LLM 提供商（兜底）- OpenAI 兼容格式"""
 
@@ -182,24 +221,20 @@ class DeepSeekProvider:
 
 class LLMClient:
     """
-    三路 LLM 自动切换客户端
-    - 主用：MiniMax 2.7 high-speed（coding plan）
-    - 备用：Kimi k2p5（coding plan）
-    - 兜底：DeepSeek chat
+    LLM 客户端 - MiniMax 主力 + DeepSeek 兜底（已移除 Kimi）
     """
     
     def __init__(self):
         self.primary = MiniMaxProvider()   # MiniMax
-        self.backup = KimiProvider()       # Kimi
-        self.fallback = DeepSeekProvider() # DeepSeek
+        self.fallback = DeepSeekProvider() # DeepSeek 兜底
         
     async def generate(self, prompt: str, system_prompt: str = "",
                        model: str = "auto") -> str:
         """
         自动切换的生成接口
-        model: "auto"=自动切换, "minimax", "kimi", "deepseek"
+        model: "auto"=自动切换, "minimax", "deepseek", "siliconflow"
         """
-        providers = [self.primary, self.backup, self.fallback]
+        providers = [self.primary, self.fallback, SiliconFlowProvider()]
         errors = []
         
         for p in providers:

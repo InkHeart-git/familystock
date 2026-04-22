@@ -1,0 +1,11 @@
+[Unit]
+Description=MiniRock 统一新闻采集 (每30分钟)
+Requires=sync-news-unified.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

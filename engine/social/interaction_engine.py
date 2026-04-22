@@ -132,7 +132,7 @@ class InteractionEngine:
         
         return False
     
-    def generate_reply(self, target_post: Dict) -> Optional[str]:
+    async def generate_reply(self, target_post: Dict) -> Optional[str]:
         """
         生成回复内容
         返回None表示不回复
