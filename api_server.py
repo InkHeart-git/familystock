@@ -239,6 +239,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self.execute_trade, {}
                 if rest[0] == "posts" and len(rest) == 1:
                     return self.create_post, {}
+                # Phase 2: 真人论坛
+                if rest[0] == "forum":
+                    rest2 = rest[1:]
+                    # 精确路由优先（长路径在前）
+                    if len(rest2) >= 3 and rest2[0] == "posts" and rest2[2] == "replies":
+                        return self.get_forum_replies, {"post_id": rest2[1]}
+                    if len(rest2) >= 2 and rest2[0] == "posts" and rest2[1] == "new":
+                        return self.create_forum_post, {}
+                    if len(rest2) >= 2 and rest2[0] == "posts":
+                        return self.get_forum_post, {"post_id": rest2[1]}
+                    if not rest2 or rest2[0] == "posts":
+                        return self.get_forum_posts, {}
             if sub[0] == "competition":
                 rest = sub[1:]
                 if not rest or rest[0] == "leaderboard":
@@ -1609,6 +1621,149 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
             import traceback; traceback.print_exc()
             return {"error": str(e)}, 500
+
+    # ─── Phase 2: 真人论坛 ───────────────────────────────────────
+
+    def get_forum_posts(self):
+        """获取真人帖子列表"""
+        conn = get_db()
+        try:
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            category = params.get("category", [None])[0]
+            related_ai = params.get("ai", [None])[0]
+            limit = int(params.get("limit", ["50"])[0])
+            offset = int(params.get("offset", ["0"])[0])
+
+            query = "SELECT * FROM forum_posts WHERE 1=1"
+            args = []
+            if category:
+                query += " AND category=?"
+                args.append(category)
+            if related_ai:
+                query += " AND related_ai_id=?"
+                args.append(related_ai)
+            query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            args.extend([limit, offset])
+
+            cur = conn.execute(query, args)
+            rows = cur.fetchall()
+            posts = []
+            for r in rows:
+                posts.append({
+                    "id": r["id"],
+                    "post_id": r["post_id"],
+                    "user_id": r["user_id"],
+                    "user_name": r["user_name"],
+                    "title": r["title"],
+                    "content": r["content"],
+                    "category": r["category"],
+                    "related_ai_id": r["related_ai_id"],
+                    "related_symbol": r["related_symbol"],
+                    "views": r["views"],
+                    "likes": r["likes"],
+                    "replies": r["replies"],
+                    "created_at": r["created_at"]
+                })
+            total = conn.execute("SELECT COUNT(*) FROM forum_posts").fetchone()[0]
+            return {"data": {"posts": posts, "total": total, "offset": offset, "limit": limit}}
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}
+
+    def create_forum_post(self):
+        """真人发布帖子"""
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(body)
+        except:
+            return {"error": "invalid JSON"}, 400
+
+        required = ["title", "content", "user_id"]
+        for f in required:
+            if f not in data:
+                return {"error": f"missing field: {f}"}, 400
+
+        title = data["title"].strip()
+        content = data["content"].strip()
+        if len(title) < 5:
+            return {"error": "title must be at least 5 chars"}, 400
+        if len(content) < 10:
+            return {"error": "content must be at least 10 chars"}, 400
+
+        conn = get_db()
+        try:
+            import uuid
+            post_id = str(uuid.uuid4())[:8]
+            cur = conn.execute("""
+                INSERT INTO forum_posts (post_id, user_id, user_name, user_phone, title, content,
+                    category, related_ai_id, related_symbol, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))
+            """, (post_id, str(data["user_id"]), data.get("user_name", ""),
+                  data.get("user_phone", ""), title, content,
+                  data.get("category", "general"),
+                  data.get("related_ai_id"), data.get("related_symbol")))
+            row_id = cur.lastrowid
+            conn.commit()
+            conn.close()
+            return {"data": {"success": True, "post_id": post_id, "row_id": row_id}}
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+
+    def get_forum_post(self, post_id):
+        """获取帖子详情"""
+        conn = get_db()
+        try:
+            row = conn.execute("SELECT * FROM forum_posts WHERE id=? OR post_id=?", (post_id, post_id)).fetchone()
+            if not row:
+                return {"error": "post not found"}, 404
+            # views++
+            conn.execute("UPDATE forum_posts SET views=views+1 WHERE id=?", (row["id"],))
+            conn.commit()
+            return {"data": {
+                "id": row["id"],
+                "post_id": row["post_id"],
+                "user_id": row["user_id"],
+                "user_name": row["user_name"],
+                "title": row["title"],
+                "content": row["content"],
+                "category": row["category"],
+                "related_ai_id": row["related_ai_id"],
+                "related_symbol": row["related_symbol"],
+                "views": row["views"] + 1,
+                "likes": row["likes"],
+                "replies": row["replies"],
+                "created_at": row["created_at"]
+            }}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_forum_replies(self, post_id):
+        """获取某帖子的所有 AI 回复"""
+        conn = get_db()
+        try:
+            rows = conn.execute("""
+                SELECT * FROM forum_replies
+                WHERE post_id = ?
+                ORDER BY created_at ASC
+            """, (post_id,)).fetchall()
+            replies = []
+            for r in rows:
+                replies.append({
+                    "id": r["id"],
+                    "post_id": r["post_id"],
+                    "ai_id": r["ai_id"],
+                    "ai_name": r["ai_name"],
+                    "content": r["content"],
+                    "created_at": r["created_at"]
+                })
+            return {"data": {"replies": replies, "count": len(replies)}}
+        except Exception as e:
+            return {"error": str(e)}
 
     # ─── Phase 3.2: 用户评论 ───────────────────────────────────────
 

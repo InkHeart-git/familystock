@@ -5425,3 +5425,13 @@ PG connection error: substring not found
 [10:58:23] "GET / HTTP/1.1" 500 -
 AI股神争霸赛 API Server running on port 18085
 [11:01:31] "POST /api/competition/reset-season HTTP/1.1" 200 -
+AI股神争霸赛 API Server running on port 18085
+[11:11:26] "GET /api/forum/posts HTTP/1.1" 404 -
+[11:11:35] "GET /api/ai/forum/posts HTTP/1.1" 200 -
+[11:11:36] "GET /api/ai-god/forum/posts HTTP/1.1" 404 -
+[11:11:40] "POST /api/ai/forum/posts/new HTTP/1.1" 200 -
+AI股神争霸赛 API Server running on port 18085
+[11:14:23] "GET /api/ai/forum/posts/58e1ca42/replies HTTP/1.1" 200 -
+[11:14:43] "GET / HTTP/1.1" 200 -
+[11:14:43] "GET / HTTP/1.1" 200 -
+[11:14:43] "GET / HTTP/1.1" 500 -
