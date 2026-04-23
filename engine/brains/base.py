@@ -525,8 +525,9 @@ class BaseBrain(ABC):
                     market_news_context = {"has_news": False}
 
                 # 4. 市场热点/板块 (MiniRock Eyes)
+                # 注意: /api/minirock/eyes/* 在FastAPI不存在，实际路径是 /api/minirock_api/eyes/*
                 hotspots_resp = await sess.get(
-                    f"{self.minirock_api}/api/minirock/eyes/hotspots",
+                    f"{self.minirock_api}/api/minirock_api/eyes/hotspots",
                     timeout=aiohttp.ClientTimeout(total=5)
                 )
                 hotspots_raw = (await hotspots_resp.json()) if hotspots_resp.status == 200 else {}
@@ -537,7 +538,7 @@ class BaseBrain(ABC):
 
                 # 5. 板块分析
                 sectors_resp = await sess.get(
-                    f"{self.minirock_api}/api/minirock/eyes/sectors",
+                    f"{self.minirock_api}/api/minirock_api/eyes/sectors",
                     timeout=aiohttp.ClientTimeout(total=5)
                 )
                 sectors_raw = (await sectors_resp.json()) if sectors_resp.status == 200 else {}
