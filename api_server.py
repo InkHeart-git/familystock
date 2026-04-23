@@ -2157,11 +2157,19 @@ class Handler(BaseHTTPRequestHandler):
         """获取指定用户的互动积分详情 (Phase 3.3)
 
         GET /api/competition/interaction/me/{user_id}
+        支持 user_id=openid 或 phone（自动映射）
         """
         conn = get_db()
         try:
+            uid = str(user_id)
+            # phone → openid 映射
+            if not uid.startswith("ou_"):
+                row = conn.execute("SELECT user_id FROM user_interaction_points WHERE user_phone=? LIMIT 1", (uid,)).fetchone()
+                if row:
+                    uid = row[0]
+
             # 先计算最新积分
-            calc_result = self.compute_user_points(str(user_id))
+            self.compute_user_points(uid)
 
             # 再读取
             row = conn.execute("""
@@ -2169,7 +2177,7 @@ class Handler(BaseHTTPRequestHandler):
                        vote_accuracy, vote_score, comment_count, likes_received,
                        replies_received, comment_score, total_score, level, updated_at
                 FROM user_interaction_scores WHERE user_id=?
-            """, (str(user_id),)).fetchone()
+            """, (uid,)).fetchone()
 
             if not row:
                 return {"data": {"user_id": str(user_id), "total_score": 0, "level_name": "新手", "items": []}}
