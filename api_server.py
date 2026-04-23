@@ -227,6 +227,8 @@ class Handler(BaseHTTPRequestHandler):
                     # Phase 1 收尾：赛季管理
                     if rest2[0] == "seasons":
                         return self.get_competition_seasons, {}
+                    if rest2[0] == "checkin":
+                        return self.post_daily_checkin, {}
                     if rest2[0] == "reset-season":
                         return self.post_competition_reset_season, {}
                 if rest[0] == "news":
@@ -267,6 +269,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_competition_social, {}
                 if rest[0] == "predictions":
                     return self.get_competition_predictions, {}
+                if len(rest) >= 2 and rest[0] == "prediction-stats":
+                    return self.get_prediction_stats, {"ai_id": rest[1]}
                 if rest[0] == "my-votes" and len(rest) >= 2:
                     return self.get_competition_my_votes, {"user_id": rest[1]}
                 if rest[0] == "vote-results":
@@ -284,6 +288,8 @@ class Handler(BaseHTTPRequestHandler):
                 # Phase 1 收尾：赛季管理
                 if rest[0] == "seasons":
                     return self.get_competition_seasons, {}
+                if rest[0] == "checkin":
+                    return self.post_daily_checkin, {}
                 if rest[0] == "reset-season":
                     return self.post_competition_reset_season, {}
             if sub[0] == "news":
@@ -2171,6 +2177,171 @@ class Handler(BaseHTTPRequestHandler):
                 return {"data": {"recalculated": count}}
         except Exception as e:
             return {"error": str(e)}, 500
+        finally:
+            conn.close()
+
+    def post_daily_checkin(self):
+        """每日签到（Phase 3.3）
+        POST /api/competition/checkin
+        Body: {user_id, user_name}
+        连续签到奖励：1天=10分，7天=20分，30天=50分
+        """
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(body)
+        except:
+            return {"error": "invalid JSON"}, 400
+
+        user_id = str(data.get("user_id", ""))
+        user_name = data.get("user_name", "")
+        if not user_id:
+            return {"error": "user_id required"}, 400
+
+        conn = get_db()
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+
+            # 查找上次签到记录
+            row = conn.execute("""
+                SELECT last_active_date, streak_days, daily_visits
+                FROM user_interaction_points WHERE user_id=?
+            """, (user_id,)).fetchone()
+
+            if row and row["last_active_date"]:
+                last_date = row["last_active_date"]
+                prev_streak = row["streak_days"] or 0
+                prev_visits = row["daily_visits"] or 0
+
+                # 昨天已签到 → 连续+1
+                yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+                if last_date == yesterday:
+                    new_streak = prev_streak + 1
+                    already_checked_in = (last_date == today)
+                elif last_date == today:
+                    already_checked_in = True
+                    new_streak = prev_streak
+                else:
+                    new_streak = 1
+                    already_checked_in = False
+            else:
+                new_streak = 1
+                already_checked_in = False
+                prev_visits = 0
+
+            if already_checked_in:
+                return {"data": {
+                    "message": "今日已签到",
+                    "streak_days": new_streak,
+                    "points_earned": 0,
+                    "already_checked_in": True
+                }}
+
+            # 计算积分
+            if new_streak >= 30:
+                points = 50
+            elif new_streak >= 7:
+                points = 20
+            else:
+                points = 10
+
+            new_visits = prev_visits + 1
+
+            # 查现有积分
+            existing = conn.execute("SELECT COALESCE(total_score, 0) as s FROM user_interaction_points WHERE user_id=?", (user_id,)).fetchone()
+            existing_score = existing["s"] if existing else 0
+
+            # 计算新总分
+            new_total_score = existing_score + points
+            new_updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # UPSERT
+            conn.execute("""
+                INSERT INTO user_interaction_points
+                    (user_id, user_name, daily_visits, streak_days, last_active_date, total_score, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    daily_visits = excluded.daily_visits,
+                    streak_days = excluded.streak_days,
+                    last_active_date = excluded.last_active_date,
+                    total_score = excluded.total_score,
+                    updated_at = excluded.updated_at
+            """, (user_id, user_name, new_visits, new_streak, today, new_total_score, new_updated_at))
+
+            conn.commit()
+            return {"data": {
+                "message": f"签到成功！连续 {new_streak} 天",
+                "streak_days": new_streak,
+                "points_earned": points,
+                "total_streak": new_streak,
+                "already_checked_in": False
+            }}
+        except Exception as e:
+            conn.rollback()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+        finally:
+            conn.close()
+
+    def get_prediction_stats(self, ai_id):
+        """竞猜可视化数据（Phase 3.2）
+
+        GET /api/competition/prediction-stats/{ai_id}
+        返回：该AI的押注分布、参与人数趋势、历史准确率
+        """
+        conn = get_db()
+        try:
+            # 押注分布
+            total_votes = conn.execute("""
+                SELECT COUNT(*) FROM user_votes WHERE ai_id=?
+            """, (ai_id,)).fetchone()[0] or 0
+
+            up_count = conn.execute("""
+                SELECT COUNT(*) FROM user_votes WHERE ai_id=? AND direction='up'
+            """, (ai_id,)).fetchone()[0] or 0
+
+            down_count = total_votes - up_count
+
+            # 近7天押注趋势
+            trend_rows = conn.execute("""
+                SELECT vote_date, COUNT(*) as cnt,
+                       SUM(CASE WHEN direction='up' THEN 1 ELSE 0 END) as up_cnt
+                FROM user_votes
+                WHERE ai_id=? AND vote_date >= date('now', '-7 days')
+                GROUP BY vote_date
+                ORDER BY vote_date ASC
+            """, (ai_id,)).fetchall()
+            trend = [{
+                "date": r["vote_date"],
+                "total": r["cnt"],
+                "up": r["up_cnt"],
+                "down": r["cnt"] - r["up_cnt"]
+            } for r in trend_rows]
+
+            # 历史准确率（settle_date IS NOT NULL = 已结算）
+            settled = conn.execute("""
+                SELECT COUNT(*) as total, SUM(is_correct) as correct
+                FROM prediction_results WHERE ai_id=? AND settle_date IS NOT NULL
+            """, (ai_id,)).fetchone()
+
+            accuracy = 0.0
+            if settled and settled["total"] and settled["total"] > 0:
+                accuracy = round(settled["correct"] / settled["total"] * 100, 1)
+
+            return {"data": {
+                "ai_id": ai_id,
+                "total_votes": total_votes,
+                "up_votes": up_count,
+                "down_votes": down_count,
+                "up_pct": round(up_count / total_votes * 100, 1) if total_votes > 0 else 0,
+                "down_pct": round(down_count / total_votes * 100, 1) if total_votes > 0 else 0,
+                "trend_7d": trend,
+                "historical_accuracy": accuracy,
+                "settled_count": settled["total"] if settled else 0
+            }}
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}
         finally:
             conn.close()
 

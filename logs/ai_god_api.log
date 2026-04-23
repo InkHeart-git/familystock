@@ -5435,3 +5435,13 @@ AI股神争霸赛 API Server running on port 18085
 [11:14:43] "GET / HTTP/1.1" 200 -
 [11:14:43] "GET / HTTP/1.1" 200 -
 [11:14:43] "GET / HTTP/1.1" 500 -
+AI股神争霸赛 API Server running on port 18085
+[11:17:55] "POST /api/competition/checkin HTTP/1.1" 404 -
+[11:18:46] "GET / HTTP/1.1" 200 -
+[11:18:46] "GET / HTTP/1.1" 200 -
+[11:18:46] "GET / HTTP/1.1" 500 -
+AI股神争霸赛 API Server running on port 18085
+[11:20:50] "GET /api/competition/prediction-stats/1 HTTP/1.1" 200 -
+[11:20:50] "POST /api/competition/checkin HTTP/1.1" 200 -
+[11:20:53] "GET / HTTP/1.1" 200 -
+[11:20:53] "GET / HTTP/1.1" 200 -
