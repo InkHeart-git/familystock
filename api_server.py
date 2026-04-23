@@ -56,6 +56,7 @@ print("PG_DATA:" + json.dumps({{"portfolios": portfolios, "holdings": holdings}}
 # ─── SQLite 连接（持仓明细、帖子、交易）─────────────────────────
 def get_db():
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
@@ -223,6 +224,11 @@ class Handler(BaseHTTPRequestHandler):
                             return self.get_interaction_ranking, {}
                         if len(rest2) >= 3 and rest2[1] == "me":
                             return self.get_interaction_me, {"user_id": rest2[2]}
+                    # Phase 1 收尾：赛季管理
+                    if rest2[0] == "seasons":
+                        return self.get_competition_seasons, {}
+                    if rest2[0] == "reset-season":
+                        return self.post_competition_reset_season, {}
                 if rest[0] == "news":
                     return self.get_news_market, {}
                 if rest[0] == "my-votes" and len(rest) >= 2:
@@ -263,6 +269,11 @@ class Handler(BaseHTTPRequestHandler):
                         return self.get_interaction_ranking, {}
                     if len(rest) >= 3 and rest[1] == "me":
                         return self.get_interaction_me, {"user_id": rest[2]}
+                # Phase 1 收尾：赛季管理
+                if rest[0] == "seasons":
+                    return self.get_competition_seasons, {}
+                if rest[0] == "reset-season":
+                    return self.post_competition_reset_season, {}
             if sub[0] == "news":
                 return self.get_news_market, {}
             if sub[0] == "my-votes" and len(sub) >= 2:
@@ -1177,6 +1188,143 @@ class Handler(BaseHTTPRequestHandler):
             return {"data": {"results": results, "total": len(results)}}
         finally:
             conn.close()
+
+    def get_competition_seasons(self):
+        """获取所有赛季列表"""
+        conn = get_db()
+        try:
+            cur = conn.execute("SELECT * FROM ai_seasons ORDER BY id DESC")
+            rows = cur.fetchall()
+            seasons = []
+            for r in rows:
+                seasons.append({
+                    "id": r["id"],
+                    "season_id": r["season_id"],
+                    "start_date": r["start_date"],
+                    "end_date": r["end_date"],
+                    "champion_ai_id": r["champion_ai_id"],
+                    "created_at": r["created_at"]
+                })
+            return {"data": {"seasons": seasons, "count": len(seasons)}}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def post_competition_reset_season(self):
+        """重置赛季：存档当前数据 → 清空持仓/交易 → 生成新赛季ID"""
+        conn = get_db()
+        try:
+            import json as _json
+            # 1. 读取当前赛季信息（如果有的话）
+            cur = conn.execute("SELECT season_id FROM ai_seasons ORDER BY id DESC LIMIT 1")
+            last_season = cur.fetchone()
+            current_season_id = last_season["season_id"] if last_season else "2026_Q1"
+
+            # 2. 读取当前持仓快照用于存档
+            cur = conn.execute("""
+                SELECT p.ai_id, c.name as ai_name, p.cash, p.total_value,
+                       (SELECT GROUP_CONCAT(h.symbol || ':' || h.quantity || ':' || h.avg_cost)
+                        FROM ai_holdings h WHERE h.ai_id = p.ai_id) as holdings
+                FROM ai_portfolios p
+                JOIN ai_characters c ON c.id = p.ai_id
+            """)
+            portfolio_snapshot = []
+            for r in cur.fetchall():
+                portfolio_snapshot.append({
+                    "ai_id": r["ai_id"],
+                    "ai_name": r["ai_name"],
+                    "cash": r["cash"],
+                    "total_value": r["total_value"],
+                    "holdings": r["holdings"]
+                })
+
+            # 读取排行榜快照
+            cur = conn.execute("""
+                SELECT p.ai_id, c.name as ai_name, p.total_value, p.cash,
+                       ROUND((p.total_value - p.cash) / p.cash * 100, 2) as profit_rate,
+                       p.updated_at
+                FROM ai_portfolios p
+                JOIN ai_characters c ON c.id = p.ai_id
+                ORDER BY (p.total_value - p.cash) / p.cash DESC
+            """)
+            rankings_snapshot = []
+            for r in cur.fetchall():
+                rankings_snapshot.append({
+                    "ai_id": r["ai_id"],
+                    "ai_name": r["ai_name"],
+                    "total_value": r["total_value"],
+                    "cash": r["cash"],
+                    "profit_rate": r["profit_rate"],
+                    "updated_at": r["updated_at"]
+                })
+
+            # 确定冠军
+            champion_id = rankings_snapshot[0]["ai_id"] if rankings_snapshot else None
+
+            # 3. 生成新赛季ID
+            import re
+            m = re.search(r'(\d{4})_Q(\d)', current_season_id)
+            if m:
+                year, quarter = int(m.group(1)), int(m.group(2))
+                if quarter == 4:
+                    year += 1; quarter = 1
+                else:
+                    quarter += 1
+                new_season_id = f"{year}_Q{quarter}"
+            else:
+                new_season_id = "2026_Q2"
+
+            new_start = datetime.now().strftime("%Y-%m-%d")
+
+            # 4. 写入历史存档
+            archive_data = _json.dumps({
+                "rankings": rankings_snapshot,
+                "portfolios": portfolio_snapshot,
+                "stats": {
+                    "total_ais": len(portfolio_snapshot),
+                    "top_profit_rate": rankings_snapshot[0]["profit_rate"] if rankings_snapshot else 0
+                }
+            }, ensure_ascii=False)
+
+            # 5. 写入新赛季记录
+            conn.execute("""
+                INSERT INTO ai_seasons (season_id, start_date, champion_ai_id, final_data)
+                VALUES (?, ?, ?, ?)
+            """, (new_season_id, new_start, champion_id, archive_data))
+
+            # 6. 清空持仓和交易记录
+            conn.execute("DELETE FROM ai_holdings")
+            conn.execute("DELETE FROM ai_trades")
+
+            # 7. 重置持仓（去重 + 按 ai_id 分组重置）
+            # 删除每个 ai_id 的重复行，只保留 id 最小的那条
+            conn.execute("""
+                DELETE FROM ai_portfolios WHERE id NOT IN (
+                    SELECT MIN(id) FROM ai_portfolios GROUP BY ai_id
+                )
+            """)
+            # 重置A组(1-5)为100万，B组(6-10)为10万
+            conn.execute("""
+                UPDATE ai_portfolios
+                SET cash = CASE WHEN CAST(ai_id AS INTEGER) BETWEEN 1 AND 5 THEN 1000000.0 ELSE 100000.0 END,
+                    total_value = cash,
+                    seed_capital = cash,
+                    updated_at = ?
+                WHERE 1=1
+            """, (datetime.now().isoformat(),))
+
+            conn.commit()
+
+            return {"data": {
+                "message": "赛季重置成功",
+                "archived_season": current_season_id,
+                "new_season_id": new_season_id,
+                "champion": champion_id,
+                "ai_count": len(portfolio_snapshot)
+            }}
+
+        except Exception as e:
+            conn.rollback()
+            return {"error": str(e)}
 
     def settle_predictions(self):
         """每日收盘后结算预测（可由cron调用）
