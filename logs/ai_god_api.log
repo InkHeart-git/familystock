@@ -5445,3 +5445,49 @@ AI股神争霸赛 API Server running on port 18085
 [11:20:50] "POST /api/competition/checkin HTTP/1.1" 200 -
 [11:20:53] "GET / HTTP/1.1" 200 -
 [11:20:53] "GET / HTTP/1.1" 200 -
+AI股神争霸赛 API Server running on port 18085
+[12:10:01] "GET /api/competition/prediction-stats/1 HTTP/1.1" 200 -
+[12:10:04] "POST /api/competition/checkin HTTP/1.1" 200 -
+[12:10:38] "GET /api/competition/comments/1 HTTP/1.1" 200 -
+PG connection error: substring not found
+[12:11:33] "GET /api/competition/leaderboard?limit=3 HTTP/1.1" 200 -
+[12:11:54] "GET / HTTP/1.1" 200 -
+[12:11:54] "GET / HTTP/1.1" 200 -
+[12:11:54] "GET / HTTP/1.1" 500 -
+[12:12:25] "GET /api/competition/comments/1?type=all&limit=5 HTTP/1.1" 200 -
+[12:12:34] "GET / HTTP/1.1" 200 -
+[12:12:34] "GET / HTTP/1.1" 200 -
+[12:13:14] "GET /api/competition/prediction-stats/1 HTTP/1.0" 200 -
+[12:13:17] "GET /api/competition/summary HTTP/1.0" 200 -
+PG connection error: substring not found
+[12:13:17] "GET /api/competition/leaderboard HTTP/1.0" 200 -
+[12:13:17] "GET /api/competition/scoring HTTP/1.0" 200 -
+[12:13:17] "GET /api/competition/heatmap HTTP/1.0" 200 -
+[12:13:17] "GET /api/competition/score-tracking HTTP/1.0" 200 -
+[12:13:17] "GET /api/competition/social HTTP/1.0" 200 -
+[12:13:17] "GET /api/competition/predictions HTTP/1.0" 200 -
+[12:13:17] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+[12:13:18] "GET /api/competition/interaction/me/18651993693 HTTP/1.0" 200 -
+[12:13:18] "GET /api/competition/my-comments/18651993693 HTTP/1.0" 200 -
+[12:13:18] "GET /api/competition/interaction/ranking?limit=20 HTTP/1.0" 200 -
+[12:13:18] "GET /api/competition/comments?type=all&limit=30 HTTP/1.0" 200 -
+[12:13:48] "GET /api/competition/predictions HTTP/1.0" 200 -
+[12:13:48] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+[12:14:02] "GET / HTTP/1.1" 200 -
+[12:14:02] "GET / HTTP/1.1" 200 -
+[12:14:18] "GET /api/competition/predictions HTTP/1.0" 200 -
+[12:14:18] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+[12:14:48] "GET /api/competition/predictions HTTP/1.0" 200 -
+[12:14:48] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+[12:15:18] "GET /api/competition/predictions HTTP/1.0" 200 -
+[12:15:18] "GET /api/competition/my-votes/18651993693 HTTP/1.0" 200 -
+AI股神争霸赛 API Server running on port 18085
+[12:15:55] "GET /api/competition/range-stats/1 HTTP/1.1" 200 -
+[12:15:58] "POST /api/competition/vote HTTP/1.1" 400 -
+[12:16:03] "GET / HTTP/1.1" 200 -
+[12:16:03] "GET / HTTP/1.1" 200 -
+AI股神争霸赛 API Server running on port 18085
+AI股神争霸赛 API Server running on port 18085
+[12:17:33] "POST /api/competition/vote HTTP/1.1" 200 -
+[12:17:33] "GET /api/competition/range-stats/1 HTTP/1.1" 200 -
+[12:17:37] "POST /api/competition/vote HTTP/1.1" 200 -

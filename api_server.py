@@ -271,6 +271,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_competition_predictions, {}
                 if len(rest) >= 2 and rest[0] == "prediction-stats":
                     return self.get_prediction_stats, {"ai_id": rest[1]}
+                # Phase 3.2: 中级竞猜 - 区间押注统计
+                if len(rest) >= 2 and rest[0] == "range-stats":
+                    return self.get_range_stats, {"ai_id": rest[1]}
                 if rest[0] == "my-votes" and len(rest) >= 2:
                     return self.get_competition_my_votes, {"user_id": rest[1]}
                 if rest[0] == "vote-results":
@@ -1105,19 +1108,31 @@ class Handler(BaseHTTPRequestHandler):
         except:
             return {"error": "invalid JSON"}, 400
 
-        required = ["user_id", "ai_id", "direction"]
-        for f in required:
-            if f not in data:
-                return {"error": f"missing field: {f}"}, 400
+        required = ["user_id", "ai_id"]
+        vote_type_check = data.get("vote_type", "direction")
+        if vote_type_check == "direction" and "direction" not in data:
+            return {"error": "missing field: direction"}, 400
+        if vote_type_check not in ("direction", "range"):
+            return {"error": "vote_type must be 'direction' or 'range'"}, 400
 
         user_id = str(data["user_id"]).strip()
         ai_id = int(data["ai_id"])
-        direction = data["direction"]
+        vote_type = data.get("vote_type", "direction")
+        range_type = data.get("range_type", None)
         stock_symbol = data.get("stock_symbol", None)
         stock_name = data.get("stock_name", stock_symbol or "")
 
-        if direction not in ("up", "down"):
-            return {"error": "direction must be 'up' or 'down'"}, 400
+        if vote_type == "range":
+            valid_ranges = ("below_minus5", "minus5_to_0", "0_to_5", "above_5")
+            if range_type not in valid_ranges:
+                return {"error": "range_type must be one of: below_minus5, minus5_to_0, 0_to_5, above_5"}, 400
+            direction = "up"  # placeholder - range stored in range_type column
+        elif vote_type == "direction":
+            direction = data["direction"]
+            if direction not in ("up", "down"):
+                return {"error": "direction must be 'up' or 'down'"}, 400
+        else:
+            return {"error": "vote_type must be 'direction' or 'range'"}, 400
 
         # user_phone 从 user_id 推断（手机号格式）
         user_phone = user_id if len(user_id) >= 11 else "unknown"
@@ -1134,15 +1149,22 @@ class Handler(BaseHTTPRequestHandler):
 
             # UPSERT（允许同一用户对同一AI同一股票每天多次改票）
             conn.execute("""
-                INSERT INTO user_votes (user_id, user_phone, ai_id, ai_name, stock_symbol, stock_name, direction, vote_date, settled)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                INSERT INTO user_votes (user_id, user_phone, ai_id, ai_name, stock_symbol, stock_name, direction, vote_date, settled, vote_type, range_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
                 ON CONFLICT(user_id, ai_id, stock_symbol, vote_date) DO UPDATE SET
                     direction=excluded.direction,
+                    vote_type=excluded.vote_type,
+                    range_type=excluded.range_type,
                     created_at=datetime('now', '+8 hours')
-            """, (user_id, user_phone, ai_id, ai_name, stock_symbol, stock_name, direction, today))
+            """, (user_id, user_phone, ai_id, ai_name, stock_symbol, stock_name, direction, today, vote_type, range_type))
             conn.commit()
 
-            return {"data": {"success": True, "message": f"预测已提交: {ai_name} {'涨' if direction=='up' else '跌'}", "vote_date": today}}
+            if vote_type == "range":
+                labels = {"below_minus5": "跌幅>5%", "minus5_to_0": "跌0~5%", "0_to_5": "涨0~5%", "above_5": "涨幅>5%"}
+                msg = f"区间预测已提交: {ai_name} {labels.get(range_type, range_type)}"
+            else:
+                msg = f"方向预测已提交: {ai_name} {'涨' if direction=='up' else '跌'}"
+            return {"data": {"success": True, "message": msg, "vote_date": today}}
         finally:
             conn.close()
 
@@ -2280,6 +2302,34 @@ class Handler(BaseHTTPRequestHandler):
             conn.rollback()
             import traceback; traceback.print_exc()
             return {"error": str(e)}, 500
+        finally:
+            conn.close()
+
+    def get_range_stats(self, ai_id):
+        """区间押注分布（Phase 3.2 中级竞猜）
+        GET /api/competition/range-stats/{ai_id}
+        """
+        conn = get_db()
+        try:
+            rows = conn.execute("""
+                SELECT range_type, COUNT(*) as cnt
+                FROM user_votes
+                WHERE ai_id=? AND vote_type='range' AND range_type IS NOT NULL
+                GROUP BY range_type
+            """, (int(ai_id),)).fetchall()
+            total = sum(r[1] for r in rows)
+            distribution = {}
+            for rt in ("below_minus5", "minus5_to_0", "0_to_5", "above_5"):
+                cnt = next((r[1] for r in rows if r[0] == rt), 0)
+                distribution[rt] = {
+                    "count": cnt,
+                    "pct": round(cnt / total * 100, 1) if total > 0 else 0
+                }
+            return {"data": {
+                "ai_id": str(ai_id),
+                "total_range_votes": total,
+                "distribution": distribution
+            }}
         finally:
             conn.close()
 

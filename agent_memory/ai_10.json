@@ -8,11 +8,6 @@
       "type": "watch"
     },
     {
-      "time": "11:00",
-      "content": "🎯 沈闻今日空仓观望，等待机会。",
-      "type": "watch"
-    },
-    {
       "time": "11:01",
       "content": "🎯 沈闻今日空仓观望，等待机会。",
       "type": "watch"
@@ -51,6 +46,11 @@
       "time": "11:02",
       "content": "🎯 沈闻今日空仓观望，等待机会。",
       "type": "watch"
+    },
+    {
+      "time": "11:43",
+      "content": "【沈闻的午间】\n\n打听了个消息，下午可能有动静。事件驱动要随时待命！",
+      "type": "random"
     }
   ],
   "recent_controversies": [
