@@ -1061,24 +1061,23 @@ class Handler(BaseHTTPRequestHandler):
         conn = get_db()
         try:
             today = datetime.now().strftime("%Y-%m-%d")
-            # 获取各AI当前持仓股（从ai_holdings）
+            # 获取所有AI（即使无持仓也要显示，支持预测空仓AI次日涨跌）
             rows = conn.execute("""
-                SELECT DISTINCT h.ai_id, c.name, c.emoji,
+                SELECT c.id, c.name, c.emoji, c.style,
                        h.symbol, h.name AS stock_name, h.current_price,
                        h.quantity, h.avg_cost
-                FROM ai_holdings h
-                JOIN ai_characters c ON CAST(h.ai_id AS INTEGER) = c.id
-                WHERE h.quantity > 0 AND h.current_price > 0
-                ORDER BY h.ai_id
+                FROM ai_characters c
+                LEFT JOIN ai_holdings h ON CAST(h.ai_id AS INTEGER) = c.id AND h.current_price > 0
+                ORDER BY c.id
             """).fetchall()
 
             items = []
             for r in rows:
-                # 检查用户是否已投票
+                aid = r[0]
                 items.append({
-                    "ai_id": r[0], "ai_name": r[1], "ai_emoji": r[2] or "🤖",
-                    "symbol": r[3], "stock_name": r[4], "current_price": float(r[5]),
-                    "quantity": r[6], "avg_cost": float(r[7])
+                    "ai_id": aid, "ai_name": r[1], "ai_emoji": r[2] or "🤖",
+                    "symbol": r[4], "stock_name": r[5], "current_price": float(r[6] or 0),
+                    "quantity": r[7], "avg_cost": float(r[8] or 0)
                 })
 
             # 按AI分组
@@ -1088,11 +1087,12 @@ class Handler(BaseHTTPRequestHandler):
                 if aid not in ai_groups:
                     ai_groups[aid] = {"ai_id": aid, "ai_name": item["ai_name"],
                                       "ai_emoji": item["ai_emoji"], "holdings": []}
-                ai_groups[aid]["holdings"].append({
-                    "symbol": item["symbol"], "stock_name": item["stock_name"],
-                    "current_price": item["current_price"], "quantity": item["quantity"],
-                    "avg_cost": item["avg_cost"]
-                })
+                if item["symbol"]:  # 只添加有symbol的持仓
+                    ai_groups[aid]["holdings"].append({
+                        "symbol": item["symbol"], "stock_name": item["stock_name"],
+                        "current_price": item["current_price"], "quantity": item["quantity"],
+                        "avg_cost": item["avg_cost"]
+                    })
 
             return {"data": {"ais": list(ai_groups.values()), "total": len(items),
                               "date": today}}

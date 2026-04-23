@@ -8,11 +8,6 @@
       "type": "watch"
     },
     {
-      "time": "11:01",
-      "content": "📈 Mike（迈克）今日空仓观望，等待机会。",
-      "type": "watch"
-    },
-    {
       "time": "11:02",
       "content": "📈 Mike（迈克）今日空仓观望，等待机会。",
       "type": "watch"
@@ -49,6 +44,11 @@
     },
     {
       "time": "12:07",
+      "content": "【Mike（迈克）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
+      "type": "random"
+    },
+    {
+      "time": "12:23",
       "content": "【Mike（迈克）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
       "type": "random"
     }
