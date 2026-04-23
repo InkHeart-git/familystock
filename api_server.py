@@ -1169,10 +1169,29 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
 
     def get_competition_my_votes(self, user_id=None):
-        """获取用户的投票历史"""
+        """获取用户的投票历史
+        支持 user_id=openid 或 phone（自动映射到 openid）
+        """
         uid = user_id or "unknown"
         conn = get_db()
         try:
+            # phone→openid 映射：先查 user_votes（phone存这里），再查 user_interaction_points
+            uid_for_interaction = uid
+            uid_for_votes = uid
+            if uid and not uid.startswith("ou_"):
+                # 从 votes 表找到该 phone 对应的 openid（user_id 字段存 openid）
+                row = conn.execute(
+                    "SELECT DISTINCT user_id FROM user_votes WHERE user_phone=? AND user_id LIKE 'ou_%' LIMIT 1",
+                    (uid,)
+                ).fetchone()
+                if row:
+                    uid_for_interaction = row[0]  # openid → 查 user_interaction_points
+                    uid_for_votes = uid          # phone   → 查 user_votes
+                else:
+                    # votes表也没有openid，fallback：直接用phone查interaction_points
+                    uid_for_interaction = uid
+                    uid_for_votes = uid
+
             rows = conn.execute("""
                 SELECT v.id, v.ai_id, v.ai_name, v.stock_symbol, v.stock_name,
                        v.direction, v.vote_date, v.settled,
@@ -1184,7 +1203,7 @@ class Handler(BaseHTTPRequestHandler):
                 WHERE v.user_id=?
                 ORDER BY v.vote_date DESC, v.created_at DESC
                 LIMIT 50
-            """, (uid,)).fetchall()
+            """, (uid_for_votes,)).fetchall()
 
             votes = [{
                 "id": r[0], "ai_id": r[1], "ai_name": r[2],
@@ -1197,7 +1216,15 @@ class Handler(BaseHTTPRequestHandler):
             # 统计
             total = len(votes)
             correct = sum(1 for v in votes if v["settled"] and v["is_correct"] == 1)
-            total_points = sum(v["points_earned"] for v in votes if v["points_earned"])
+            vote_points = sum(v["points_earned"] for v in votes if v["points_earned"])
+
+            # 合并 user_interaction_points.total_score（含签到/道具等积分）
+            interaction = conn.execute(
+                "SELECT COALESCE(total_score,0) FROM user_interaction_points WHERE user_id=?",
+                (uid_for_interaction,)
+            ).fetchone()
+            interaction_points = interaction[0] if interaction else 0
+            total_points = vote_points + interaction_points
 
             return {"data": {"votes": votes, "total": total, "correct": correct,
                               "accuracy": round(correct/total*100, 1) if total > 0 else 0,
