@@ -203,7 +203,173 @@ class BaseBrain(ABC):
         """返回角色配置"""
         pass
 
-    @abstractmethod
+    # ==================== LLM推理决策（新增） ====================
+    # 注意：这是可选方法，不需要重写。execute_session_cycle 会自动调用它，
+    # 如果返回 None 则降级到原有 if-then 规则。
+
+    async def think_like_human_llm(
+        self,
+        market_data: Dict[str, Any],
+        my_holdings: List[Dict],
+        my_cash: float,
+        news: List[Dict],
+        minirock_analysis: Dict[str, Dict] = {},
+    ) -> Optional[TradingDecision]:
+        """
+        LLM推理决策 - 用MiniMax替代if-then规则做交易决策。
+        输入: 市场数据 + 持仓 + 现金 + 新闻 + MiniRock算法分析
+        输出: TradingDecision 或 None（LLM失败时返回None，由调用方走if-then规则）
+        """
+        import aiohttp
+        import re as re_module
+        from engine.llm_client import get_llm_client
+
+        # 构建市场概览
+        indices = market_data.get("indices", {})
+        prices = market_data.get("prices", {})
+        news_ctx = market_data.get("news_context", {})
+        hotspots = market_data.get("hotspots", [])
+
+        indices_text = "\n".join([
+            f"  - {n}: 现价{p.get('price',0):.2f} 涨跌{p.get('pct_chg',0):+.2f}%"
+            for n, p in list(indices.items())[:6]
+        ]) or "  (暂无指数数据)"
+
+        prices_text = "\n".join([
+            f"  - {s}: {info.get('name',s)} 现价{info.get('price',0):.2f} 涨跌{info.get('pct_chg',0):+.2f}%"
+            for s, info in list(prices.items())[:10]
+        ]) or "  (暂无价格数据)"
+
+        holdings_text = "\n".join([
+            f"  - {h['symbol']}({h.get('name','')}) 持仓{h['quantity']}股 成本{h.get('avg_cost',0):.2f} 现价{prices.get(h['symbol'],{}).get('price',0):.2f} 盈亏{((prices.get(h['symbol'],{}).get('price',0)-h.get('avg_cost',0))/h.get('avg_cost',1)*100):+.1f}%"
+            for h in my_holdings
+        ]) if my_holdings else "  (空仓)"
+        total_value = sum(prices.get(h['symbol'],{}).get('price',0)*h['quantity'] for h in my_holdings)
+        holdings_text += f"\n  总持仓市值: {total_value:.2f}元"
+
+        analysis_text = ""
+        for sym, alg in list(minirock_analysis.items())[:5]:
+            summary = alg.get("summary", {})
+            tech = alg.get("technical", {})
+            fund = alg.get("fund", {})
+            analysis_text += f"""
+  【{sym} {alg.get('name','')}】
+    综合评分: {summary.get('overall_score','?')}分 | 建议: {summary.get('action','?')}
+    技术面: {tech.get('macd','?')} | KDJ: {tech.get('kdj','?')} | RSI: {tech.get('rsi','?')}
+    资金面: 主力净流入{fund.get('main_net_amount',0)/1e8:.2f}亿 | 散户{fund.get('retail_net_amount',0)/1e8:.2f}亿
+"""
+        if not analysis_text:
+            analysis_text = "  (暂无算法分析)"
+
+        # 取最新5条新闻
+        recent_news = news[:5] if news else []
+        news_text = "\n".join([
+            f"  - [{n.get('published_at','')[:10]}] {n.get('title','')[:50]}"
+            for n in recent_news
+        ]) or "  (暂无新闻)"
+
+        # 取热点板块
+        hot_text = "\n".join([
+            f"  - {h.get('name','?')}: {h.get('reason','')[:40]}"
+            for h in hotspots[:3]
+        ]) if hotspots else "  (暂无热点)"
+
+        # 铁律
+        rules_text = """【铁律 - 绝对不能违反】
+1. 禁止持有大盘股: 比亚迪(002594) / 中国平安(601318) / 贵州茅台(600519)
+2. 空仓最多1天（不得连续空仓超过2个交易日）
+3. 单只股票仓位不超过总资产的20%
+4. 所有决策必须同时输出"理由"(reason)字段
+5. 输出格式必须是合法JSON"""
+
+        prompt = f"""【角色】你是{self.CONFIG.name}，一个性格特点为"{self.CONFIG.personality.speech_pattern}"的A股交易员。
+你正在参加AI股神争霸实盘赛，资金{my_cash:.0f}元。
+
+【当前市场】
+指数:
+{indices_text}
+
+股票行情:
+{prices_text}
+
+【你的持仓】
+{holdings_text}
+
+可用资金: {my_cash:.0f}元
+
+【MiniRock算法分析】
+{analysis_text}
+
+【市场热点】
+{hot_text}
+
+【最新新闻】
+{news_text}
+
+{rules_text}
+
+请基于以上信息做出决策。用JSON输出，格式如下（只输出JSON，不要其他内容）：
+{{"action": "买入|卖出|持有|观望", "symbol": "股票代码如000001", "quantity": 数量(正整数), "price": 参考价, "reason": "具体理由", "confidence": 75-99的数字}}
+
+注意：
+- 数量为0表示不操作
+- 买入时数量不超过可用资金的30%/参考价
+- 卖出时必须填持仓中有的股票
+- 持仓为空时不能卖出
+"""
+        system = f"""你是一个专业的A股交易员AI，名叫{self.CONFIG.name}。
+你的性格: {self.CONFIG.personality.speech_pattern}
+必须严格遵守铁律：禁止买大盘股、空仓最多1天、单票仓位≤20%。"""
+
+        try:
+            llm_client = get_llm_client()
+            response = await llm_client.generate(prompt, system)
+            logger.info(f"[{self.CONFIG.name}] LLM推理原始输出: {response[:200]}...")
+
+            # 提取JSON
+            json_match = re_module.search(r'\{[^{}]*"action"[^{}]*\}', response, re_module.DOTALL)
+            if not json_match:
+                json_match = re_module.search(r'\{.*\}', response, re_module.DOTALL)
+            if not json_match:
+                logger.warning(f"[{self.CONFIG.name}] LLM输出中找不到JSON")
+                return None
+
+            decision_dict = json.loads(json_match.group(0))
+            action_str = decision_dict.get("action", "观望")
+            action_map = {"买入": Action.BUY, "卖出": Action.SELL, "持有": Action.HOLD, "观望": Action.WATCH}
+            action = action_map.get(action_str, Action.WATCH)
+
+            sym = decision_dict.get("symbol", "")
+            # 验证：大盘股禁止
+            forbidden = {"002594": True, "601318": True, "600519": True}
+            if sym in forbidden:
+                logger.warning(f"[{self.CONFIG.name}] LLM建议买禁止股票{sym}，降级为观望")
+                return TradingDecision(
+                    action=Action.WATCH, signal=DecisionSignal.HOLD,
+                    symbol="", name="", quantity=0, price=0,
+                    reason=f"LLM建议买{sym}但该股为禁止持仓大盘股，铁律优先",
+                    confidence=99, urgency="normal", ai_id=self.ai_id,
+                )
+
+            qty = int(decision_dict.get("quantity", 0) or 0)
+            price = float(decision_dict.get("price", 0) or 0)
+            reason = decision_dict.get("reason", "LLM推理")
+            confidence = int(decision_dict.get("confidence", 70) or 70)
+
+            name = prices.get(sym, {}).get("name", sym) if sym else ""
+
+            logger.info(f"[{self.CONFIG.name}] LLM决策: {action.value} {sym} x{qty} @{price} | {reason}")
+
+            return TradingDecision(
+                action=action, signal=DecisionSignal.BUY if action == Action.BUY else DecisionSignal.SELL if action == Action.SELL else DecisionSignal.HOLD,
+                symbol=sym, name=name, quantity=qty, price=price,
+                reason=f"[LLM推理] {reason}", confidence=confidence,
+                urgency="normal", ai_id=self.ai_id,
+            )
+        except Exception as e:
+            logger.error(f"[{self.CONFIG.name}] LLM推理失败: {e}，将走if-then规则")
+            return None
+
     async def think_like_human(
         self,
         market_data: Dict[str, Any],
@@ -636,13 +802,27 @@ class BaseBrain(ABC):
                 session_name = session.get("name", "")
                 trading_session = session_name in ("开盘集合", "早盘交易", "午盘交易", "尾盘收盘")
                 if trading_session:
-                    decision = await self.think_like_human(
+                    # P4: 先尝试LLM推理，失败则走原有if-then规则
+                    llm_decision = await self.think_like_human_llm(
                         market_data=market_data,
                         my_holdings=holdings,
                         my_cash=cash,
                         news=market_data.get("news", []),
                         minirock_analysis=minirock_analysis,
                     )
+                    if llm_decision is not None:
+                        decision = llm_decision
+                        logger.info(f"[{self.CONFIG.name}] ✓ LLM推理成功: {decision.action.value} {decision.symbol}")
+                    else:
+                        # LLM失败，降级到原有if-then规则
+                        decision = await self.think_like_human(
+                            market_data=market_data,
+                            my_holdings=holdings,
+                            my_cash=cash,
+                            news=market_data.get("news", []),
+                            minirock_analysis=minirock_analysis,
+                        )
+                        logger.info(f"[{self.CONFIG.name}] ↓ LLM失败，使用if-then规则")
                     self._pending_decisions.append(decision)
                     self.stats["decisions_made"] += 1
             except Exception as e:

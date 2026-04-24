@@ -280,14 +280,15 @@ async def main():
     args = parser.parse_args()
     
     # 配置日志
-    logging.basicConfig(
-        level=logging.INFO,
-        format='[%(asctime)s] [%(name)s] %(message)s',
-        handlers=[
-            logging.FileHandler("/var/www/ai-god-of-stocks/logs/unified_brain.log"),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
+    handlers = [logging.StreamHandler(sys.stdout)]
+    try:
+        log_path = "/data/disk/www/logs/ai-god-of-stocks-logs/unified_brain.log"
+        fh = logging.FileHandler(log_path)
+        fh.setFormatter(logging.Formatter('[%(asctime)s] [%(name)s] %(message)s'))
+        handlers.insert(0, fh)
+    except Exception as e:
+        print(f"[WARN] 无法写入日志文件 {log_path}: {e}，仅输出到stdout")
+    logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(name)s] %(message)s', handlers=handlers)
     
     logger.info("=" * 60)
     logger.info("AI股神争霸 - 统一智能大脑系统 启动")
