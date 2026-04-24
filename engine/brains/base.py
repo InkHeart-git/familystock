@@ -19,6 +19,7 @@ import asyncio
 import json
 import logging
 import random
+import sqlite3
 import time
 import uuid
 from abc import ABC, abstractmethod
@@ -351,21 +352,32 @@ class BaseBrain(ABC):
                 logger.warning(f"[{self.CONFIG.name}] LLM输出中找不到JSON")
                 return None
 
-            decision_dict = json.loads(json_match.group(0))
+            # --- 任务3: JSON解析容错 ---
+            try:
+                decision_dict = json.loads(json_match.group(0))
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"[{self.CONFIG.name}] JSON解析失败: {e}，降级为HOLD")
+                return TradingDecision(
+                    action=Action.HOLD, signal=DecisionSignal.HOLD,
+                    symbol="", name="", quantity=0, price=0,
+                    reason="LLM输出JSON解析失败，降级为观望", confidence=0,
+                    urgency="normal", ai_id=self.ai_id,
+                )
+
             action_str = decision_dict.get("action", "观望")
             action_map = {"买入": Action.BUY, "卖出": Action.SELL, "持有": Action.HOLD, "观望": Action.WATCH}
             action = action_map.get(action_str, Action.WATCH)
 
             sym = decision_dict.get("symbol", "")
-            # 验证：大盘股禁止
+            # --- 任务2a: 大盘股铁律检查 ---
             forbidden = {"002594": True, "601318": True, "600519": True}
-            if sym in forbidden:
+            if sym in forbidden and action == Action.BUY:
                 logger.warning(f"[{self.CONFIG.name}] LLM建议买禁止股票{sym}，降级为观望")
                 return TradingDecision(
                     action=Action.WATCH, signal=DecisionSignal.HOLD,
                     symbol="", name="", quantity=0, price=0,
-                    reason=f"LLM建议买{sym}但该股为禁止持仓大盘股，铁律优先",
-                    confidence=99, urgency="normal", ai_id=self.ai_id,
+                    reason=f"LLM建议买{sym}但为禁止持仓大盘股，铁律优先", confidence=99,
+                    urgency="normal", ai_id=self.ai_id,
                 )
 
             qty = int(decision_dict.get("quantity", 0) or 0)
@@ -374,6 +386,54 @@ class BaseBrain(ABC):
             confidence = int(decision_dict.get("confidence", 70) or 70)
 
             name = prices.get(sym, {}).get("name", sym) if sym else ""
+
+            # --- 任务2b: 单票仓位≤20%检查 ---
+            total_assets = my_cash + sum(
+                prices.get(h['symbol'], {}).get('price', 0) * h['quantity']
+                for h in my_holdings
+            )
+            if action == Action.BUY and sym and price > 0 and qty > 0:
+                buy_amount = qty * price
+                position_pct = buy_amount / total_assets if total_assets > 0 else 0
+                if position_pct > 0.20:
+                    # 降低数量到20%仓位
+                    max_qty = int(total_assets * 0.20 / price)
+                    qty = max_qty
+                    reason += f" [风控调整: 仓位从{position_pct:.1%}降至20%]"
+                    logger.warning(f"[{self.CONFIG.name}] 仓位{position_pct:.1%}超标，降至{max_qty}股")
+
+            # --- 任务2c: 空仓最多1天检查 ---
+            if action in (Action.WATCH, Action.HOLD) and not my_holdings:
+                # 当前已空仓，检查是否连续空仓超1天
+                try:
+                    from engine.memory.ai_memory import AIMemory
+                    # 获取上次有持仓的日期（简化：查最近一笔非空仓交易日）
+                    conn = sqlite3.connect(self.db_path)
+                    cur = conn.cursor()
+                    cur.execute("""
+                        SELECT trade_date FROM ai_trades
+                        WHERE ai_id = ? AND action IN ('BUY','buy')
+                        ORDER BY created_at DESC LIMIT 1
+                    """, (self.ai_id,))
+                    row = cur.fetchone()
+                    conn.close()
+                    if row:
+                        last_buy_date = datetime.strptime(row[0], '%Y-%m-%d') if isinstance(row[0], str) else row[0]
+                        days_empty = (datetime.now() - last_buy_date).days
+                        if days_empty >= 2:
+                            logger.warning(f"[{self.CONFIG.name}] 已连续空仓{days_empty}天，铁律强制建仓")
+                            # 改为买入资金量最小的持仓股票（如果有持仓股票在关注列表）
+                            if prices:
+                                cheapest = min(prices.items(), key=lambda x: x[1].get('price', 99999))
+                                sym, info = cheapest
+                                if info.get('price', 0) > 0 and my_cash > 0:
+                                    qty = int(my_cash * 0.1 / info['price'])
+                                    action = Action.BUY
+                                    price = info['price']
+                                    name = info.get('name', sym)
+                                    reason = f"铁律强制: 已空仓{days_empty}天，不得连续空仓超过2天"
+                except Exception as e:
+                    logger.warning(f"[{self.CONFIG.name}] 空仓天数检查异常: {e}")
 
             logger.info(f"[{self.CONFIG.name}] LLM决策: {action.value} {sym} x{qty} @{price} | {reason}")
 
