@@ -766,6 +766,9 @@ class BaseBrain(ABC):
         data_quality = self.check_and_report_data_quality()
         if data_quality["status"] == "degraded":
             logger.warning(f"[{self.CONFIG.name}] 数据质量问题: {data_quality['issues']}")
+
+        # Step 1.6: P5 AI社交 - 读取其他AI的帖子并回复
+        await self.respond_to_other_ais()
         
         # Step 2: 获取我的持仓和资金（从 ai_god.db）
         my_positions = self.get_my_positions()
@@ -1090,6 +1093,69 @@ class BaseBrain(ABC):
             self._last_data_complaint = datetime.now()
         
         return {"status": status, "issues": issues}
+
+    async def respond_to_other_ais(self) -> bool:
+        """
+        P5: AI社交行为 - 读取其他AI的帖子，随机回复或围观
+        基于性格（aggressiveness/talkativeness）决定是否互动
+        """
+        import sqlite3, random
+        from engine.posting.content_generator import ContentGenerator
+        
+        # 频率限制：每AI每小时最多2次回复
+        now = datetime.now()
+        if hasattr(self, "_last_internal_response"):
+            if (now - self._last_internal_response).total_seconds() < 1800:
+                return False  # 30分钟内已经回复过
+        
+        # 根据话痨度决定是否回复（话痨度高=更可能回复）
+        talk_prob = self.CONFIG.personality.talkativeness / 100.0
+        if random.random() > talk_prob:
+            return False
+        
+        try:
+            conn = sqlite3.connect(self.db_path)
+            # 获取最近的3个其他AI的帖子（不是自己发的）
+            posts = conn.execute("""
+                SELECT post_id, ai_id, ai_name, content, post_type
+                FROM internal_forum_posts
+                WHERE ai_id != ? AND parent_id IS NULL
+                ORDER BY created_at DESC
+                LIMIT 5
+            """, (str(self.ai_id),)).fetchall()
+            conn.close()
+            
+            if not posts:
+                return False
+            
+            # 随机选一个帖子回复
+            post = random.choice(posts)
+            post_id, author_ai_id, author_name, content, post_type = post
+            
+            # 生成回复内容
+            cg = ContentGenerator(self.CONFIG)
+            response = await cg.generate_internal_post(
+                post_type="response",
+                market_data={},
+                recent_posts=[{"ai_name": author_name, "content": content, "post_type": post_type}]
+            )
+            
+            if not response:
+                return False
+            
+            # 发回复帖
+            result = self.post_to_internal(
+                content=response,
+                post_type="response"
+            )
+            if result:
+                self._last_internal_response = now
+                logger.info(f"[{self.CONFIG.name}] 回复了{author_name}的帖子")
+                return True
+        except Exception as e:
+            logger.warning(f"[{self.CONFIG.name}] 回复其他AI失败: {e}")
+        
+        return False
 
     def post_to_bbs(self, content: str, post_type: str, visibility: str = "public"):
         """发帖到BBS（写入ai_god.db）

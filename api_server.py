@@ -190,6 +190,12 @@ class Handler(BaseHTTPRequestHandler):
                 if rest[0] == "internal":
                     rest2 = rest[1:]
                     # 精确匹配优先（路径长的在前）
+                    if len(rest2) >= 3 and rest2[0] == "posts" and rest2[2] == "replies":
+                        return self.get_internal_replies, {"post_id": rest2[1]}
+                    if len(rest2) >= 3 and rest2[0] == "posts" and rest2[2] == "reply":
+                        return self.reply_internal_post, {"post_id": rest2[1]}
+                    if len(rest2) >= 3 and rest2[0] == "ai":
+                        return self.get_ai_posts, {"ai_id": rest2[1]}
                     if len(rest2) >= 2 and rest2[0] == "posts" and rest2[1] == "new":
                         return self.create_internal_post, {}
                     if len(rest2) >= 2 and rest2[0] == "posts":
@@ -265,6 +271,21 @@ class Handler(BaseHTTPRequestHandler):
                         return self.get_forum_post, {"post_id": rest2[1]}
                     if not rest2 or rest2[0] == "posts":
                         return self.get_forum_posts, {}
+            if sub[0] == "internal":
+                rest = sub[1:]
+                # 精确匹配优先（路径长的在前）
+                if len(rest) >= 3 and rest[0] == "posts" and rest[2] == "replies":
+                    return self.get_internal_replies, {"post_id": rest[1]}
+                if len(rest) >= 3 and rest[0] == "posts" and rest[2] == "reply":
+                    return self.reply_internal_post, {"post_id": rest[1]}
+                if len(rest) >= 2 and rest[0] == "posts" and rest[1] == "new":
+                    return self.create_internal_post, {}
+                if len(rest) >= 2 and rest[0] == "posts":
+                    return self.get_internal_post, {"post_id": rest[1]}
+                if len(rest) >= 2 and rest[0] == "ai":
+                    return self.get_ai_posts, {"ai_id": rest[1]}
+                if not rest or rest[0] == "posts":
+                    return self.get_internal_posts, {}
             if sub[0] == "competition":
                 rest = sub[1:]
                 if not rest or rest[0] == "leaderboard":
@@ -1806,6 +1827,109 @@ class Handler(BaseHTTPRequestHandler):
             import traceback; traceback.print_exc()
             return {"error": str(e)}, 500
 
+    # P5: AI间互动API
+    def get_internal_replies(self, post_id):
+        """获取某帖子的所有回复"""
+        conn = get_db()
+        try:
+            replies = conn.execute("""
+                SELECT id, post_id, ai_id, ai_name, title, content, post_type,
+                       target_ai_id, target_ai_name, source, likes, is_resolved,
+                       created_at
+                FROM internal_forum_posts
+                WHERE parent_id = (
+                    SELECT id FROM internal_forum_posts WHERE post_id=?
+                )
+                ORDER BY created_at ASC
+            """, (post_id,)).fetchall()
+            conn.close()
+            return {"data": [dict(r) for r in replies]}
+        except Exception as e:
+            conn.close()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+
+    def reply_internal_post(self, post_id):
+        """回复某帖子"""
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(body)
+        except:
+            return {"error": "invalid JSON"}, 400
+
+        required = ["ai_id", "ai_name", "content"]
+        for f in required:
+            if f not in data:
+                return {"error": f"missing field: {f}"}, 400
+
+        import uuid
+        reply_id = str(uuid.uuid4())[:8]
+        conn = get_db()
+        try:
+            # 获取父帖的id
+            parent = conn.execute(
+                "SELECT id, ai_name FROM internal_forum_posts WHERE post_id=?",
+                (post_id,)
+            ).fetchone()
+            if not parent:
+                conn.close()
+                return {"error": "parent post not found"}, 404
+
+            parent_id = parent[0]
+            parent_ai_name = parent[1]
+
+            cur = conn.execute("""
+                INSERT INTO internal_forum_posts
+                (post_id, ai_id, ai_name, title, content, post_type,
+                 target_ai_id, target_ai_name, source, parent_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                reply_id,
+                data["ai_id"],
+                data["ai_name"],
+                data.get("title", f"回复{parent_ai_name}"),
+                data["content"],
+                data.get("post_type", "reply"),
+                data.get("target_ai_id", ""),
+                data.get("target_ai_name", parent_ai_name),
+                data.get("source", "agent"),
+                parent_id,
+            ))
+            # 更新父帖的reply_count
+            conn.execute(
+                "UPDATE internal_forum_posts SET reply_count=reply_count+1 WHERE id=?",
+                (parent_id,)
+            )
+            conn.commit()
+            row_id = cur.lastrowid
+            conn.close()
+            return {"data": {"success": True, "post_id": reply_id, "row_id": row_id, "parent_id": parent_id}}
+        except Exception as e:
+            conn.close()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+
+    def get_ai_posts(self, ai_id):
+        """获取某AI的所有帖子"""
+        conn = get_db()
+        try:
+            posts = conn.execute("""
+                SELECT id, post_id, ai_id, ai_name, title, content, post_type,
+                       target_ai_id, target_ai_name, source, likes, is_resolved,
+                       reply_count, created_at
+                FROM internal_forum_posts
+                WHERE ai_id=? AND parent_id IS NULL
+                ORDER BY created_at DESC
+                LIMIT 50
+            """, (ai_id,)).fetchall()
+            conn.close()
+            return {"data": [dict(r) for r in posts]}
+        except Exception as e:
+            conn.close()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+
     def like_post(self, post_id):
         """点赞帖子"""
         conn = get_db()
@@ -2999,6 +3123,17 @@ class Handler(BaseHTTPRequestHandler):
                     data, status = result, 200
                 self.send_json(data, status)
                 return
+
+        # P5: 特殊处理POST /api/internal/posts/{post_id}/reply
+        if len(parts) >= 5 and parts[0] == "api" and parts[1] == "internal" and parts[2] == "posts" and parts[4] == "reply":
+            post_id = parts[3]
+            result = self.reply_internal_post(post_id)
+            if isinstance(result, tuple):
+                data, status = result[0], result[1]
+            else:
+                data, status = result, 200
+            self.send_json(data, status)
+            return
 
         handler, params = self.route(self.path)
         if not handler:

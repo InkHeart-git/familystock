@@ -749,3 +749,222 @@ class ContentGenerator:
             "event_driven": "🎯 事件驱动，把握催化。",
         }
         return intros.get(self.config.ai_id, f"{self.config.name}的视角")
+
+
+# ============================================================
+# P5: AI内部论坛内容生成
+# ============================================================
+
+    async def generate_internal_post(
+        self,
+        post_type: str,
+        market_data: Dict[str, Any],
+        data_quality: Dict[str, Any] = None,
+        recent_posts: List[Dict] = None,
+    ) -> Optional[str]:
+        """
+        生成内部论坛帖子（仅开发者可见）
+        
+        post_type: discussion(市场讨论) | complaint(数据投诉) | reflection(策略反思) | response(回复)
+        """
+        if post_type == "complaint":
+            return await self._generate_complaint(market_data, data_quality)
+        elif post_type == "reflection":
+            return await self._generate_reflection(market_data)
+        elif post_type == "discussion":
+            return await self._generate_discussion(market_data)
+        elif post_type == "response":
+            return await self._generate_response(market_data, recent_posts)
+        return None
+
+    async def _generate_complaint(
+        self, market_data: Dict, data_quality: Dict = None
+    ) -> str:
+        """生成数据质量投诉帖"""
+        issues = []
+        
+        if data_quality:
+            if data_quality.get("kline_stale", False):
+                issues.append(f"• K线数据超过10分钟未更新（最后更新: {data_quality.get('kline_last', '未知')}）")
+            if data_quality.get("news_stale", False):
+                issues.append(f"• 新闻数据超过30分钟未同步")
+            if data_quality.get("quote_stale", False):
+                issues.append(f"• 行情数据延迟（延迟: {data_quality.get('quote_delay', '?')}秒）")
+        else:
+            issues.append("• 发现数据源异常，无法获取最新行情")
+        
+        issues_text = "\n".join(issues) if issues else "• 数据获取超时，无法验证数据准确性"
+        
+        templates = [
+            f"""【数据质量问题报告】
+
+发现以下数据异常，请尽快处理：
+
+{issues_text}
+
+影响：无法准确判断入场时机，可能导致交易决策失误。
+
+建议：检查数据源连接状态和数据同步定时任务。""",
+            f"""【⚠️ 数据报警】
+
+各位，我这边检测到数据异常：
+
+{issues_text}
+
+这对交易决策影响很大，希望能尽快修复！""",
+        ]
+        content = random.choice(templates)
+        
+        # LLM增强
+        llm_client = get_llm_client()
+        prompt = f"""你是{self.config.name}，一个性格特点为"{self.personality.speech_pattern}"的A股交易员。
+请将以下数据投诉内容优化得更自然，去除AI写作痕迹：
+
+{content}
+
+要求：
+1. 语气符合你的性格（{self.personality.speech_pattern}）
+2. 不要有明显的AI写作痕迹
+3. 字数控制在100-200字
+4. 保留关键数据异常信息
+"""
+        try:
+            enhanced = await llm_client.generate(prompt, system="你是一个专业的A股交易员。")
+            if enhanced and len(enhanced) > 20:
+                content = enhanced
+        except:
+            pass
+        
+        style = self.personality.speech_pattern
+        content = self.humanizer.humanize(content, style_hint=style)
+        return content
+
+    async def _generate_reflection(
+        self, market_data: Dict
+    ) -> str:
+        """生成策略反思帖"""
+        indices = market_data.get("indices", {})
+        prices = market_data.get("prices", {})
+        
+        market_status = "震荡"
+        if indices:
+            first_idx = list(indices.values())[0]
+            pct = first_idx.get("pct_chg", 0)
+            market_status = "上涨" if pct > 0.5 else ("下跌" if pct < -0.5 else "震荡")
+        
+        templates = [
+            f"""【策略反思】
+
+今天{market_status}行情中，我的策略表现一般。
+
+复盘思考：
+1. 入场时机把握不够精准，早盘追高被套
+2. 止损执行不够果断，犹豫了一下导致亏损扩大
+3. 热点切换太快，没跟上节奏
+
+教训：下次要更严格执行止损线，不要有侥幸心理。
+
+明天计划：等待回调后再考虑入场，严格控制仓位。""",
+            f"""【今日操作复盘】
+
+今天市场{market_status}，我做了几次操作，有得有失。
+
+做得好的：
+• 在关键支撑位加了仓，效果不错
+
+需要改进的：
+• 尾盘不应该追涨，仓位太重了
+• 对热点持续性判断有误
+
+明天重点：关注板块轮动，不要盲目追热点。""",
+        ]
+        content = random.choice(templates)
+        
+        # LLM增强
+        llm_client = get_llm_client()
+        prompt = f"""你是{self.config.name}，性格特点为"{self.personality.speech_pattern}"的A股交易员。
+请将以下策略反思内容优化得更自然，像真人写的复盘：
+
+{content}
+
+要求：
+1. 语气符合你的性格（{self.personality.speech_pattern}）
+2. 不要有AI写作痕迹
+3. 字数100-200字
+4. 要有具体的反思点，不要泛泛而谈
+"""
+        try:
+            enhanced = await llm_client.generate(prompt, system="你是一个有性格的A股交易员。")
+            if enhanced and len(enhanced) > 20:
+                content = enhanced
+        except:
+            pass
+        
+        style = self.personality.speech_pattern
+        content = self.humanizer.humanize(content, style_hint=style)
+        return content
+
+    async def _generate_discussion(
+        self, market_data: Dict
+    ) -> str:
+        """生成市场讨论帖"""
+        hotspots = market_data.get("hotspots", [])
+        indices = market_data.get("indices", {})
+        
+        hot_topics = ", ".join([h.get("name", "?") for h in hotspots[:3]]) if hotspots else "暂无明显热点"
+        
+        templates = [
+            f"""【市场讨论】
+
+大家注意到没有，今天{hot_topics}比较活跃。
+
+我观察到几个现象：
+1. 资金有明显流入迹象
+2. 技术面有企稳信号
+3. 情绪面有所回暖
+
+大家怎么看这个方向？有什么数据支撑吗？""",
+            f"""【板块讨论】
+
+今天热点比较散乱，但我注意到{hot_topics}有异动。
+
+有没有人也在关注这个方向？分享一下你们的分析角度。""",
+        ]
+        content = random.choice(templates)
+        
+        style = self.personality.speech_pattern
+        content = self.humanizer.humanize(content, style_hint=style)
+        return content
+
+    async def _generate_response(
+        self, market_data: Dict, recent_posts: List[Dict] = None
+    ) -> str:
+        """生成回复其他AI的帖子"""
+        if not recent_posts:
+            return None
+        
+        post = random.choice(recent_posts[:3])
+        author = post.get("ai_name", "?")
+        content = post.get("content", "")[:80]
+        post_type = post.get("post_type", "?")
+        
+        if post_type == "complaint":
+            responses = [
+                f"收到@{author}的反馈，我这边也发现了类似问题。数据源确实不太稳定。",
+                f"同感！数据延迟影响判断，希望能尽快解决。",
+            ]
+        elif post_type == "reflection":
+            responses = [
+                f"复盘得很到位@{author}，第三点我也深有体会。",
+                f"说得对！我也有类似的教训。",
+            ]
+        else:
+            responses = [
+                f"好观点@{author}，我也这么觉得。",
+                f"有点意思@{author}，我再观察观察。",
+            ]
+        
+        content = random.choice(responses)
+        style = self.personality.speech_pattern
+        content = self.humanizer.humanize(content, style_hint=style)
+        return content
