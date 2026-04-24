@@ -391,6 +391,177 @@ class AIMemory:
         finally:
             conn.close()
 
+# ============================================================
+# P6: Agent学习层 - 从交易结果中学习
+# ============================================================
+
+    def add_trade_result(self, trade_result: Dict) -> bool:
+        """
+        P6: 记录交易结果，自动提取教训并保存
+        trade_result: {symbol, action, quantity, price, pnl, reason}
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cur = conn.cursor()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ai_trade_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ai_id TEXT NOT NULL,
+                    symbol TEXT,
+                    action TEXT,
+                    quantity INTEGER,
+                    price REAL,
+                    pnl REAL,
+                    pnl_pct REAL,
+                    reason TEXT,
+                    created_at TEXT DEFAULT (datetime('now', '+8 hours')),
+                    lesson TEXT,
+                    lesson_importance INTEGER DEFAULT 5
+                )
+            """)
+            
+            pnl = trade_result.get("pnl", 0)
+            total_cost = trade_result.get("quantity", 0) * trade_result.get("price", 0)
+            pnl_pct = (pnl / total_cost * 100) if total_cost > 0 else 0
+            
+            cur.execute("""
+                INSERT INTO ai_trade_results
+                (ai_id, symbol, action, quantity, price, pnl, pnl_pct, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                self.ai_id,
+                trade_result.get("symbol", ""),
+                trade_result.get("action", ""),
+                trade_result.get("quantity", 0),
+                trade_result.get("price", 0),
+                pnl,
+                pnl_pct,
+                trade_result.get("reason", ""),
+            ))
+            conn.commit()
+            conn.close()
+            
+            if abs(pnl_pct) > 3 or abs(pnl) > 5000:
+                lesson = self._extract_lesson(trade_result)
+                if lesson:
+                    self._save_lesson(lesson, importance=8 if abs(pnl_pct) > 5 else 6)
+            
+            return True
+        except Exception as e:
+            logger.warning(f"[{self.ai_id}] add_trade_result失败: {e}")
+            return False
+
+    def _extract_lesson(self, trade_result: Dict) -> Optional[str]:
+        """用LLM从交易结果中提取教训"""
+        from engine.llm_client import get_llm_client
+        import asyncio
+        
+        pnl = trade_result.get("pnl", 0)
+        pnl_pct = trade_result.get("pnl_pct", 0)
+        symbol = trade_result.get("symbol", "?")
+        action = trade_result.get("action", "?")
+        reason = trade_result.get("reason", "")
+        
+        if pnl > 0:
+            outcome = f"盈利{pnl:.0f}元({pnl_pct:+.1f}%)"
+        else:
+            outcome = f"亏损{abs(pnl):.0f}元({pnl_pct:.1f}%)"
+        
+        prompt = f"""你是{self.ai_id}，一个A股交易员。
+你刚刚完成了一笔交易：
+- 操作: {action} {symbol}
+- 结果: {outcome}
+- 决策理由: {reason}
+
+请用一句话总结这次交易的最大教训。要具体、有实际参考价值，不要泛泛而谈。
+格式：直接输出教训，不要有其他内容。"""
+        
+        try:
+            client = get_llm_client()
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            lesson = loop.run_until_complete(client.generate(prompt, system="你是一个专业的A股交易员。"))
+            loop.close()
+            if lesson and len(lesson) > 5:
+                return lesson.strip()[:200]
+        except Exception as e:
+            logger.warning(f"[{self.ai_id}] _extract_lesson失败: {e}")
+        
+        return None
+
+    def _save_lesson(self, lesson: str, importance: int = 7):
+        """保存教训到记忆"""
+        self.remember(
+            key=f"lesson_{datetime.now().strftime('%Y%m%d_%H%M')}",
+            value=lesson,
+            category="trade_lesson",
+            importance=importance,
+        )
+
+    def get_lessons(self, limit: int = 5) -> List[str]:
+        """获取最近的交易教训"""
+        lessons = []
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        
+        rows = conn.execute("""
+            SELECT value FROM ai_memory
+            WHERE ai_id=? AND category='trade_lesson' AND importance >= 6
+            ORDER BY created_at DESC LIMIT ?
+        """, (self.ai_id, limit)).fetchall()
+        
+        for row in rows:
+            val = row["value"]
+            if isinstance(val, str):
+                lessons.append(val)
+            elif isinstance(val, dict):
+                lessons.append(str(val))
+        
+        rows2 = conn.execute("""
+            SELECT lesson FROM ai_trade_results
+            WHERE ai_id=? AND lesson IS NOT NULL AND lesson != ''
+            ORDER BY created_at DESC LIMIT ?
+        """, (self.ai_id, limit)).fetchall()
+        
+        for row in rows2:
+            if row["lesson"]:
+                lessons.append(row["lesson"])
+        
+        conn.close()
+        seen = set()
+        unique = []
+        for l in lessons:
+            if l not in seen:
+                seen.add(l)
+                unique.append(l)
+        return unique[:limit]
+
+    def get_trade_performance_summary(self, days: int = 7) -> Dict:
+        """获取近期交易表现摘要"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""
+            SELECT symbol, action, pnl, pnl_pct, reason, created_at
+            FROM ai_trade_results
+            WHERE ai_id=? AND created_at >= datetime('now', '-{} hours')
+            ORDER BY created_at DESC
+        """.format(days * 24), (self.ai_id,)).fetchall()
+        
+        total_pnl = sum(r["pnl"] or 0 for r in rows)
+        wins = sum(1 for r in rows if r["pnl"] and r["pnl"] > 0)
+        losses = sum(1 for r in rows if r["pnl"] and r["pnl"] < 0)
+        total = wins + losses
+        win_rate = (wins / total * 100) if total > 0 else 0
+        conn.close()
+        return {
+            "total_trades": total,
+            "wins": wins,
+            "losses": losses,
+            "win_rate": win_rate,
+            "total_pnl": total_pnl,
+            "recent_trades": [dict(r) for r in rows[:10]],
+        }
+
 
 class SharedContext:
     """

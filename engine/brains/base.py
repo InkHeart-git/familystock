@@ -274,13 +274,30 @@ class BaseBrain(ABC):
             for h in hotspots[:3]
         ]) if hotspots else "  (暂无热点)"
 
+        # 教训
+        lessons = self.memory.get_lessons(limit=3)
+        lessons_text = ""
+        if lessons:
+            lessons_text = "\n".join([f"{i+1}. {l}" for i, l in enumerate(lessons)])
+            lessons_text = f"\n\n【历史教训 - 来自近期交易】\n{lessons_text}\n（这些是过去交易中的经验教训，请参考避免重复犯错）"
+        
+        # 交易表现
+        try:
+            perf = self.memory.get_trade_performance_summary(days=3)
+            if perf["total_trades"] > 0:
+                perf_text = f"\n近3日: {perf['total_trades']}笔交易 | 胜率{perf['win_rate']:.0f}% | 总{'盈利' if perf['total_pnl']>0 else '亏损'}{abs(perf['total_pnl']):.0f}元"
+                lessons_text += perf_text
+        except:
+            pass
+
         # 铁律
-        rules_text = """【铁律 - 绝对不能违反】
+        rules_text = f"""【铁律 - 绝对不能违反】
 1. 禁止持有大盘股: 比亚迪(002594) / 中国平安(601318) / 贵州茅台(600519)
 2. 空仓最多1天（不得连续空仓超过2个交易日）
 3. 单只股票仓位不超过总资产的20%
 4. 所有决策必须同时输出"理由"(reason)字段
 5. 输出格式必须是合法JSON"""
+        rules_text += lessons_text
 
         prompt = f"""【角色】你是{self.CONFIG.name}，一个性格特点为"{self.CONFIG.personality.speech_pattern}"的A股交易员。
 你正在参加AI股神争霸实盘赛，资金{my_cash:.0f}元。
@@ -769,6 +786,9 @@ class BaseBrain(ABC):
 
         # Step 1.6: P5 AI社交 - 读取其他AI的帖子并回复
         await self.respond_to_other_ais()
+
+        # Step 1.7: P6 反思触发 - 检查是否需要发布反思帖
+        self.reflect_on_trades()
         
         # Step 2: 获取我的持仓和资金（从 ai_god.db）
         my_positions = self.get_my_positions()
@@ -1154,6 +1174,58 @@ class BaseBrain(ABC):
                 return True
         except Exception as e:
             logger.warning(f"[{self.CONFIG.name}] 回复其他AI失败: {e}")
+        
+        return False
+
+    def reflect_on_trades(self) -> bool:
+        """
+        P6: 交易后自动反思
+        检查近期交易结果，生成反思帖发到内部论坛
+        触发条件: 持仓亏损>5%、持仓盈利>8%、连续3天空仓
+        """
+        import sqlite3
+        from engine.posting.content_generator import ContentGenerator
+        
+        # 频率限制：每天最多反思1次
+        now = datetime.now()
+        if hasattr(self, "_last_reflection"):
+            if (now - self._last_reflection).total_seconds() < 21600:  # 6小时
+                return False
+        
+        try:
+            # 获取近期交易表现
+            perf = self.memory.get_trade_performance_summary(days=1)
+            total = perf.get("total_trades", 0)
+            if total == 0:
+                return False  # 没有交易，不需要反思
+            
+            # 触发反思的条件
+            win_rate = perf.get("win_rate", 0)
+            total_pnl = perf.get("total_pnl", 0)
+            should_reflect = (
+                (total_pnl < -3000) or  # 日亏损超过3000
+                (total_pnl > 8000) or   # 日盈利超过8000
+                (win_rate < 30 and total >= 3)  # 胜率低于30%且交易3次以上
+            )
+            
+            if not should_reflect:
+                return False
+            
+            # 生成反思帖
+            cg = ContentGenerator(self.CONFIG)
+            import asyncio
+            content = asyncio.run(cg.generate_internal_post(
+                post_type="reflection",
+                market_data={"indices": {}},
+            ))
+            
+            if content:
+                self.post_to_internal(content, "reflection")
+                self._last_reflection = now
+                logger.info(f"[{self.CONFIG.name}] 发布了反思帖 (win_rate={win_rate:.0f}%, pnl={total_pnl:.0f})")
+                return True
+        except Exception as e:
+            logger.warning(f"[{self.CONFIG.name}] reflect_on_trades失败: {e}")
         
         return False
 
