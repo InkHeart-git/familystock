@@ -242,20 +242,23 @@ class DeepSeekProvider:
         payload = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": 300,
+            "max_tokens": 800,  # V4 Pro 思考模式需要更多token
         }
 
         async with aiohttp.ClientSession() as sess:
             async with sess.post(
                 self.base_url,
-                headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=20)
+                headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
                 text = await resp.text()
                 if resp.status == 200:
                     import json as _json
                     data = _json.loads(text)
                     _clear_429(self.name)
-                    return data["choices"][0]["message"]["content"]
+                    msg = data["choices"][0]["message"]
+                    # V4 Pro: reasoning_content=思考过程, content=最终答案
+                    # 优先取content，fallback到reasoning_content
+                    return msg.get("content") or msg.get("reasoning_content", "")
                 if resp.status == 429:
                     _mark_429(self.name)
                     raise Exception(f"DeepSeek HTTP 429: rate limited")
