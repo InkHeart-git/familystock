@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 主数据库路径
-MAIN_DB_PATH = "/var/www/familystock-test/data/ai_stock_competition.db"
+MAIN_DB_PATH = "/var/www/ai-god-of-stocks/data/ai_stock_competition.db"
 
 # AI ID映射（字符ID -> 数字ID）
 CHAR_TO_NUM = {

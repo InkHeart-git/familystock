@@ -45,7 +45,7 @@ async def generate_social_posts():
         portfolio = await portfolio_manager.load_portfolio(ai_id)
         
         # 根据今日盈亏决定帖子类型
-        today_pnl = sum(t.get("pnl", 0) for t in state.today_trades)
+        today_pnl = getattr(state, 'today_pnl', 0) or 0
         
         post_type = random.choice(["summary", "comment", "view"])
         
@@ -79,9 +79,6 @@ async def generate_social_posts():
         )
         bbs.posts.append(post)
         bbs.save_post(post)
-        
-        state.record_post(ai_id, "social", title, content)
-        state_manager.save(state)
         
         print(f"📤 {character.name}: {title}")
         print(f"   {content[:50]}...")

@@ -186,6 +186,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self.create_reply, {"post_id": rest[1]}
                 if rest[0] == "posts" and len(rest) == 3 and rest[2] == "like":
                     return self.like_post, {"post_id": rest[1]}
+                # AI内部论坛路由（只有开发者能看到）
+                if rest[0] == "internal":
+                    rest2 = rest[1:]
+                    # 精确匹配优先（路径长的在前）
+                    if len(rest2) >= 2 and rest2[0] == "posts" and rest2[1] == "new":
+                        return self.create_internal_post, {}
+                    if len(rest2) >= 2 and rest2[0] == "posts":
+                        return self.get_internal_post, {"post_id": rest2[1]}
+                    if not rest2 or rest2[0] == "posts":
+                        return self.get_internal_posts, {}
                 if rest[0] == "rankings":
                     return self.get_rankings, {}
                 if rest[0] == "stats":
@@ -224,6 +234,8 @@ class Handler(BaseHTTPRequestHandler):
                             return self.get_interaction_ranking, {}
                         if len(rest2) >= 3 and rest2[1] == "me":
                             return self.get_interaction_me, {"user_id": rest2[2]}
+                    if len(rest2) >= 2 and rest2[0] == "supports":
+                        return self.get_competition_supports, {"ai_id": rest2[1]}
                     # Phase 1 收尾：赛季管理
                     if rest2[0] == "seasons":
                         return self.get_competition_seasons, {}
@@ -280,6 +292,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_shop_items, {}
                 if rest[0] == "my-items" and len(rest) >= 2:
                     return self.get_my_items, {"user_id": rest[1]}
+                if rest[0] == "checkin-status":
+                    return self.get_checkin_status, {"user_id": rest[1] if len(rest) > 1 else None}
+                if rest[0] == "checkin":
+                    return self.post_daily_checkin, {}
                 if rest[0] == "purchase":
                     return self.post_purchase, {}
                 if rest[0] == "vote-results":
@@ -288,6 +304,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_competition_comments, {}
                 if rest[0] == "my-comments" and len(rest) >= 2:
                     return self.get_competition_my_comments, {"user_id": rest[1]}
+                if len(rest) >= 2 and rest[0] == "supports":
+                    return self.get_competition_supports, {"ai_id": rest[1]}
                 # Phase 3.3: 互动积分
                 if rest[0] == "interaction":
                     if len(rest) >= 2 and rest[1] == "ranking":
@@ -298,6 +316,8 @@ class Handler(BaseHTTPRequestHandler):
                 if rest[0] == "seasons":
                     return self.get_competition_seasons, {}
                 if rest[0] == "checkin":
+                    if len(rest) >= 2 and rest[1] == "status":
+                        return self.get_checkin_status, {"user_id": rest[2] if len(rest) > 2 else None}
                     return self.post_daily_checkin, {}
                 if rest[0] == "reset-season":
                     return self.post_competition_reset_season, {}
@@ -544,6 +564,38 @@ class Handler(BaseHTTPRequestHandler):
                 })
 
             return {"data": {"rankings": rankings}}
+        finally:
+            conn.close()
+
+    def get_competition_supports(self, ai_id):
+        """获取AI的榜一大哥/粉丝列表
+        GET /api/competition/supports/{ai_id}
+        """
+        INFLUENCE_MAP = {
+            0: "初级粉丝",
+            1: "核心粉丝",
+            2: "资深粉丝",
+            3: "超级粉丝",
+            4: "榜一大哥",
+        }
+        conn = get_db()
+        try:
+            rows = conn.execute("""
+                SELECT user_name, total_points, influence_level
+                FROM ai_supports
+                WHERE ai_id=?
+                ORDER BY total_points DESC
+                LIMIT 10
+            """, (str(ai_id),)).fetchall()
+            fans = [
+                {
+                    "user_name": r[0] or "匿名用户",
+                    "total_points": r[1] or 0,
+                    "influence_level": INFLUENCE_MAP.get(r[2] or 0, "初级粉丝"),
+                }
+                for r in rows
+            ]
+            return {"data": {"ai_id": str(ai_id), "fans": fans}}
         finally:
             conn.close()
 
@@ -1664,6 +1716,96 @@ class Handler(BaseHTTPRequestHandler):
             import traceback; traceback.print_exc()
             return {"error": str(e)}, 500
 
+    # ==================== AI内部论坛 ====================
+
+    def get_internal_posts(self):
+        """获取内部论坛帖子列表（只有开发者能看到）"""
+        try:
+            conn = get_db()
+            rows = conn.execute("""
+                SELECT id, post_id, ai_id, ai_name, title, content, post_type,
+                       target_ai_id, target_ai_name, source, likes, is_resolved, created_at
+                FROM internal_forum_posts
+                ORDER BY created_at DESC
+                LIMIT 100
+            """).fetchall()
+            conn.close()
+            posts = []
+            for r in rows:
+                posts.append({
+                    "id": r[0], "post_id": r[1], "ai_id": r[2], "ai_name": r[3],
+                    "title": r[4], "content": r[5], "post_type": r[6],
+                    "target_ai_id": r[7], "target_ai_name": r[8], "source": r[9],
+                    "likes": r[10], "is_resolved": bool(r[11]), "created_at": r[12],
+                })
+            return {"data": {"posts": posts, "total": len(posts)}}
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+
+    def get_internal_post(self, post_id):
+        """获取单个内部帖子"""
+        try:
+            conn = get_db()
+            r = conn.execute("""
+                SELECT id, post_id, ai_id, ai_name, title, content, post_type,
+                       target_ai_id, target_ai_name, source, likes, is_resolved, created_at
+                FROM internal_forum_posts WHERE post_id=?
+            """, (post_id,)).fetchone()
+            conn.close()
+            if not r:
+                return {"error": "post not found"}, 404
+            return {"data": {
+                "id": r[0], "post_id": r[1], "ai_id": r[2], "ai_name": r[3],
+                "title": r[4], "content": r[5], "post_type": r[6],
+                "target_ai_id": r[7], "target_ai_name": r[8], "source": r[9],
+                "likes": r[10], "is_resolved": bool(r[11]), "created_at": r[12],
+            }}
+        except Exception as e:
+            return {"error": str(e)}, 500
+
+    def create_internal_post(self):
+        """AI创建内部帖子（只有开发者能看到）"""
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(body)
+        except:
+            return {"error": "invalid JSON"}, 400
+
+        required = ["ai_id", "ai_name", "content"]
+        for f in required:
+            if f not in data:
+                return {"error": f"missing field: {f}"}, 400
+
+        import uuid
+        post_id = str(uuid.uuid4())[:8]
+        conn = get_db()
+        try:
+            cur = conn.execute("""
+                INSERT INTO internal_forum_posts
+                (post_id, ai_id, ai_name, title, content, post_type, target_ai_id, target_ai_name, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                post_id,
+                data["ai_id"],
+                data["ai_name"],
+                data.get("title", ""),
+                data["content"],
+                data.get("post_type", "feedback"),
+                data.get("target_ai_id", ""),
+                data.get("target_ai_name", ""),
+                data.get("source", "agent"),
+            ))
+            conn.commit()
+            row_id = cur.lastrowid
+            conn.close()
+            return {"data": {"success": True, "post_id": post_id, "row_id": row_id}}
+        except Exception as e:
+            conn.close()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+
     def like_post(self, post_id):
         """点赞帖子"""
         conn = get_db()
@@ -2343,6 +2485,48 @@ class Handler(BaseHTTPRequestHandler):
             conn.rollback()
             import traceback; traceback.print_exc()
             return {"error": str(e)}, 500
+        finally:
+            conn.close()
+
+    def get_checkin_status(self, user_id=None):
+        """查询签到状态（Phase 3.3）
+        GET /api/competition/checkin-status
+        Query: ?user_id=ou_xxx
+        """
+        conn = get_db()
+        try:
+            uid = user_id or ""
+            if not uid:
+                return {"error": "user_id required"}, 400
+
+            today = datetime.now().strftime("%Y-%m-%d")
+            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+            # 查询 user_interaction_points
+            row = conn.execute("""
+                SELECT last_active_date, streak_days, daily_visits, total_score
+                FROM user_interaction_points WHERE user_id=?
+            """, (uid,)).fetchone()
+
+            if not row or not row["last_active_date"]:
+                return {"data": {
+                    "checked_in_today": False,
+                    "streak_days": 0,
+                    "total_points": 0,
+                    "last_checkin": None
+                }}
+
+            last_date = row["last_active_date"]
+            streak = row["streak_days"] or 0
+            total = row["total_score"] or 0
+            checked_in = (last_date == today)
+
+            return {"data": {
+                "checked_in_today": checked_in,
+                "streak_days": streak,
+                "total_points": total,
+                "last_checkin": last_date
+            }}
         finally:
             conn.close()
 

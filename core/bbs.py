@@ -452,7 +452,7 @@ class BBSSystem:
         self.trigger = PostTrigger()
         self.generator = ContentGenerator()
         self.posts: List[Post] = []
-        self._db_path = "data/ai_god.db"
+        self._db_path = "/var/www/ai-god-of-stocks/data/ai_god.db"
         self._load_posts_from_db()
 
     def _load_posts_from_db(self):
