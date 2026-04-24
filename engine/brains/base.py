@@ -204,7 +204,140 @@ class BaseBrain(ABC):
         """返回角色配置"""
         pass
 
-    # ==================== LLM推理决策（新增） ====================
+    # ==================== 双模型协作引擎 ====================
+    # Step 1: DeepSeek V4-Pro 生成极简 JSON 决策（reasoning_content 不计入输出 token）
+    # Step 2: Kimi/MiniMax 生成用户可见的长文本话术
+    # 效果：V4-Pro 用最小代价做深度推理，Kimi 负责中文表达
+
+    async def _think_with_v4pro(self, prompt: str, system: str = "") -> tuple:
+        """
+        Step 1: 调用 DeepSeek V4-Pro 生成极简 JSON 决策。
+        返回: (decision_dict, reasoning_chain) 或 (None, None)
+        """
+        import urllib.request, re as re_module
+        import os as _os
+
+        key = _os.environ.get("DEEPSEEK_API_KEY", "")
+        if not key:
+            logger.warning(f"[{self.CONFIG.name}] DeepSeek API Key 未配置，跳过 V4-Pro 推理")
+            return None, None
+
+        # 构建 V4-Pro 专用 prompt（更简洁，输出更短）
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        t0 = time.time()
+        try:
+            req = urllib.request.Request(
+                "https://api.deepseek.com/v1/chat/completions",
+                data=json.dumps({
+                    "model": "deepseek-v4-pro",
+                    "messages": messages,
+                    "max_tokens": 1200,   # 需要足够容纳 reasoning chain + 短 JSON 输出
+                    "temperature": 0.3
+                }).encode(),
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                elapsed = time.time() - t0
+                result = json.loads(resp.read())
+                msg = result['choices'][0].get('message', {})
+                raw_content = msg.get('content', '')
+                reasoning_chain = msg.get('reasoning_content', '') or ""
+
+                logger.info(f"[{self.CONFIG.name}] V4-Pro 推理完成: {elapsed:.1f}s, "
+                            f"reasoning={len(reasoning_chain)}chars, output={len(raw_content)}chars")
+
+                # 提取 JSON
+                json_match = re_module.search(r'\{[^{}]*"action"[^{}]*\}', raw_content, re_module.DOTALL)
+                if not json_match:
+                    json_match = re_module.search(r'\{.*\}', raw_content, re_module.DOTALL)
+
+                if not json_match:
+                    logger.warning(f"[{self.CONFIG.name}] V4-Pro 输出中找不到 JSON")
+                    return None, reasoning_chain
+
+                try:
+                    decision = json.loads(json_match.group(0))
+                    return decision, reasoning_chain
+                except json.JSONDecodeError as e:
+                    logger.warning(f"[{self.CONFIG.name}] V4-Pro JSON 解析失败: {e}")
+                    return None, reasoning_chain
+
+        except Exception as e:
+            logger.error(f"[{self.CONFIG.name}] V4-Pro 调用失败: {e}")
+            return None, None
+
+    async def _polish_with_kimi(self, reasoning_chain: str, decision: dict,
+                                  market_context: str) -> str:
+        """
+        Step 2: 调用 Kimi/MiniMax 基于 V4-Pro 推理链 + 决策生成用户话术。
+        返回: polished_reason (长文本) 或 fallback reason
+        """
+        import urllib.request
+        import os as _os
+
+        decision_str = json.dumps(decision, ensure_ascii=False)
+
+        polish_prompt = f"""你是{self.CONFIG.name}，一个性格特点为"{self.CONFIG.personality.speech_pattern}"的A股交易员。
+
+【AI 深度推理结论】
+{reasoning_chain[:2000]}
+（以上是 AI 的深度推理过程）
+
+【最终决策】
+{decision_str}
+
+【市场上下文】
+{market_context[:1500]}
+
+请根据以上 AI 推理结论和最终决策，用你自己的话（符合你的性格特点），向用户解释：
+1. 你为什么做出这个决定
+2. 核心逻辑是什么
+3. 风险在哪里
+
+要求：
+- 100-200 字
+- 口语化，像真人在说话
+- 符合你的交易风格和性格
+- 可以引用推理中的关键数据点
+- 不要说"根据以上分析"这种套话"""
+
+        # 尝试 MiniMax M2.7-highspeed（包月，速度较快）
+        mm_key = _os.environ.get("MINIMAX_CN_API_KEY", "")
+        if mm_key:
+            try:
+                req = urllib.request.Request(
+                    "https://api.minimaxi.com/v1/chat/completions",
+                    data=json.dumps({
+                        "model": "MiniMax-M2.7-highspeed",
+                        "messages": [{"role": "user", "content": polish_prompt}],
+                        "max_tokens": 400,
+                        "temperature": 0.7
+                    }).encode(),
+                    headers={"Authorization": f"Bearer {mm_key}", "Content-Type": "application/json"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    result = json.loads(resp.read())
+                    msg = result['choices'][0].get('message', {})
+                    content = msg.get('content', '')
+                    if content and len(content) > 20:
+                        # 去除可能的 thinking 标签
+                        import re as re_module
+                        content = re_module.sub(r'<think>.*?</think>', '', content, flags=re_module.DOTALL).strip()
+                        logger.info(f"[{self.CONFIG.name}] Kimi 话术生成完成: {len(content)}chars")
+                        return content
+            except Exception as e:
+                logger.warning(f"[{self.CONFIG.name}] MiniMax 话术生成失败: {e}")
+
+        # Fallback: 直接用 decision 中的 reason
+        return decision.get("reason", "综合分析后决定")
+
+    # ==================== LLM推理决策（双模型协作版） ====================
     # 注意：这是可选方法，不需要重写。execute_session_cycle 会自动调用它，
     # 如果返回 None 则降级到原有 if-then 规则。
 
@@ -217,15 +350,12 @@ class BaseBrain(ABC):
         minirock_analysis: Dict[str, Dict] = {},
     ) -> Optional[TradingDecision]:
         """
-        LLM推理决策 - 用MiniMax替代if-then规则做交易决策。
+        双模型协作决策:
+        Step 1: DeepSeek V4-Pro 生成极简 JSON 决策（极低成本 + 深度推理）
+        Step 2: MiniMax 生成用户可见的长文本话术
         输入: 市场数据 + 持仓 + 现金 + 新闻 + MiniRock算法分析
-        输出: TradingDecision 或 None（LLM失败时返回None，由调用方走if-then规则）
+        输出: TradingDecision 或 None（双模型都失败时返回None，走if-then规则）
         """
-        import aiohttp
-        import re as re_module
-        from engine.llm_client import get_llm_client
-
-        # 构建市场概览
         indices = market_data.get("indices", {})
         prices = market_data.get("prices", {})
         news_ctx = market_data.get("news_context", {})
@@ -275,8 +405,11 @@ class BaseBrain(ABC):
             for h in hotspots[:3]
         ]) if hotspots else "  (暂无热点)"
 
-        # 教训
-        lessons = self.memory.get_lessons(limit=3)
+        # 教训（get_lessons可能查不存在的表，用try保护）
+        try:
+            lessons = self.memory.get_lessons(limit=3)
+        except Exception:
+            lessons = []
         lessons_text = ""
         if lessons:
             lessons_text = "\n".join([f"{i+1}. {l}" for i, l in enumerate(lessons)])
@@ -339,55 +472,48 @@ class BaseBrain(ABC):
 你的性格: {self.CONFIG.personality.speech_pattern}
 必须严格遵守铁律：禁止买大盘股、空仓最多1天、单票仓位≤20%。"""
 
-        try:
-            llm_client = get_llm_client()
-            response = await llm_client.generate(prompt, system)
-            logger.info(f"[{self.CONFIG.name}] LLM推理原始输出: {response[:200]}...")
+        # ---- 双模型协作: Step 1: V4-Pro 生成决策, Step 2: Kimi 生成话术 ----
+        # 构造市场上下文（用于 Step 2 话术生成）
+        market_context = f"""指数:\n{indices_text}\n\n股票行情:\n{prices_text}\n\n持仓:\n{holdings_text}\n\n可用资金: {my_cash:.0f}元\n\n算法分析:\n{analysis_text}\n\n新闻:\n{news_text}"""
 
-            # 提取JSON
-            json_match = re_module.search(r'\{[^{}]*"action"[^{}]*\}', response, re_module.DOTALL)
-            if not json_match:
-                json_match = re_module.search(r'\{.*\}', response, re_module.DOTALL)
-            if not json_match:
-                logger.warning(f"[{self.CONFIG.name}] LLM输出中找不到JSON")
+        try:
+            # Step 1: V4-Pro 生成极简 JSON 决策
+            decision, reasoning_chain = await self._think_with_v4pro(prompt, system)
+
+            if decision is None:
+                logger.warning(f"[{self.CONFIG.name}] V4-Pro 推理失败，降级到 if-then 规则")
                 return None
 
-            # --- 任务3: JSON解析容错 ---
-            try:
-                decision_dict = json.loads(json_match.group(0))
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"[{self.CONFIG.name}] JSON解析失败: {e}，降级为HOLD")
-                return TradingDecision(
-                    action=Action.HOLD, signal=DecisionSignal.HOLD,
-                    symbol="", name="", quantity=0, price=0,
-                    reason="LLM输出JSON解析失败，降级为观望", confidence=0,
-                    urgency="normal", ai_id=self.ai_id,
-                )
+            # Step 2: Kimi/MiniMax 生成用户话术
+            # （如果失败则用 decision 原始 reason，不阻塞决策）
+            polished_reason = await self._polish_with_kimi(
+                reasoning_chain or "", decision, market_context
+            )
 
-            action_str = decision_dict.get("action", "观望")
+            # 解析决策
+            action_str = decision.get("action", "观望")
             action_map = {"买入": Action.BUY, "卖出": Action.SELL, "持有": Action.HOLD, "观望": Action.WATCH}
             action = action_map.get(action_str, Action.WATCH)
 
-            sym = decision_dict.get("symbol", "")
-            # --- 任务2a: 大盘股铁律检查 ---
+            sym = decision.get("symbol", "")
+            # --- 大盘股铁律检查 ---
             forbidden = {"002594": True, "601318": True, "600519": True}
             if sym in forbidden and action == Action.BUY:
-                logger.warning(f"[{self.CONFIG.name}] LLM建议买禁止股票{sym}，降级为观望")
+                logger.warning(f"[{self.CONFIG.name}] V4-Pro 建议买禁止股票{sym}，降级为观望")
                 return TradingDecision(
                     action=Action.WATCH, signal=DecisionSignal.HOLD,
                     symbol="", name="", quantity=0, price=0,
-                    reason=f"LLM建议买{sym}但为禁止持仓大盘股，铁律优先", confidence=99,
+                    reason=f"V4-Pro 建议买{sym}但为禁止持仓大盘股，铁律优先", confidence=99,
                     urgency="normal", ai_id=self.ai_id,
                 )
 
-            qty = int(decision_dict.get("quantity", 0) or 0)
-            price = float(decision_dict.get("price", 0) or 0)
-            reason = decision_dict.get("reason", "LLM推理")
-            confidence = int(decision_dict.get("confidence", 70) or 70)
+            qty = int(decision.get("quantity", 0) or 0)
+            price = float(decision.get("price", 0) or 0)
+            confidence = int(decision.get("confidence", 70) or 70)
 
             name = prices.get(sym, {}).get("name", sym) if sym else ""
 
-            # --- 任务2b: 单票仓位≤20%检查 ---
+            # --- 单票仓位≤20%检查 ---
             total_assets = my_cash + sum(
                 prices.get(h['symbol'], {}).get('price', 0) * h['quantity']
                 for h in my_holdings
@@ -396,18 +522,14 @@ class BaseBrain(ABC):
                 buy_amount = qty * price
                 position_pct = buy_amount / total_assets if total_assets > 0 else 0
                 if position_pct > 0.20:
-                    # 降低数量到20%仓位
                     max_qty = int(total_assets * 0.20 / price)
                     qty = max_qty
-                    reason += f" [风控调整: 仓位从{position_pct:.1%}降至20%]"
+                    polished_reason += f" [风控调整: 仓位从{position_pct:.1%}降至20%]"
                     logger.warning(f"[{self.CONFIG.name}] 仓位{position_pct:.1%}超标，降至{max_qty}股")
 
-            # --- 任务2c: 空仓最多1天检查 ---
+            # --- 空仓最多1天检查 ---
             if action in (Action.WATCH, Action.HOLD) and not my_holdings:
-                # 当前已空仓，检查是否连续空仓超1天
                 try:
-                    from engine.memory.ai_memory import AIMemory
-                    # 获取上次有持仓的日期（简化：查最近一笔非空仓交易日）
                     conn = sqlite3.connect(self.db_path)
                     cur = conn.cursor()
                     cur.execute("""
@@ -422,7 +544,6 @@ class BaseBrain(ABC):
                         days_empty = (datetime.now() - last_buy_date).days
                         if days_empty >= 2:
                             logger.warning(f"[{self.CONFIG.name}] 已连续空仓{days_empty}天，铁律强制建仓")
-                            # 改为买入资金量最小的持仓股票（如果有持仓股票在关注列表）
                             if prices:
                                 cheapest = min(prices.items(), key=lambda x: x[1].get('price', 99999))
                                 sym, info = cheapest
@@ -431,20 +552,23 @@ class BaseBrain(ABC):
                                     action = Action.BUY
                                     price = info['price']
                                     name = info.get('name', sym)
-                                    reason = f"铁律强制: 已空仓{days_empty}天，不得连续空仓超过2天"
+                                    polished_reason = f"铁律强制: 已空仓{days_empty}天，不得连续空仓超过2天"
                 except Exception as e:
                     logger.warning(f"[{self.CONFIG.name}] 空仓天数检查异常: {e}")
 
-            logger.info(f"[{self.CONFIG.name}] LLM决策: {action.value} {sym} x{qty} @{price} | {reason}")
+            logger.info(f"[{self.CONFIG.name}] 双模型决策: {action.value} {sym} x{qty} @{price} | {polished_reason[:60]}")
 
             return TradingDecision(
-                action=action, signal=DecisionSignal.BUY if action == Action.BUY else DecisionSignal.SELL if action == Action.SELL else DecisionSignal.HOLD,
+                action=action,
+                signal=DecisionSignal.BUY if action == Action.BUY else DecisionSignal.SELL if action == Action.SELL else DecisionSignal.HOLD,
                 symbol=sym, name=name, quantity=qty, price=price,
-                reason=f"[LLM推理] {reason}", confidence=confidence,
+                reason=polished_reason,
+                confidence=confidence,
                 urgency="normal", ai_id=self.ai_id,
             )
+
         except Exception as e:
-            logger.error(f"[{self.CONFIG.name}] LLM推理失败: {e}，将走if-then规则")
+            logger.error(f"[{self.CONFIG.name}] 双模型推理异常: {e}，将走if-then规则")
             return None
 
     async def think_like_human(
