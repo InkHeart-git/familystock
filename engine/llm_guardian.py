@@ -27,7 +27,7 @@ PROVIDERS = {
     'deepseek': {
         'name': 'DeepSeek',
         'endpoint': 'https://api.deepseek.com/v1/chat/completions',
-        'model': 'deepseek-chat',
+        'model': 'deepseek-v4-pro',
         'timeout': 60,
         'cooldown': 60,       # 1分钟冷却
         'max_retries': 2,

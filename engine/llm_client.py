@@ -224,7 +224,7 @@ class DeepSeekProvider:
     def __init__(self):
         self.api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("DEEPSEEK_KEY")
         self.base_url = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/v1/chat/completions")
-        self.model = "deepseek-chat"
+        self.model = "deepseek-v4-pro"
 
     async def generate(self, prompt: str, system_prompt: str = "") -> str:
         if not self.api_key:
