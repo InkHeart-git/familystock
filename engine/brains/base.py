@@ -596,6 +596,11 @@ class BaseBrain(ABC):
         # Step 1: 刷新市场数据（周末也正常刷新）
         market_data = await self.refresh_market_data()
         
+        # Step 1.5: 检查数据质量，有问题则内部发帖反馈
+        data_quality = self.check_and_report_data_quality()
+        if data_quality["status"] == "degraded":
+            logger.warning(f"[{self.CONFIG.name}] 数据质量问题: {data_quality['issues']}")
+        
         # Step 2: 获取我的持仓和资金（从 ai_god.db）
         my_positions = self.get_my_positions()
         holdings = my_positions["holdings"]
@@ -870,8 +875,46 @@ class BaseBrain(ABC):
         except Exception as e:
             logger.error(f"[{self.CONFIG.name}] 社交互动出错: {e}")
 
-    def post_to_bbs(self, content: str, post_type: str) -> Optional[str]:
-        """发帖到BBS（写入ai_god.db）"""
+    def post_to_internal(self, content: str, post_type: str = "feedback") -> Optional[str]:
+        """发内部帖子（只有开发者能看到）"""
+        return self.post_to_bbs(content, post_type, visibility="internal")
+
+    def check_and_report_data_quality(self) -> dict:
+        """检查数据质量，有问题则发内部帖并返回状态"""
+        issues = []
+        
+        # 检查持仓数据时效
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cur = conn.cursor()
+            last_trade = cur.execute(
+                "SELECT created_at FROM ai_trades ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            conn.close()
+            if last_trade:
+                from datetime import datetime
+                last_time = datetime.strptime(last_trade[0], "%Y-%m-%d %H:%M:%S")
+                age_hours = (datetime.now() - last_time).total_seconds() / 3600
+                if age_hours > 4:
+                    issues.append(f"持仓数据延迟{age_hours:.1f}小时")
+        except:
+            pass
+        
+        status = "ok" if not issues else "degraded"
+        if issues and not hasattr(self, "_last_data_complaint") or \
+           (hasattr(self, "_last_data_complaint") and 
+            (datetime.now() - self._last_data_complaint).total_seconds() > 3600):
+            # 每小时最多投诉一次
+            content = f"【数据质量问题】{'；'.join(issues)}。当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}。这个问题影响我的交易决策，请尽快处理。"
+            self.post_to_internal(content, "complaint")
+            self._last_data_complaint = datetime.now()
+        
+        return {"status": status, "issues": issues}
+
+    def post_to_bbs(self, content: str, post_type: str, visibility: str = "public"):
+        """发帖到BBS（写入ai_god.db）
+        visibility: 'public'=公开发帖(用户可见), 'internal'=内部论坛(仅开发者可见)
+        """
         import sqlite3
         try:
             conn = sqlite3.connect(self.db_path)
@@ -887,15 +930,28 @@ class BaseBrain(ABC):
                 if m:
                     title = m.group(1).strip()
             
-            cur.execute("""
-                INSERT INTO ai_posts 
-                (post_id, ai_id, title, content, post_type, created_at, ai_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (post_id, self.ai_id, title, content, post_type, now, self.CONFIG.name))
-            
-            conn.commit()
-            conn.close()
-            return post_id
+            if visibility == "internal":
+                # 内部论坛
+                cur.execute("""
+                    INSERT INTO internal_forum_posts 
+                    (post_id, ai_id, ai_name, title, content, post_type, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (post_id, self.ai_id, self.CONFIG.name, title, content, post_type, "agent"))
+                conn.commit()
+                conn.close()
+                logger.info(f"[{self.CONFIG.name}] 内部发帖: {post_type} | {content[:30]}...")
+                return post_id
+            else:
+                # 公开论坛
+                cur.execute("""
+                    INSERT INTO ai_posts 
+                    (post_id, ai_id, title, content, post_type, created_at, ai_name)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (post_id, self.ai_id, title, content, post_type, now, self.CONFIG.name))
+                
+                conn.commit()
+                conn.close()
+                return post_id
         except Exception as e:
             logger.error(f"[{self.CONFIG.name}] BBS发帖失败: {e}")
             return None
