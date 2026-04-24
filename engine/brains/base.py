@@ -204,142 +204,9 @@ class BaseBrain(ABC):
         """返回角色配置"""
         pass
 
-    # ==================== 双模型协作引擎 ====================
-    # Step 1: DeepSeek V4-Pro 生成极简 JSON 决策（reasoning_content 不计入输出 token）
-    # Step 2: Kimi/MiniMax 生成用户可见的长文本话术
-    # 效果：V4-Pro 用最小代价做深度推理，Kimi 负责中文表达
-
-    async def _think_with_v4pro(self, prompt: str, system: str = "") -> tuple:
-        """
-        Step 1: 调用 DeepSeek V4-Pro 生成极简 JSON 决策。
-        返回: (decision_dict, reasoning_chain) 或 (None, None)
-        """
-        import urllib.request, re as re_module
-        import os as _os
-
-        key = _os.environ.get("DEEPSEEK_API_KEY", "")
-        if not key:
-            logger.warning(f"[{self.CONFIG.name}] DeepSeek API Key 未配置，跳过 V4-Pro 推理")
-            return None, None
-
-        # 构建 V4-Pro 专用 prompt（更简洁，输出更短）
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-
-        t0 = time.time()
-        try:
-            req = urllib.request.Request(
-                "https://api.deepseek.com/v1/chat/completions",
-                data=json.dumps({
-                    "model": "deepseek-v4-pro",
-                    "messages": messages,
-                    "max_tokens": 1200,   # 需要足够容纳 reasoning chain + 短 JSON 输出
-                    "temperature": 0.3
-                }).encode(),
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                elapsed = time.time() - t0
-                result = json.loads(resp.read())
-                msg = result['choices'][0].get('message', {})
-                raw_content = msg.get('content', '')
-                reasoning_chain = msg.get('reasoning_content', '') or ""
-
-                logger.info(f"[{self.CONFIG.name}] V4-Pro 推理完成: {elapsed:.1f}s, "
-                            f"reasoning={len(reasoning_chain)}chars, output={len(raw_content)}chars")
-
-                # 提取 JSON
-                json_match = re_module.search(r'\{[^{}]*"action"[^{}]*\}', raw_content, re_module.DOTALL)
-                if not json_match:
-                    json_match = re_module.search(r'\{.*\}', raw_content, re_module.DOTALL)
-
-                if not json_match:
-                    logger.warning(f"[{self.CONFIG.name}] V4-Pro 输出中找不到 JSON")
-                    return None, reasoning_chain
-
-                try:
-                    decision = json.loads(json_match.group(0))
-                    return decision, reasoning_chain
-                except json.JSONDecodeError as e:
-                    logger.warning(f"[{self.CONFIG.name}] V4-Pro JSON 解析失败: {e}")
-                    return None, reasoning_chain
-
-        except Exception as e:
-            logger.error(f"[{self.CONFIG.name}] V4-Pro 调用失败: {e}")
-            return None, None
-
-    async def _polish_with_kimi(self, reasoning_chain: str, decision: dict,
-                                  market_context: str) -> str:
-        """
-        Step 2: 调用 Kimi/MiniMax 基于 V4-Pro 推理链 + 决策生成用户话术。
-        返回: polished_reason (长文本) 或 fallback reason
-        """
-        import urllib.request
-        import os as _os
-
-        decision_str = json.dumps(decision, ensure_ascii=False)
-
-        polish_prompt = f"""你是{self.CONFIG.name}，一个性格特点为"{self.CONFIG.personality.speech_pattern}"的A股交易员。
-
-【AI 深度推理结论】
-{reasoning_chain[:2000]}
-（以上是 AI 的深度推理过程）
-
-【最终决策】
-{decision_str}
-
-【市场上下文】
-{market_context[:1500]}
-
-请根据以上 AI 推理结论和最终决策，用你自己的话（符合你的性格特点），向用户解释：
-1. 你为什么做出这个决定
-2. 核心逻辑是什么
-3. 风险在哪里
-
-要求：
-- 100-200 字
-- 口语化，像真人在说话
-- 符合你的交易风格和性格
-- 可以引用推理中的关键数据点
-- 不要说"根据以上分析"这种套话"""
-
-        # 尝试 MiniMax M2.7-highspeed（包月，速度较快）
-        mm_key = _os.environ.get("MINIMAX_CN_API_KEY", "")
-        if mm_key:
-            try:
-                req = urllib.request.Request(
-                    "https://api.minimaxi.com/v1/chat/completions",
-                    data=json.dumps({
-                        "model": "MiniMax-M2.7-highspeed",
-                        "messages": [{"role": "user", "content": polish_prompt}],
-                        "max_tokens": 400,
-                        "temperature": 0.7
-                    }).encode(),
-                    headers={"Authorization": f"Bearer {mm_key}", "Content-Type": "application/json"},
-                    method="POST"
-                )
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    result = json.loads(resp.read())
-                    msg = result['choices'][0].get('message', {})
-                    content = msg.get('content', '')
-                    if content and len(content) > 20:
-                        # 去除可能的 thinking 标签
-                        import re as re_module
-                        content = re_module.sub(r'<think>.*?</think>', '', content, flags=re_module.DOTALL).strip()
-                        logger.info(f"[{self.CONFIG.name}] Kimi 话术生成完成: {len(content)}chars")
-                        return content
-            except Exception as e:
-                logger.warning(f"[{self.CONFIG.name}] MiniMax 话术生成失败: {e}")
-
-        # Fallback: 直接用 decision 中的 reason
-        return decision.get("reason", "综合分析后决定")
-
     # ==================== LLM推理决策（双模型协作版） ====================
-    # 注意：这是可选方法，不需要重写。execute_session_cycle 会自动调用它，
-    # 如果返回 None 则降级到原有 if-then 规则。
+    # 像人类一样思考：内部串联 V4-Pro（深度推理）+ MiniMax（话说人话）
+    # 外部只看到一个方法，内部才是双模型协作
 
     async def think_like_human_llm(
         self,
@@ -350,11 +217,10 @@ class BaseBrain(ABC):
         minirock_analysis: Dict[str, Dict] = {},
     ) -> Optional[TradingDecision]:
         """
-        双模型协作决策:
-        Step 1: DeepSeek V4-Pro 生成极简 JSON 决策（极低成本 + 深度推理）
-        Step 2: MiniMax 生成用户可见的长文本话术
-        输入: 市场数据 + 持仓 + 现金 + 新闻 + MiniRock算法分析
-        输出: TradingDecision 或 None（双模型都失败时返回None，走if-then规则）
+        像人类一样思考——内部双模型协作：
+        Step 1: DeepSeek V4-Pro 生成极简 JSON 决策（深度推理，极低成本）
+        Step 2: MiniMax 润色成符合人设的用户话术
+        输出: TradingDecision 或 None（双模型都失败时走 if-then 规则）
         """
         indices = market_data.get("indices", {})
         prices = market_data.get("prices", {})
@@ -433,143 +299,210 @@ class BaseBrain(ABC):
 5. 输出格式必须是合法JSON"""
         rules_text += lessons_text
 
-        prompt = f"""【角色】你是{self.CONFIG.name}，一个性格特点为"{self.CONFIG.personality.speech_pattern}"的A股交易员。
-你正在参加AI股神争霸实盘赛，资金{my_cash:.0f}元。
+        # ---- Step 1 prompt（给 V4-Pro 的推理任务）----
+        prompt = (
+            "【角色】你是" + self.CONFIG.name + "，一个性格特点为【" + self.CONFIG.personality.speech_pattern + "】的A股交易员。\n"
+            "你正在参加AI股神争霸实盘赛，资金" + str(int(my_cash)) + "元。\n\n"
+            "【当前市场】\n指数:\n" + indices_text + "\n\n"
+            "股票行情:\n" + prices_text + "\n\n"
+            "【你的持仓】\n" + holdings_text + "\n"
+            "可用资金: " + str(int(my_cash)) + "元\n\n"
+            "【MiniRock算法分析】\n" + analysis_text + "\n\n"
+            "【市场热点】\n" + hot_text + "\n\n"
+            "【最新新闻】\n" + news_text + "\n\n"
+            + rules_text + "\n\n"
+            "请基于以上信息做出决策。用JSON输出，格式如下（只输出JSON，不要其他内容）：\n"
+            '{"action": "买入|卖出|持有|观望", "symbol": "股票代码", "quantity": 数量(正整数), "price": 参考价, "reason": "具体理由", "confidence": 75-99的数字}\n\n'
+            "注意：\n"
+            "- 数量为0表示不操作\n"
+            "- 买入时数量不超过可用资金的30%/参考价\n"
+            "- 卖出时必须填持仓中有的股票\n"
+            "- 持仓为空时不能卖出\n"
+        )
 
-【当前市场】
-指数:
-{indices_text}
+        # ---- system prompt（V4-Pro 行为规范）----
+        system = (
+            "你是一个专业的A股交易员AI，名叫" + self.CONFIG.name + "。\n"
+            "你的性格: " + self.CONFIG.personality.speech_pattern + "\n"
+            "必须严格遵守铁律：禁止买大盘股、空仓最多1天、单票仓位≤20%。"
+        )
 
-股票行情:
-{prices_text}
-
-【你的持仓】
-{holdings_text}
-
-可用资金: {my_cash:.0f}元
-
-【MiniRock算法分析】
-{analysis_text}
-
-【市场热点】
-{hot_text}
-
-【最新新闻】
-{news_text}
-
-{rules_text}
-
-请基于以上信息做出决策。用JSON输出，格式如下（只输出JSON，不要其他内容）：
-{{"action": "买入|卖出|持有|观望", "symbol": "股票代码如000001", "quantity": 数量(正整数), "price": 参考价, "reason": "具体理由", "confidence": 75-99的数字}}
-
-注意：
-- 数量为0表示不操作
-- 买入时数量不超过可用资金的30%/参考价
-- 卖出时必须填持仓中有的股票
-- 持仓为空时不能卖出
-"""
-        system = f"""你是一个专业的A股交易员AI，名叫{self.CONFIG.name}。
-你的性格: {self.CONFIG.personality.speech_pattern}
-必须严格遵守铁律：禁止买大盘股、空仓最多1天、单票仓位≤20%。"""
-
-        # ---- 双模型协作: Step 1: V4-Pro 生成决策, Step 2: Kimi 生成话术 ----
         # 构造市场上下文（用于 Step 2 话术生成）
-        market_context = f"""指数:\n{indices_text}\n\n股票行情:\n{prices_text}\n\n持仓:\n{holdings_text}\n\n可用资金: {my_cash:.0f}元\n\n算法分析:\n{analysis_text}\n\n新闻:\n{news_text}"""
+        cash_str = str(int(my_cash))
+        market_context = (
+            "指数:\n" + indices_text + "\n\n"
+            "股票行情:\n" + prices_text + "\n\n"
+            "持仓:\n" + holdings_text + "\n\n"
+            "可用资金: " + cash_str + "元\n\n"
+            "算法分析:\n" + analysis_text + "\n\n"
+            "新闻:\n" + news_text
+        )
+
+        # ========== Step 1: V4-Pro 深度推理，生成极简 JSON ==========
+        import urllib.request, re as _re
+        import os as _os
+
+        v4pro_key = _os.environ.get("DEEPSEEK_API_KEY", "")
+        if not v4pro_key:
+            logger.warning(f"[{self.CONFIG.name}] DeepSeek API Key 未配置，降级到 if-then")
+            return None
+
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
 
         try:
-            # Step 1: V4-Pro 生成极简 JSON 决策
-            decision, reasoning_chain = await self._think_with_v4pro(prompt, system)
-
-            if decision is None:
-                logger.warning(f"[{self.CONFIG.name}] V4-Pro 推理失败，降级到 if-then 规则")
-                return None
-
-            # Step 2: Kimi/MiniMax 生成用户话术
-            # （如果失败则用 decision 原始 reason，不阻塞决策）
-            polished_reason = await self._polish_with_kimi(
-                reasoning_chain or "", decision, market_context
+            t0 = time.time()
+            req = urllib.request.Request(
+                "https://api.deepseek.com/v1/chat/completions",
+                data=json.dumps({
+                    "model": "deepseek-v4-pro",
+                    "messages": messages,
+                    "max_tokens": 1200,
+                    "temperature": 0.3
+                }).encode(),
+                headers={"Authorization": f"Bearer {v4pro_key}", "Content-Type": "application/json"},
+                method="POST"
             )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                v4pro_elapsed = time.time() - t0
+                result = json.loads(resp.read())
+                msg = result['choices'][0].get('message', {})
+                raw_content = msg.get('content', '')
+                reasoning_chain = msg.get('reasoning_content', '') or ""
 
-            # 解析决策
-            action_str = decision.get("action", "观望")
-            action_map = {"买入": Action.BUY, "卖出": Action.SELL, "持有": Action.HOLD, "观望": Action.WATCH}
-            action = action_map.get(action_str, Action.WATCH)
+                logger.info(f"[{self.CONFIG.name}] V4-Pro 推理完成: {v4pro_elapsed:.1f}s, "
+                            f"reasoning={len(reasoning_chain)}chars, output={len(raw_content)}chars")
 
-            sym = decision.get("symbol", "")
-            # --- 大盘股铁律检查 ---
-            forbidden = {"002594": True, "601318": True, "600519": True}
-            if sym in forbidden and action == Action.BUY:
-                logger.warning(f"[{self.CONFIG.name}] V4-Pro 建议买禁止股票{sym}，降级为观望")
-                return TradingDecision(
-                    action=Action.WATCH, signal=DecisionSignal.HOLD,
-                    symbol="", name="", quantity=0, price=0,
-                    reason=f"V4-Pro 建议买{sym}但为禁止持仓大盘股，铁律优先", confidence=99,
-                    urgency="normal", ai_id=self.ai_id,
-                )
+                # 提取 JSON
+                json_match = _re.search(r'\{.*\}', raw_content, _re.DOTALL)
+                if not json_match:
+                    logger.warning(f"[{self.CONFIG.name}] V4-Pro 输出中找不到 JSON")
+                    return None
 
-            qty = int(decision.get("quantity", 0) or 0)
-            price = float(decision.get("price", 0) or 0)
-            confidence = int(decision.get("confidence", 70) or 70)
-
-            name = prices.get(sym, {}).get("name", sym) if sym else ""
-
-            # --- 单票仓位≤20%检查 ---
-            total_assets = my_cash + sum(
-                prices.get(h['symbol'], {}).get('price', 0) * h['quantity']
-                for h in my_holdings
-            )
-            if action == Action.BUY and sym and price > 0 and qty > 0:
-                buy_amount = qty * price
-                position_pct = buy_amount / total_assets if total_assets > 0 else 0
-                if position_pct > 0.20:
-                    max_qty = int(total_assets * 0.20 / price)
-                    qty = max_qty
-                    polished_reason += f" [风控调整: 仓位从{position_pct:.1%}降至20%]"
-                    logger.warning(f"[{self.CONFIG.name}] 仓位{position_pct:.1%}超标，降至{max_qty}股")
-
-            # --- 空仓最多1天检查 ---
-            if action in (Action.WATCH, Action.HOLD) and not my_holdings:
                 try:
-                    conn = sqlite3.connect(self.db_path)
-                    cur = conn.cursor()
-                    cur.execute("""
-                        SELECT trade_date FROM ai_trades
-                        WHERE ai_id = ? AND action IN ('BUY','buy')
-                        ORDER BY created_at DESC LIMIT 1
-                    """, (self.ai_id,))
-                    row = cur.fetchone()
-                    conn.close()
-                    if row:
-                        last_buy_date = datetime.strptime(row[0], '%Y-%m-%d') if isinstance(row[0], str) else row[0]
-                        days_empty = (datetime.now() - last_buy_date).days
-                        if days_empty >= 2:
-                            logger.warning(f"[{self.CONFIG.name}] 已连续空仓{days_empty}天，铁律强制建仓")
-                            if prices:
-                                cheapest = min(prices.items(), key=lambda x: x[1].get('price', 99999))
-                                sym, info = cheapest
-                                if info.get('price', 0) > 0 and my_cash > 0:
-                                    qty = int(my_cash * 0.1 / info['price'])
-                                    action = Action.BUY
-                                    price = info['price']
-                                    name = info.get('name', sym)
-                                    polished_reason = f"铁律强制: 已空仓{days_empty}天，不得连续空仓超过2天"
-                except Exception as e:
-                    logger.warning(f"[{self.CONFIG.name}] 空仓天数检查异常: {e}")
+                    decision = json.loads(json_match.group(0))
+                except json.JSONDecodeError:
+                    logger.warning(f"[{self.CONFIG.name}] V4-Pro JSON 解析失败，降级")
+                    return None
 
-            logger.info(f"[{self.CONFIG.name}] 双模型决策: {action.value} {sym} x{qty} @{price} | {polished_reason[:60]}")
+        except Exception as e:
+            logger.error(f"[{self.CONFIG.name}] V4-Pro 调用失败: {e}")
+            return None
+        # ========== Step 2: MiniMax 话说人话，润色reason ==========
+        mm_key = _os.environ.get("MINIMAX_CN_API_KEY", "")
+        polished_reason = decision.get("reason", "综合分析决定")
 
+        if mm_key and reasoning_chain:
+            decision_str = json.dumps(decision, ensure_ascii=False)
+            ai_name = self.CONFIG.name
+            speech = self.CONFIG.personality.speech_pattern
+            polish_prompt = (
+                "你是" + ai_name + "，一个性格特点为【" + speech + "】的A股交易员。\n\n"
+                "【AI 深度推理】\n" + reasoning_chain[:2000] + "\n\n"
+                "【最终决策】\n" + decision_str + "\n\n"
+                "【市场上下文】\n" + market_context[:1500] + "\n\n"
+                "请用你自己的话（符合你的性格），向用户解释：\n"
+                "1. 为什么做出这个决定\n2. 核心逻辑和风险\n"
+                '要求：100-200字，口语化，像真人在说话，不说【根据以上分析】。'
+            )
+
+            try:
+                req2 = urllib.request.Request(
+                    "https://api.minimaxi.com/v1/chat/completions",
+                    data=json.dumps({
+                        "model": "MiniMax-M2.7-highspeed",
+                        "messages": [{"role": "user", "content": polish_prompt}],
+                        "max_tokens": 400,
+                        "temperature": 0.7
+                    }).encode(),
+                    headers={"Authorization": f"Bearer {mm_key}", "Content-Type": "application/json"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(req2, timeout=30) as resp2:
+                    result2 = json.loads(resp2.read())
+                    content2 = result2['choices'][0].get('message', {}).get('content', '')
+                    if content2 and len(content2) > 20:
+                        content2 = _re.sub(r'<think>.*?</think>', '', content2, flags=_re.DOTALL).strip()
+                        polished_reason = content2
+                        logger.info(f"[{self.CONFIG.name}] MiniMax 话术生成完成: {len(content2)}chars")
+            except Exception as e:
+                logger.warning(f"[{self.CONFIG.name}] MiniMax 话术生成失败: {e}")
+
+        # ========== 铁律检查 + 构建 TradingDecision ==========
+        action_str = decision.get("action", "观望")
+        action_map = {"买入": Action.BUY, "卖出": Action.SELL, "持有": Action.HOLD, "观望": Action.WATCH}
+        action = action_map.get(action_str, Action.WATCH)
+
+        sym = decision.get("symbol", "")
+        # 大盘股铁律
+        if sym in {"002594", "601318", "600519"} and action == Action.BUY:
+            logger.warning(f"[{self.CONFIG.name}] V4-Pro 建议买禁止股票{sym}，降级")
             return TradingDecision(
-                action=action,
-                signal=DecisionSignal.BUY if action == Action.BUY else DecisionSignal.SELL if action == Action.SELL else DecisionSignal.HOLD,
-                symbol=sym, name=name, quantity=qty, price=price,
-                reason=polished_reason,
-                confidence=confidence,
+                action=Action.WATCH, signal=DecisionSignal.HOLD,
+                symbol="", name="", quantity=0, price=0,
+                reason=f"V4-Pro 建议买{sym}但为禁止持仓大盘股，铁律优先", confidence=99,
                 urgency="normal", ai_id=self.ai_id,
             )
 
-        except Exception as e:
-            logger.error(f"[{self.CONFIG.name}] 双模型推理异常: {e}，将走if-then规则")
-            return None
+        qty = int(decision.get("quantity", 0) or 0)
+        price = float(decision.get("price", 0) or 0)
+        confidence = int(decision.get("confidence", 70) or 70)
+        name = prices.get(sym, {}).get("name", sym) if sym else ""
+
+        # 单票仓位≤20%
+        total_assets = my_cash + sum(
+            prices.get(h['symbol'], {}).get('price', 0) * h['quantity']
+            for h in my_holdings
+        )
+        if action == Action.BUY and sym and price > 0 and qty > 0:
+            position_pct = (qty * price) / total_assets if total_assets > 0 else 0
+            if position_pct > 0.20:
+                max_qty = int(total_assets * 0.20 / price)
+                qty = max_qty
+                polished_reason += f" [风控: 仓位从{position_pct:.1%}降至20%]"
+                logger.warning(f"[{self.CONFIG.name}] 仓位{position_pct:.1%}超标，降至{max_qty}股")
+
+        # 空仓最多1天
+        if action in (Action.WATCH, Action.HOLD) and not my_holdings:
+            try:
+                conn = sqlite3.connect(self.db_path)
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT trade_date FROM ai_trades
+                    WHERE ai_id = ? AND action IN ('BUY','buy')
+                    ORDER BY created_at DESC LIMIT 1
+                """, (self.ai_id,))
+                row = cur.fetchone()
+                conn.close()
+                if row:
+                    last_buy = datetime.strptime(row[0], '%Y-%m-%d') if isinstance(row[0], str) else row[0]
+                    days_empty = (datetime.now() - last_buy).days
+                    if days_empty >= 2:
+                        logger.warning(f"[{self.CONFIG.name}] 已连续空仓{days_empty}天，铁律强制建仓")
+                        if prices:
+                            cheapest = min(prices.items(), key=lambda x: x[1].get('price', 99999))
+                            sym, info = cheapest
+                            if info.get('price', 0) > 0 and my_cash > 0:
+                                qty = int(my_cash * 0.1 / info['price'])
+                                action = Action.BUY
+                                price = info['price']
+                                name = info.get('name', sym)
+                                polished_reason = f"铁律强制: 已空仓{days_empty}天，不得连续空仓超过2天"
+            except Exception as e:
+                logger.warning(f"[{self.CONFIG.name}] 空仓天数检查异常: {e}")
+
+        logger.info(f"[{self.CONFIG.name}] 双模型决策: {action.value} {sym} x{qty} @{price} | {polished_reason[:60]}")
+
+        return TradingDecision(
+            action=action,
+            signal=DecisionSignal.BUY if action == Action.BUY else DecisionSignal.SELL if action == Action.SELL else DecisionSignal.HOLD,
+            symbol=sym, name=name, quantity=qty, price=price,
+            reason=polished_reason,
+            confidence=confidence,
+            urgency="normal", ai_id=self.ai_id,
+        )
 
     async def think_like_human(
         self,
