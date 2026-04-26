@@ -317,6 +317,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_checkin_status, {"user_id": rest[1] if len(rest) > 1 else None}
                 if rest[0] == "checkin":
                     return self.post_daily_checkin, {}
+                if rest[0] == "redeem":
+                    return self.post_redeem, {}
                 if rest[0] == "purchase":
                     return self.post_purchase, {}
                 if rest[0] == "vote-results":
@@ -2617,11 +2619,26 @@ class Handler(BaseHTTPRequestHandler):
         GET /api/competition/checkin-status
         Query: ?user_id=ou_xxx
         """
+        # 从 query string 提取 user_id
+        uid = user_id or ""
+        if not uid and "?" in self.path:
+            qs = self.path.split("?", 1)[1]
+            for part in qs.split("&"):
+                kv = part.split("=", 1)
+                if len(kv) == 2 and kv[0] == "user_id":
+                    uid = kv[1]
+                    break
+        if not uid:
+            from urllib.parse import parse_qs
+            qs_path = self.path
+            if "?" in qs_path:
+                parsed = parse_qs(qs_path.split("?", 1)[1])
+                uid = (parsed.get("user_id") or [""])[0]
+        if not uid:
+            return {"error": "user_id required"}, 400
+
         conn = get_db()
         try:
-            uid = user_id or ""
-            if not uid:
-                return {"error": "user_id required"}, 400
 
             today = datetime.now().strftime("%Y-%m-%d")
             yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -2674,6 +2691,56 @@ class Handler(BaseHTTPRequestHandler):
                 WHERE ui.user_id=? AND ui.quantity>0 ORDER BY ui.purchased_at DESC
             """, (uid,)).fetchall()
             return {"data": [{"key": r[0], "name": r[1], "icon": r[2], "price": r[3], "qty": r[4], "bought": r[5]} for r in rows]}
+        finally:
+            conn.close()
+
+    def post_redeem(self):
+        """兑换道具（消费股神币）
+        POST /api/competition/redeem
+        Body: {user_id, item_key}
+        """
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(body)
+        except:
+            return {"error": "invalid JSON"}, 400
+        user_id = str(data.get("user_id", ""))
+        item_key = str(data.get("item_key", ""))
+        if not user_id or not item_key:
+            return {"error": "user_id and item_key required"}, 400
+
+        conn = get_db()
+        try:
+            # 检查道具信息
+            item = conn.execute("SELECT name, price FROM shop_items WHERE item_key=? AND is_active=1", (item_key,)).fetchone()
+            if not item:
+                return {"error": "item not found"}, 404
+            price = item[1]
+
+            # 检查用户积分
+            row = conn.execute("SELECT total_score FROM user_interaction_points WHERE user_id=?", (user_id,)).fetchone()
+            balance = row[0] if row else 0
+            if balance < price:
+                return {"error": f"积分不足，需要{price}分，当前{balance}分"}, 400
+
+            # 扣积分 + 加道具
+            conn.execute("UPDATE user_interaction_points SET total_score = total_score - ? WHERE user_id=?", (price, user_id))
+            existing = conn.execute("SELECT quantity FROM user_items WHERE user_id=? AND item_key=?", (user_id, item_key)).fetchone()
+            if existing:
+                conn.execute("UPDATE user_items SET quantity = quantity + 1 WHERE user_id=? AND item_key=?", (user_id, item_key))
+            else:
+                conn.execute("INSERT INTO user_items (user_id, item_key, quantity, purchased_at) VALUES (?, ?, 1, datetime('now', '+8 hours'))", (user_id, item_key))
+
+            # 记录积分流水
+            conn.execute("INSERT INTO point_transactions (user_id, type, amount, balance_after, description) VALUES (?, 'spend', ?, ?, ?)",
+                         (user_id, -price, balance - price, f"兑换{item[0]}"))
+            conn.commit()
+            return {"data": {"success": True, "item": item[0], "cost": price, "balance": balance - price}}
+        except Exception as e:
+            conn.rollback()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
         finally:
             conn.close()
 
