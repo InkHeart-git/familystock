@@ -20,6 +20,22 @@ sys.path.insert(0, '/var/www/ai-god-of-stocks')
 logger = logging.getLogger("Scheduler")
 
 
+# ==================== 辅助函数 ====================
+
+SINGLE_BRAIN_TIMEOUT = 90  # 单个AI大脑超时秒数
+
+async def safe_run(brain, coro, timeout=SINGLE_BRAIN_TIMEOUT):
+    """用 asyncio.wait_for 给单个brain执行加超时，防止单AI卡死拖垮调度器"""
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout)
+    except asyncio.TimeoutError:
+        logger.warning(f"[{brain.CONFIG.name}] ⏱️ 执行超时({timeout}s)，已跳过")
+        return None
+    except Exception as e:
+        logger.warning(f"[{brain.CONFIG.name}] 执行异常: {e}")
+        return None
+
+
 # ==================== 时段定义 ====================
 
 class TradingSession:
@@ -123,8 +139,11 @@ class UnifiedScheduler:
                 
                 # 按模式执行
                 if mode == "full":
-                    # 所有AI全力运行
-                    await asyncio.gather(*[b.execute_session_cycle() for b in self.brains])
+                    # 所有AI全力运行（每个加90s超时隔离）
+                    await asyncio.gather(
+                        *[safe_run(b, b.execute_session_cycle()) for b in self.brains],
+                        return_exceptions=True
+                    )
                 
                 elif mode == "monitor":
                     # 盘中监控：智能决策检查
@@ -167,13 +186,14 @@ class UnifiedScheduler:
         return True
     
     async def _run_monitor_cycle(self):
-        """盘中监控：只运行有持仓或需要关注的AI"""
+        """盘中监控：只运行有持仓或需要关注的AI（每个加超时隔离）"""
         tasks = []
+        brains_used = []
         for brain in self.brains:
-            # 有持仓的AI需要监控 + 冷却检查
             holdings = brain.memory.get_holdings()
             if (holdings or brain.memory.get_cash() > 50000) and self._can_trigger_brain(brain):
-                tasks.append(brain.execute_session_cycle())
+                tasks.append(safe_run(brain, brain.execute_session_cycle()))
+                brains_used.append(brain)
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
     
@@ -185,9 +205,11 @@ class UnifiedScheduler:
             key=lambda b: b.CONFIG.personality.expressiveness, 
             reverse=True
         )
-        # 只让前3个AI发帖 + 冷却检查
-        tasks = [b.execute_session_cycle() for b in sorted_brains[:3] if self._can_trigger_brain(b)]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        # 只让前3个AI发帖 + 冷却检查（加超时隔离）
+        tasks = [safe_run(b, b.execute_session_cycle())
+                 for b in sorted_brains[:3] if self._can_trigger_brain(b)]
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
     
     async def _run_night_cycle(self):
         """夜盘轮播：每个AI按顺序轮流出帖"""
@@ -202,7 +224,7 @@ class UnifiedScheduler:
         max_posts = brain.CONFIG.personality.talkativeness * 2  # 粗略估计
 
         if posts_today < max_posts:
-            await brain.execute_session_cycle()
+            await safe_run(brain, brain.execute_session_cycle())
 
         self._night_round_robin += 1
 
@@ -211,7 +233,7 @@ class UnifiedScheduler:
         if now.weekday() == 6 and now.hour == 9 and now.minute < 30:
             logger.info("📊 周日全量复盘模式")
             await asyncio.gather(
-                *[b.execute_session_cycle() for b in self.brains],
+                *[safe_run(b, b.execute_session_cycle()) for b in self.brains],
                 return_exceptions=True
             )
 

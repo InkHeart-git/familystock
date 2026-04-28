@@ -13,6 +13,11 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger("RiskControl")
 
+# 禁买股票名单（A股大盘蓝筹，AI不得重仓）
+BANNED_STOCKS = {"比亚迪": "002594", "平安银行": "000001", "贵州茅台": "600519"}
+
+# 也支持股票代码
+BANNED_CODES = {"002594", "000001", "600519"}
 # 单股最大仓位比例
 MAX_SINGLE_POSITION_PCT = 0.20  # 20%
 # 总仓位上限（相对初始资金）
@@ -46,6 +51,13 @@ class RiskController:
 
         if action.upper() != "BUY":
             return True, "SELL无需风控检查"
+
+        # ── 规则0: 禁买股检查 ────────────────────────────
+        # 同时支持中文名和代码
+        name_match = symbol in BANNED_STOCKS
+        code_match = symbol in BANNED_CODES
+        if name_match or code_match:
+            return False, f"禁止交易大盘蓝筹: {symbol}"
 
         # ── 规则1: 仓位上限检查 ────────────────────────────
         allowed, reason = self._check_position_limit(ai_id, symbol, quantity, price)

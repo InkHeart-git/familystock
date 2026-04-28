@@ -7,7 +7,7 @@ AI股神争霸赛 API Server - 18085端口
   - posts/trades: SQLite
 """
 
-import sqlite3, os, json, time
+import sqlite3, os, json, time, hmac, hashlib
 import subprocess
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -1507,17 +1507,21 @@ class Handler(BaseHTTPRequestHandler):
                     continue
 
                 # 获取收盘价（从quotes表取）
-                price_row = conn.execute("""
-                    SELECT close FROM quotes
-                    WHERE ts_code=? AND trade_date<=?
-                    ORDER BY trade_date DESC LIMIT 1
-                """, (sym, last_trade)).fetchone()
+                try:
+                    price_row = conn.execute("""
+                        SELECT close FROM quotes
+                        WHERE ts_code=? AND trade_date<=?
+                        ORDER BY trade_date DESC LIMIT 1
+                    """, (sym, last_trade)).fetchone()
 
-                prev_row = conn.execute("""
-                    SELECT close FROM quotes
-                    WHERE ts_code=? AND trade_date<? AND trade_date<=?
-                    ORDER BY trade_date DESC LIMIT 1
-                """, (sym, last_trade, vdate)).fetchone()
+                    prev_row = conn.execute("""
+                        SELECT close FROM quotes
+                        WHERE ts_code=? AND trade_date<? AND trade_date<=?
+                        ORDER BY trade_date DESC LIMIT 1
+                    """, (sym, last_trade, vdate)).fetchone()
+                except Exception:
+                    price_row = None
+                    prev_row = None
 
                 if price_row and prev_row:
                     close = float(price_row[0])
@@ -1564,6 +1568,12 @@ class Handler(BaseHTTPRequestHandler):
         } for r in rows], "total": len(rows)}}
 
     def execute_trade(self):
+        # ── C3-3: 内部鉴权 ────────────────────────────
+        expected = os.environ.get("AI_GOD_INTERNAL_TOKEN", "dev-only-internal-token-2026")
+        provided = self.headers.get("X-Internal-Token", "")
+        if not hmac.compare_digest(expected, provided):
+            return {"error": "unauthorized"}, 401
+
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
         try:
@@ -1591,6 +1601,16 @@ class Handler(BaseHTTPRequestHandler):
         conn = get_db()
         try:
             if action == "BUY":
+                # ── C3-4: 现金充足性服务端校验 ──────────────
+                row = conn.execute(
+                    "SELECT cash FROM ai_portfolios WHERE ai_id=? ORDER BY updated_at DESC LIMIT 1",
+                    (ai_id,)
+                ).fetchone()
+                available_cash = float(row["cash"]) if row else 0.0
+                if available_cash < total_amount:
+                    conn.close()
+                    return {"error": f"insufficient cash: have {available_cash:.2f}, need {total_amount:.2f}"}, 400
+
                 existing = conn.execute(
                     "SELECT quantity, avg_cost FROM ai_holdings WHERE ai_id=? AND symbol=?",
                     (ai_id, symbol)
