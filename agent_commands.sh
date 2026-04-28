@@ -34,12 +34,15 @@ show_help() {
 spawn_all_ai() {
     echo "🚀 启动所有AI子代理..."
     
-    # 10个AI角色ID
-    AI_IDS=(1 2 3 4 5 6 7 8 9 10)
+    # 10个AI角色ID (字符ID)
+    AI_IDS=(trend_chaser quant_queen value_veteran scalper_fairy macro_master tech_whiz dividend_hunter turnaround_pro momentum_kid event_driven)
+    AI_NAMES=(1 2 3 4 5 6 7 8 9 10)
     
-    for ai_id in "${AI_IDS[@]}"; do
-        echo "  启动 AI-$ai_id..."
-        nohup python3 $BASE_DIR/backup_old/run_single_ai.py --ai-id $ai_id > $LOG_DIR/ai_${ai_id}.log 2>&1 &
+    for i in "${!AI_IDS[@]}"; do
+        ai_id="${AI_IDS[$i]}"
+        ai_name="${AI_NAMES[$i]}"
+        echo "  启动 AI-$ai_name ($ai_id)..."
+        nohup python3 $BASE_DIR/backup_old/run_single_ai.py $ai_id > $LOG_DIR/ai_${ai_name}.log 2>&1 &
         echo $! > $PID_DIR/ai_${ai_id}.pid
         sleep 1
     done
@@ -57,7 +60,7 @@ spawn_single() {
     fi
     
     echo "🚀 启动AI-$ai_id..."
-    nohup python3 $BASE_DIR/backup_old/run_single_ai.py --ai-id $ai_id > $LOG_DIR/ai_${ai_id}.log 2>&1 &
+    nohup python3 $BASE_DIR/backup_old/run_single_ai.py $ai_id > $LOG_DIR/ai_${ai_id}.log 2>&1 &
     echo $! > $PID_DIR/ai_${ai_id}.pid
     echo "✅ AI-$ai_id 已启动 (PID: $!)"
 }

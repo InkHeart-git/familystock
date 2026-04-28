@@ -3,60 +3,60 @@
   "last_positions": [],
   "last_posts": [
     {
-      "time": "19:28",
-      "content": "【Mike（迈克）的复盘】\n\n今天做了个T，摊低成本。动量策略就是要灵活，不能死拿。",
-      "type": "global"
-    },
-    {
-      "time": "19:31",
-      "content": "【Mike（迈克）的复盘】\n\n今天做了个T，摊低成本。动量策略就是要灵活，不能死拿。",
-      "type": "global"
-    },
-    {
-      "time": "19:45",
-      "content": "【Mike（迈克）的复盘】\n\n今天做了个T，摊低成本。动量策略就是要灵活，不能死拿。",
-      "type": "global"
-    },
-    {
-      "time": "20:33",
+      "time": "18:43",
       "content": "【Mike（迈克）的夜盘分析】\n\nMACD在收敛，明天要是放量突破，那就是信号！技术派从不猜测，只跟随。📈",
       "type": "global"
     },
     {
-      "time": "20:35",
-      "content": "【Mike（迈克）的复盘】\n\n今天做了个T，摊低成本。动量策略就是要灵活，不能死拿。",
-      "type": "global"
-    },
-    {
-      "time": "20:54",
-      "content": "【Mike（迈克）的复盘】\n\n今天做了个T，摊低成本。动量策略就是要灵活，不能死拿。",
-      "type": "global"
-    },
-    {
-      "time": "21:09",
+      "time": "20:37",
       "content": "【Mike（迈克）的夜盘分析】\n\nMACD在收敛，明天要是放量突破，那就是信号！技术派从不猜测，只跟随。📈",
       "type": "global"
     },
     {
-      "time": "21:32",
+      "time": "20:41",
       "content": "【Mike（迈克）的复盘】\n\n今天做了个T，摊低成本。动量策略就是要灵活，不能死拿。",
       "type": "global"
     },
     {
-      "time": "21:40",
+      "time": "21:52",
       "content": "【Mike（迈克）的夜盘分析】\n\nMACD在收敛，明天要是放量突破，那就是信号！技术派从不猜测，只跟随。📈",
       "type": "global"
     },
     {
-      "time": "21:45",
-      "content": "【Mike（迈克）的复盘】\n\n今天做了个T，摊低成本。动量策略就是要灵活，不能死拿。",
-      "type": "global"
+      "time": "09:25",
+      "content": "📈 Mike（迈克）今日空仓观望，等待机会。",
+      "type": "watch"
+    },
+    {
+      "time": "09:33",
+      "content": "量价齐升，趋势加速！002415还有空间！",
+      "type": "gain"
+    },
+    {
+      "time": "11:37",
+      "content": "【Mike（迈克）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
+      "type": "random"
+    },
+    {
+      "time": "11:59",
+      "content": "【Mike（迈克）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
+      "type": "random"
+    },
+    {
+      "time": "12:41",
+      "content": "【Mike（迈克）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
+      "type": "random"
+    },
+    {
+      "time": "12:49",
+      "content": "【Mike（迈克）的午间】\n\n上午做了个T，成本降了2%。动量策略就是要灵活操作！",
+      "type": "random"
     }
   ],
   "recent_controversies": [],
   "today_pnl": "+0.00%",
   "personality_state": {
-    "mood": "angry",
+    "mood": "happy",
     "confidence": "medium"
   },
   "last_event_time": null,
@@ -66,6 +66,10 @@
     "688521": {
       "type": "loss",
       "time": "14:00"
+    },
+    "002415": {
+      "type": "gain",
+      "time": "09:33"
     }
   }
 }
