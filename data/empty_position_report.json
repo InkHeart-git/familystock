@@ -1,85 +1,85 @@
 {
-  "check_time": "2026-04-28 08:25",
+  "check_time": "2026-05-01 08:25",
   "total_ais": 10,
   "results": [
     {
       "ai_id": "1",
       "ai_name": "Tyler（泰勒）",
-      "has_position": false,
-      "position_summary": "从未交易（初始状态）",
-      "max_consecutive_empty_days": 9,
+      "has_position": true,
+      "position_summary": "持仓中: 300750:570股, 002230:2564股, 000001:100股",
+      "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "10",
       "ai_name": "沈闻",
-      "has_position": false,
-      "position_summary": "从未交易（初始状态）",
-      "max_consecutive_empty_days": 9,
+      "has_position": true,
+      "position_summary": "持仓中: 002230:300股",
+      "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "2",
       "ai_name": "林数理",
-      "has_position": false,
-      "position_summary": "从未交易（初始状态）",
-      "max_consecutive_empty_days": 9,
+      "has_position": true,
+      "position_summary": "持仓中: 002264:2700股, 002405:9179股",
+      "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "3",
       "ai_name": "方守成",
-      "has_position": false,
-      "position_summary": "从未交易（初始状态）",
-      "max_consecutive_empty_days": 9,
+      "has_position": true,
+      "position_summary": "持仓中: 002077:10600股, 002230:2500股",
+      "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "4",
       "ai_name": "Ryan（瑞恩）",
-      "has_position": false,
-      "position_summary": "从未交易（初始状态）",
-      "max_consecutive_empty_days": 9,
+      "has_position": true,
+      "position_summary": "持仓中: 002703:7000股, 600571:3696股, 601012:2488股, 002466.SZ:537股",
+      "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "5",
       "ai_name": "David Chen（陈大卫）",
-      "has_position": false,
-      "position_summary": "从未交易（初始状态）",
-      "max_consecutive_empty_days": 9,
+      "has_position": true,
+      "position_summary": "持仓中: 300474:3900股",
+      "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "6",
       "ai_name": "韩科捷",
-      "has_position": false,
-      "position_summary": "从未交易（初始状态）",
-      "max_consecutive_empty_days": 9,
+      "has_position": true,
+      "position_summary": "持仓中: 300300:1100股",
+      "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "7",
       "ai_name": "James Wong（黄詹姆斯）",
-      "has_position": false,
-      "position_summary": "从未交易（初始状态）",
+      "has_position": true,
+      "position_summary": "持仓中: 300274.SZ:100股",
       "max_consecutive_empty_days": 9,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "8",
       "ai_name": "周逆行",
-      "has_position": false,
-      "position_summary": "空仓（最后交易: SELL 300760.SZ @ 2026-04-23 15:09:57）",
-      "max_consecutive_empty_days": 5,
+      "has_position": true,
+      "position_summary": "持仓中: 002405:600股",
+      "max_consecutive_empty_days": 4,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "9",
       "ai_name": "Mike（迈克）",
-      "has_position": false,
-      "position_summary": "从未交易（初始状态）",
-      "max_consecutive_empty_days": 9,
+      "has_position": true,
+      "position_summary": "持仓中: 002400:1344股",
+      "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     }
   ],
@@ -87,85 +87,85 @@
     {
       "ai_id": "1",
       "ai_name": "Tyler（泰勒）",
-      "empty_days": 9,
+      "empty_days": 8,
       "last_empty_dates": [
+        "2026-04-23",
         "2026-04-24",
         "2026-04-25",
         "2026-04-26",
-        "2026-04-27",
-        "2026-04-28"
+        "2026-04-27"
       ]
     },
     {
       "ai_id": "10",
       "ai_name": "沈闻",
-      "empty_days": 9,
+      "empty_days": 8,
       "last_empty_dates": [
+        "2026-04-23",
         "2026-04-24",
         "2026-04-25",
         "2026-04-26",
-        "2026-04-27",
-        "2026-04-28"
+        "2026-04-27"
       ]
     },
     {
       "ai_id": "2",
       "ai_name": "林数理",
-      "empty_days": 9,
+      "empty_days": 8,
       "last_empty_dates": [
+        "2026-04-23",
         "2026-04-24",
         "2026-04-25",
         "2026-04-26",
-        "2026-04-27",
-        "2026-04-28"
+        "2026-04-27"
       ]
     },
     {
       "ai_id": "3",
       "ai_name": "方守成",
-      "empty_days": 9,
+      "empty_days": 8,
       "last_empty_dates": [
+        "2026-04-23",
         "2026-04-24",
         "2026-04-25",
         "2026-04-26",
-        "2026-04-27",
-        "2026-04-28"
+        "2026-04-27"
       ]
     },
     {
       "ai_id": "4",
       "ai_name": "Ryan（瑞恩）",
-      "empty_days": 9,
+      "empty_days": 8,
       "last_empty_dates": [
+        "2026-04-23",
         "2026-04-24",
         "2026-04-25",
         "2026-04-26",
-        "2026-04-27",
-        "2026-04-28"
+        "2026-04-27"
       ]
     },
     {
       "ai_id": "5",
       "ai_name": "David Chen（陈大卫）",
-      "empty_days": 9,
+      "empty_days": 8,
       "last_empty_dates": [
+        "2026-04-23",
         "2026-04-24",
         "2026-04-25",
         "2026-04-26",
-        "2026-04-27",
-        "2026-04-28"
+        "2026-04-27"
       ]
     },
     {
       "ai_id": "6",
       "ai_name": "韩科捷",
-      "empty_days": 9,
+      "empty_days": 8,
       "last_empty_dates": [
+        "2026-04-23",
         "2026-04-24",
         "2026-04-25",
         "2026-04-26",
-        "2026-04-27",
-        "2026-04-28"
+        "2026-04-27"
       ]
     },
     {
@@ -183,25 +183,24 @@
     {
       "ai_id": "8",
       "ai_name": "周逆行",
-      "empty_days": 5,
+      "empty_days": 4,
       "last_empty_dates": [
         "2026-04-24",
         "2026-04-25",
         "2026-04-26",
-        "2026-04-27",
-        "2026-04-28"
+        "2026-04-27"
       ]
     },
     {
       "ai_id": "9",
       "ai_name": "Mike（迈克）",
-      "empty_days": 9,
+      "empty_days": 8,
       "last_empty_dates": [
+        "2026-04-23",
         "2026-04-24",
         "2026-04-25",
         "2026-04-26",
-        "2026-04-27",
-        "2026-04-28"
+        "2026-04-27"
       ]
     }
   ],

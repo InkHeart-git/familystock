@@ -20,8 +20,8 @@ MACRO_MASTER_CONFIG = CharacterConfig(
     personality=Personality(
         expressiveness=60, talkativeness=75, aggressiveness=45,
         emotional_stability=85, conformity=30,
-        holding_days_min=5, holding_days_max=15,
-        position_max_pct=0.30, total_position_max_pct=0.75,
+        holding_days_min=3, holding_days_max=7,   # 与core/characters.py对齐
+        position_max_pct=0.35, total_position_max_pct=0.80,
         stop_loss_pct=-6.0, take_profit_pct=12.0, risk_appetite=50,
         vocab_set={"宏观", "周期", "利率", "流动性", "配置", "边际"},
         speech_pattern="理性", post_frequency_cap=4,

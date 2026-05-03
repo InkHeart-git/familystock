@@ -7,21 +7,25 @@ Phase 3.3 + 3.4: 账户风控模块
 
 import sqlite3
 import logging
+import sys
 import time
 from datetime import datetime
 from typing import Optional, Tuple
 
 logger = logging.getLogger("RiskControl")
 
+sys.path.insert(0, '/var/www/ai-god-of-stocks')
+from core.characters import get_character_by_index
+
 # 禁买股票名单（A股大盘蓝筹，AI不得重仓）
 BANNED_STOCKS = {"比亚迪": "002594", "平安银行": "000001", "贵州茅台": "600519"}
 
 # 也支持股票代码
 BANNED_CODES = {"002594", "000001", "600519"}
-# 单股最大仓位比例
-MAX_SINGLE_POSITION_PCT = 0.20  # 20%
-# 总仓位上限（相对初始资金）
-MAX_TOTAL_POSITION_PCT = 1.50   # 150%
+
+# 默认仓位上限（角色未找到时使用）
+DEFAULT_SINGLE_POSITION_PCT = 0.20   # 20%
+DEFAULT_TOTAL_POSITION_PCT = 1.50    # 150%
 
 
 class RiskController:
@@ -35,16 +39,12 @@ class RiskController:
         self._pause_until: Optional[float] = None  # pause until timestamp
 
     def check_trade(
-        self,
-        ai_id: str,
-        action: str,      # "BUY" or "SELL"
-        symbol: str,
-        quantity: int,
-        price: float,
+        self, ai_id: str, action: str, symbol: str, quantity: int, price: float,
+        prices: dict = None,
     ) -> Tuple[bool, str]:
         """
-        检查交易是否允许执行。
-        返回 (允许, 原因)。不允许时原因说明触发了哪条规则。
+        交易风控主入口。
+        prices: 可选，实时行情字典 {symbol: {price: float}}。如果传入，用实时价格计算持仓。
         """
         if self._is_paused():
             return False, f"风控暂停中，暂停至 {datetime.fromtimestamp(self._pause_until)}"
@@ -60,7 +60,7 @@ class RiskController:
             return False, f"禁止交易大盘蓝筹: {symbol}"
 
         # ── 规则1: 仓位上限检查 ────────────────────────────
-        allowed, reason = self._check_position_limit(ai_id, symbol, quantity, price)
+        allowed, reason = self._check_position_limit(ai_id, symbol, quantity, price, prices=prices)
         if not allowed:
             return False, reason
 
@@ -79,9 +79,24 @@ class RiskController:
         return False
 
     def _check_position_limit(
-        self, ai_id: str, symbol: str, quantity: int, price: float
+        self, ai_id: str, symbol: str, quantity: int, price: float,
+        prices: dict = None,
     ) -> Tuple[bool, str]:
-        """规则1: 单股仓位≤20%，总仓位≤150%"""
+        """规则1: 单股仓位≤character.position_max，总仓位≤character.total_position_max
+        prices: 可选，实时行情 {symbol: {price: float}}，优先用于计算持仓市值"""
+        # 查找角色的仓位限制（ai_id 可能是整数 1-10 或字符串）
+        try:
+            ai_idx = int(str(ai_id).split('.')[0].strip())
+            char = get_character_by_index(ai_idx)
+        except (ValueError, TypeError):
+            char = None
+
+        single_max = getattr(char, 'position_max', None) if char else None
+        total_max = getattr(char, 'total_position_max', None) if char else None
+        char_name = char.name if char else f"ai_id={ai_id}"
+        single_max_pct = single_max if single_max else DEFAULT_SINGLE_POSITION_PCT
+        total_max_pct = total_max if total_max else DEFAULT_TOTAL_POSITION_PCT
+
         conn = sqlite3.connect(self.db_path)
         try:
             conn.row_factory = sqlite3.Row
@@ -104,19 +119,26 @@ class RiskController:
             current_cash = float(current["cash"])
             current_total = float(current["total_value"])
 
-            # 当前各持仓市值
+            # 当前各持仓市值（优先用实时行情，其次用DB里的current_price，最后用avg_cost）
             holdings = conn.execute(
                 "SELECT symbol, quantity, avg_cost FROM ai_holdings WHERE ai_id=? AND quantity>0",
                 (ai_id,)
             ).fetchall()
 
-            # 计算当前各持仓市值
             current_positions_value = 0.0
             position_by_symbol = {}
             for h in holdings:
                 sym = h["symbol"]
-                # 用 avg_cost 估算当前市值（未更新 current_price 时用 avg_cost）
-                val = h["quantity"] * (h["avg_cost"] or 0)
+                # 实时行情优先
+                rt_price = None
+                if prices and sym in prices:
+                    rt_price = prices[sym].get("price") if hasattr(prices[sym], "get") else None
+                # DB current_price 次之
+                db_price = float(h["current_price"]) if h["current_price"] and h["current_price"] > 0 else 0
+                # avg_cost 兜底
+                cost_price = float(h["avg_cost"] or 0)
+                price_for_val = rt_price or db_price or cost_price
+                val = h["quantity"] * price_for_val
                 current_positions_value += val
                 position_by_symbol[sym] = val
 
@@ -130,18 +152,18 @@ class RiskController:
             existing_value = position_by_symbol.get(symbol, 0.0)
             new_single_value = existing_value + buy_amount
             single_pct = new_single_value / initial_capital
-            if single_pct > MAX_SINGLE_POSITION_PCT:
+            if single_pct > single_max_pct:
                 return False, (
-                    f"单股仓位超限: {symbol} "
+                    f"[{char_name}] 单股仓位超限: {symbol} "
                     f"当前{existing_value/initial_capital:.1%}+本次{buy_amount/initial_capital:.1%}"
-                    f"={single_pct:.1%} > {MAX_SINGLE_POSITION_PCT:.0%}上限"
+                    f"={single_pct:.1%} > {single_max_pct:.0%}上限"
                 )
 
             # 检查总仓位
             new_total_pct = new_total_position_value / initial_capital
-            if new_total_pct > MAX_TOTAL_POSITION_PCT:
+            if new_total_pct > total_max_pct:
                 return False, (
-                    f"总仓位超限: {new_total_pct:.1%} > {MAX_TOTAL_POSITION_PCT:.0%}上限"
+                    f"[{char_name}] 总仓位超限: {new_total_pct:.1%} > {total_max_pct:.0%}上限"
                 )
 
             return True, "仓位检查通过"

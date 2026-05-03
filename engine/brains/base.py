@@ -328,7 +328,7 @@ class BaseBrain(ABC):
         system = (
             "你是一个专业的A股交易员AI，名叫" + self.CONFIG.name + "。\n"
             "你的性格: " + self.CONFIG.personality.speech_pattern + "\n"
-            "必须严格遵守铁律：禁止买大盘股、空仓最多1天、单票仓位≤20%。"
+            "必须严格遵守铁律：禁止买大盘股、空仓最多1天、单票仓位≤" + str(int(getattr(self.CONFIG.personality, 'position_max_pct', 0.20) * 100)) + "%、持仓不超过" + str(getattr(self.CONFIG.personality, 'holding_days_max', '?')) + "天。"
         )
 
         # 构造市场上下文（用于 Step 2 话术生成）
@@ -451,22 +451,36 @@ class BaseBrain(ABC):
             )
 
         qty = int(decision.get("quantity", 0) or 0)
-        price = float(decision.get("price", 0) or 0)
+        # 优先使用行情字典中的实时价格，拒绝 price=0 的交易
+        market_price = prices.get(sym, {}).get("price", 0) if sym else 0
+        if market_price and market_price > 0:
+            price = market_price
+        elif action == Action.SELL and sym:
+            # SELL时fallback到持仓的current_price（已有行情数据）
+            for h in my_holdings:
+                if h['symbol'] == sym:
+                    price = h.get('current_price', h.get('avg_cost', 0))
+                    break
+            else:
+                price = 0.0
+        else:
+            price = 0.0  # LLM提供的价格无效，使用market_price
         confidence = int(decision.get("confidence", 70) or 70)
         name = prices.get(sym, {}).get("name", sym) if sym else ""
 
-        # 单票仓位≤20%
+        # 单票仓位≤character.position_max_pct（使用配置值，不再hardcode）
+        position_max_pct = getattr(self.CONFIG, 'position_max_pct', 0.20)
         total_assets = my_cash + sum(
             prices.get(h['symbol'], {}).get('price', 0) * h['quantity']
             for h in my_holdings
         )
         if action == Action.BUY and sym and price > 0 and qty > 0:
             position_pct = (qty * price) / total_assets if total_assets > 0 else 0
-            if position_pct > 0.20:
-                max_qty = int(total_assets * 0.20 / price)
+            if position_pct > position_max_pct:
+                max_qty = int(total_assets * position_max_pct / price)
                 qty = max_qty
-                polished_reason += f" [风控: 仓位从{position_pct:.1%}降至20%]"
-                logger.warning(f"[{self.CONFIG.name}] 仓位{position_pct:.1%}超标，降至{max_qty}股")
+                polished_reason += f" [风控: 仓位从{position_pct:.1%}降至{position_max_pct:.0%}]"
+                logger.warning(f"[{self.CONFIG.name}] 仓位{position_pct:.1%}超标，降至{max_qty}股({position_max_pct:.0%}上限)")
 
         # 空仓最多1天
         if action in (Action.WATCH, Action.HOLD) and not my_holdings:
@@ -496,6 +510,43 @@ class BaseBrain(ABC):
                                 polished_reason = f"铁律强制: 已空仓{days_empty}天，不得连续空仓超过2天"
             except Exception as e:
                 logger.warning(f"[{self.CONFIG.name}] 空仓天数检查异常: {e}")
+
+        # price=0 安全拒绝：禁止以0价格执行任何交易
+        if action in (Action.BUY, Action.SELL) and price <= 0:
+            logger.warning(f"[{self.CONFIG.name}] price=0 安全拒绝: {action.value} {sym}")
+            action = Action.WATCH
+            polished_reason = f"价格无效(price={price})，交易取消"
+            price = 0
+            qty = 0
+
+        # ── 持仓超期强制检查 ─────────────────────────────────
+        # 如果当前决策是 HOLD/WATCH，且有持仓超过 holding_days_max，强制换仓
+        if action in (Action.HOLD, Action.WATCH) and my_holdings:
+            max_days = getattr(self.CONFIG.personality, 'holding_days_max', None)
+            if max_days is not None and max_days > 0:
+                from datetime import datetime as _dt
+                now_ts = _dt.now()
+                for h in my_holdings:
+                    try:
+                        updated_at = h.get('updated_at', '') or h.get('buy_date', '')
+                        if not updated_at:
+                            continue
+                        buy_date = _dt.strptime(str(updated_at)[:19], "%Y-%m-%d %H:%M:%S")
+                        days_held = (now_ts - buy_date).days
+                        if days_held >= max_days:
+                            # 找到超期持仓，强制卖出
+                            h_price = prices.get(h['symbol'], {}).get('price', 0) or h.get('current_price', 0) or h.get('avg_cost', 0)
+                            if h_price > 0:
+                                logger.warning(f"[{self.CONFIG.name}] 持仓超期: {h['symbol']}已持有{days_held}天(上限{max_days}天)，强制换仓")
+                                action = Action.SELL
+                                sym = h['symbol']
+                                name = h.get('name', sym)
+                                qty = h['quantity']
+                                price = h_price
+                                polished_reason = f"持仓超期: 已持有{days_held}天(上限{max_days}天)，铁律换仓"
+                                break
+                    except Exception:
+                        continue
 
         logger.info(f"[{self.CONFIG.name}] 双模型决策: {action.value} {sym} x{qty} @{price} | {polished_reason[:60]}")
 
@@ -676,10 +727,15 @@ class BaseBrain(ABC):
         return {}
 
     # 候选股池（空仓时也需有价格可分析）
+    # 注意：禁止持仓的大盘蓝筹(BANNED)从此池中移除；
+    # 子类可通过覆盖 CANDIDATE_POOL 属性来定义角色专属股池
     CANDIDATE_POOL = [
-        "300750.SZ", "002594.SZ", "601899.SH", "600036.SH",
-        "601318.SH", "600519.SH", "601888.SH", "300274.SZ",
-        "300760.SZ", "002466.SZ",
+        # 已移除 BANNED: 002594(比亚迪), 601318(平安), 600519(茅台)
+        "300750.SZ", "601899.SH", "600036.SH", "601888.SH",
+        "300274.SZ", "300760.SZ", "002466.SZ",
+        # 以下为扩展备选池（子类可按风格裁剪）
+        "002230.SZ", "300059.SZ", "601012.SH", "002415.SZ",
+        "300124.SZ", "002050.SZ", "300751.SZ",
     ]
 
     async def pre_analyze_candidates(self, prices: Dict) -> Dict[str, Dict]:
@@ -972,6 +1028,78 @@ class BaseBrain(ABC):
             except Exception as e:
                 logger.error(f"[{self.CONFIG.name}] 决策出错: {e}")
         
+        # ===== 止盈止损强制检查（每次cycle必检，不受cooldown限制）=====
+        # 检查所有持仓是否触及止盈/止损线，超期持仓也应强平
+        urgent_decision = None
+        if holdings:
+            stop_loss_pct = getattr(self.CONFIG.personality, 'stop_loss_pct', -0.05)
+            take_profit_pct = getattr(self.CONFIG.personality, 'take_profit_pct', 0.08)
+            max_days = getattr(self.CONFIG.personality, 'holding_days_max', None)
+            prices_dict = market_data.get("prices", {})
+            now_ts_urgent = time.time()
+            
+            for h in holdings:
+                sym = h["symbol"]
+                avg_cost = h.get("avg_cost", 0)
+                current = prices_dict.get(sym, {}).get("price", 0) or h.get("current_price", 0) or avg_cost
+                if avg_cost <= 0 or current <= 0:
+                    continue
+                pnl_pct = (current - avg_cost) / avg_cost
+                
+                # 止损检查
+                if pnl_pct <= stop_loss_pct:
+                    logger.warning(f"[{self.CONFIG.name}] 触发止损: {sym} 亏损{pnl_pct:.1%}（阈值{stop_loss_pct:.1%}）")
+                    urgent_decision = TradingDecision(
+                        action=Action.SELL, signal=DecisionSignal.STRONG_SELL,
+                        symbol=sym, name=h.get("name", sym),
+                        quantity=h["quantity"], price=current,
+                        reason=f"止损：亏损{pnl_pct:.1%}，触发阈值{stop_loss_pct:.1%}",
+                        confidence=95, urgency="critical",
+                        ai_id=self.ai_id, risk_level="high",
+                    )
+                    break
+                # 止盈检查
+                if pnl_pct >= take_profit_pct:
+                    logger.warning(f"[{self.CONFIG.name}] 触发止盈: {sym} 盈利{pnl_pct:.1%}（阈值{take_profit_pct:.1%}）")
+                    urgent_decision = TradingDecision(
+                        action=Action.SELL, signal=DecisionSignal.SELL,
+                        symbol=sym, name=h.get("name", sym),
+                        quantity=h["quantity"], price=current,
+                        reason=f"止盈：盈利{pnl_pct:.1%}，触发阈值{take_profit_pct:.1%}",
+                        confidence=90, urgency="high",
+                        ai_id=self.ai_id, risk_level="medium",
+                    )
+                    break
+                # 超期持仓检查
+                if max_days and max_days > 0:
+                    try:
+                        from datetime import datetime as _dt
+                        updated_at = h.get('updated_at', '') or h.get('buy_date', '')
+                        if updated_at:
+                            buy_date = _dt.strptime(str(updated_at)[:19], "%Y-%m-%d %H:%M:%S")
+                            days_held = (_dt.now() - buy_date).days
+                            if days_held >= max_days:
+                                logger.warning(f"[{self.CONFIG.name}] 持仓超期: {sym}已持有{days_held}天（上限{max_days}天）")
+                                urgent_decision = TradingDecision(
+                                    action=Action.SELL, signal=DecisionSignal.SELL,
+                                    symbol=sym, name=h.get("name", sym),
+                                    quantity=h["quantity"], price=current,
+                                    reason=f"持仓超期: 已持有{days_held}天（上限{max_days}天），铁律换仓",
+                                    confidence=85, urgency="normal",
+                                    ai_id=self.ai_id, risk_level="medium",
+                                )
+                                break
+                    except Exception:
+                        pass
+        
+        # 如果有强制平仓决策，优先执行（不受decision_cooldown限制）
+        if urgent_decision and (decision is None or decision.action in (Action.HOLD, Action.WATCH)):
+            decision = urgent_decision
+            logger.info(f"[{self.CONFIG.name}] 强制决策覆盖: {decision.action.value} {decision.symbol}")
+            # 重置cooldown相关状态，避免自我拦截
+            self._last_decision = None
+            self._last_decision_time = 0
+        
         # ===== 防卡机制：决策冷却 + 熔断 =====
         now_ts = time.time()
         
@@ -1020,6 +1148,7 @@ class BaseBrain(ABC):
                 symbol=sym,
                 quantity=qty,
                 price=price,
+                prices=market_data.get("prices", {}),
             )
             if not allowed:
                 logger.warning(f"[{self.CONFIG.name}] 风控拦截: {sym} {action_val} - {reason}")

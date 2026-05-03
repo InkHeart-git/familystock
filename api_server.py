@@ -77,21 +77,30 @@ def get_initial_capital(ai_id):
 
 def build_ai_record(ai_id, pg_portfolios, pg_holdings, sqlite_conn):
     """构建单个AI的完整数据记录
-    - total_value/return_pct/cash/daily: PostgreSQL 权威
-    - holdings: PostgreSQL → SQLite 同步后从 SQLite 读
+    - cash / total_value: SQLite（权威交易数据）
+    - stock_value / holdings: SQLite（实时行情）
     - unrealized_pnl: 从 holdings 实时计算
+    - realized_pnl: SQLite 交易记录
     """
     ai_id_str = str(ai_id)
     initial_capital = get_initial_capital(ai_id)
 
-    # PostgreSQL 权威数据
+    # ── 现金和总资产：来自 SQLite（PostgreSQL 未及时同步，弃用）──
     pg = pg_portfolios.get(ai_id_str, {})
-    total_value   = pg.get("total_value", initial_capital)
-    cash          = pg.get("cash", initial_capital)
-    total_return_pct = pg.get("total_return_pct", 0.0)
-    daily_return_pct = pg.get("daily_return_pct", 0.0)
+    # 从 SQLite 取现金（权威），fallback 到 PostgreSQL
+    sqlite_portfolio = sqlite_conn.execute(
+        "SELECT cash, total_value FROM ai_portfolios WHERE ai_id=? LIMIT 1",
+        (ai_id_str,)
+    ).fetchone()
+    if sqlite_portfolio:
+        cash = to_float(sqlite_portfolio[0]) or initial_capital
+        # total_value 以 cash + stock_value 计算为准，不直接用 SQLite 存的值
+        sqlite_total = to_float(sqlite_portfolio[1]) or initial_capital
+    else:
+        cash = pg.get("cash", initial_capital)
+        sqlite_total = pg.get("total_value", initial_capital)
 
-    # 持仓明细（从 SQLite）
+    # ── 持仓明细（从 SQLite）──
     holdings_rows = sqlite_conn.execute(
         "SELECT symbol,name,quantity,avg_cost,current_price FROM ai_holdings WHERE ai_id=? AND quantity>0",
         (ai_id_str,)
@@ -110,12 +119,21 @@ def build_ai_record(ai_id, pg_portfolios, pg_holdings, sqlite_conn):
     holdings_cost  = sum(h["avg_cost"] * h["quantity"] for h in holdings_list)
     unrealized_pnl = holdings_value - holdings_cost
 
-    # 已实现盈亏（从 SQLite 的真实交易记录，不含 CLEARED）
+    # ── 总资产 = 现金 + 持仓市值（口径一致，无不一致风险）──
+    total_value = round(cash + holdings_value, 2)
+    total_return_pct = round((total_value - initial_capital) / initial_capital * 100, 2) if initial_capital > 0 else 0.0
+
+    # ── 已实现盈亏（从 SQLite 的真实交易记录）──
     row = sqlite_conn.execute(
         "SELECT COALESCE(SUM(pnl),0) FROM ai_trades WHERE ai_id=? AND action='SELL'",
         (ai_id_str,)
     ).fetchone()
     realized_pnl = to_float(row[0]) if row else 0.0
+
+    # ── 日收益率：PostgreSQL 有则用之，无则用总收益率近似 ──
+    daily_return_pct = pg.get("daily_return_pct", None)
+    if daily_return_pct is None:
+        daily_return_pct = total_return_pct  # 近似
 
     return {
         "id": int(ai_id),
@@ -123,8 +141,8 @@ def build_ai_record(ai_id, pg_portfolios, pg_holdings, sqlite_conn):
         "stock_value": round(holdings_value, 2),
         "holdings_cost": round(holdings_cost, 2),
         "initial_capital": initial_capital,
-        "total_value": round(total_value, 2),
-        "total_return_pct": round(total_return_pct, 2),
+        "total_value": total_value,
+        "total_return_pct": total_return_pct,
         "total_unrealized_pnl": round(unrealized_pnl, 2),
         "total_realized_pnl": round(realized_pnl, 2),
         "total_pnl": round(unrealized_pnl + realized_pnl, 2),

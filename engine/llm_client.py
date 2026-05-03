@@ -87,7 +87,7 @@ class MiniMaxProvider:
         payload = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": 300,   # 降低 token 上限，减少单次消耗
+            "max_tokens": 800,   # 增加 token 上限，确保思考过程后仍有足够输出
         }
 
         async with aiohttp.ClientSession() as sess:

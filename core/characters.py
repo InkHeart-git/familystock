@@ -279,3 +279,16 @@ def get_characters_by_group(group: str) -> Dict[str, AICharacter]:
 def get_risk_profile(character_id: str) -> Optional[Dict]:
     """获取风险配置"""
     return RISK_PROFILES.get(character_id)
+
+
+# 按插入顺序（风云五虎 0-4 + 灵动小五 5-9）的角色 ID 列表
+_CHARACTER_ID_ORDER = list(AI_CHARACTERS.keys())
+
+
+def get_character_by_index(idx: int) -> Optional[AICharacter]:
+    """根据整数索引(1-10)获取角色配置。用于 ai_id=5 → macro_master 等映射。"""
+    try:
+        char_id = _CHARACTER_ID_ORDER[idx - 1]  # idx 从 1 开始
+        return AI_CHARACTERS.get(char_id)
+    except (IndexError, ValueError):
+        return None
