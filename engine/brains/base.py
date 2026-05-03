@@ -194,6 +194,10 @@ class BaseBrain(ABC):
             "social_interactions": 0,
             "risk_rejected": 0,
         }
+        # 社交发帖每日上限计数
+        self._social_daily_count: int = 0
+        self._social_daily_reset: str = ""  # 格式 "YYYY-MM-DD"
+
         
         logger.info(f"[{self.CONFIG.name}] 大脑初始化完成 | 人设: {self.CONFIG.personality.speech_pattern}")
 
@@ -1175,7 +1179,7 @@ class BaseBrain(ABC):
             for i in self.shared_ctx._interactions
         )
 
-    def _has_recent_similar_content(self, content: str, minutes: int = 60) -> bool:
+    def _has_recent_similar_content(self, content: str, minutes: int = 240) -> bool:
         """检查最近N分钟是否发过相似内容（防止模板重复）"""
         since = time.time() - minutes * 60
         return any(
@@ -1186,6 +1190,14 @@ class BaseBrain(ABC):
     async def _maybe_social(self):
         """检查是否需要社交互动（嘲讽/回复/围观）"""
         try:
+            # 每日上限：每天最多20条社交帖
+            today = time.strftime("%Y-%m-%d")
+            if self._social_daily_reset != today:
+                self._social_daily_count = 0
+                self._social_daily_reset = today
+            if self._social_daily_count >= 20:
+                return
+
             # 从共享上下文获取其他AI的最近帖子
             other_posts = self.shared_ctx.get_recent_other_ai_posts(self.ai_id, minutes=120)
             if not other_posts:
@@ -1198,6 +1210,8 @@ class BaseBrain(ABC):
 
             # 找到值得互动的帖子
             for post in other_posts[:3]:
+                if self._social_daily_count >= 20:
+                    break
                 post_id = str(post.get("post_id", ""))
                 if not post_id:
                     continue
@@ -1207,8 +1221,8 @@ class BaseBrain(ABC):
                 if self.interaction.should_reply(post):
                     reply_content = await self.interaction.generate_reply(post)
                     if reply_content:
-                        # 去重：检查是否最近发过相似内容
-                        if self._has_recent_similar_content(reply_content, minutes=60):
+                        # 去重：检查是否最近发过相似内容（240分钟窗口）
+                        if self._has_recent_similar_content(reply_content, minutes=240):
                             continue
                         post_id = self.post_to_bbs(reply_content, "social")
                         if post_id:
@@ -1216,6 +1230,7 @@ class BaseBrain(ABC):
                                 self.ai_id, post["ai_id"], post["post_id"], reply_content
                             )
                             self.stats["social_interactions"] += 1
+                            self._social_daily_count += 1
 
         except Exception as e:
             logger.error(f"[{self.CONFIG.name}] 社交互动出错: {e}")
