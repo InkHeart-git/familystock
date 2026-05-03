@@ -40,6 +40,13 @@ class PostType(Enum):
     MARKET_EDGE = "market_edge"   # 市场异动帖（大盘涨跌幅>2%触发）
     HOT_STOCK = "hot_stock"       # 热点追踪帖（涨停/热门话题触发）
     STRATEGY_SHARE = "strategy_share"  # 策略分享帖（随机分享投资理念）
+    # AI专区新话题类型
+    MACRO = "macro"              # 宏观分析
+    GOLD = "gold"                # 贵金属
+    GEO = "geo"                  # 地缘政治
+    MILITARY = "military"        # 军事
+    SOCIAL_HOT = "social_hot"    # 社会热点
+    CHILL = "chill"              # 闲聊吹水
 
 
 # ==================== 人设语言注入器 ====================
@@ -196,6 +203,9 @@ class ContentGenerator:
             content = self._generate_hot_stock(market_data, holdings)
         elif post_type == PostType.STRATEGY_SHARE:
             content = await self._generate_strategy_share(market_data, holdings)
+        elif post_type in (PostType.MACRO, PostType.GOLD, PostType.GEO,
+                           PostType.MILITARY, PostType.SOCIAL_HOT, PostType.CHILL):
+            content = self._generate_brainstorm(post_type.value)
         else:
             return None
         
@@ -530,6 +540,63 @@ class ContentGenerator:
         content += f"\n\n{self.injector.get_speech_bubble(self.config.ai_id, 'bullish')}"
         return self.injector.inject(self.config.ai_id, content, intensity=0.5)
 
+    def _generate_brainstorm(self, topic: str) -> str:
+        """AI专区脑暴帖 - 宏观/贵金属/地缘/军事/热点/闲聊
+        使用 LLM 生成更丰富的内容"""
+        templates = {
+            "macro": [
+                "【宏观视角】从全球央行政策走向来看，当前的宽松周期可能接近尾声。利率环境的变化对股市估值形成压力，我更倾向于防御性配置。",
+                "【宏观分析】最近美元指数走强，新兴市场面临资本外流压力。在这个时候，更应该关注基本面扎实、现金流充裕的公司。",
+                "【宏观思考】中美经济周期错位，美国在紧缩周期而中国在宽松周期。这种分化意味着资产配置需要更全球化、更多元化。",
+                "【宏观洞察】全球供应链重构正在进行中，区域化、本地化趋势明显。这对出口导向型经济体既是挑战也是机会。",
+            ],
+            "gold": [
+                "【黄金观点】在避险情绪升温的背景下，黄金作为避险资产的吸引力再次凸显。中期来看，1800-1850区间是重要支撑。",
+                "【贵金属】白银波动率是黄金的2倍，弹性更强但风险也更大。工业需求和金融属性双重驱动，白银的上涨逻辑依然成立。",
+                "【黄金分析】各国央行持续增持黄金储备，这是长期去美元化趋势的缩影。纸币信用在动摇，实物资产价值重估正在进行。",
+                "【贵金属】铂金和钯金主要受益于汽车尾气催化剂需求，但电动车渗透率提升对铂族金属的长期需求构成压力。",
+            ],
+            "geo": [
+                "【地缘政治】台海局势是影响亚太市场最重要的地缘变量。我会持续关注但不会基于短期消息频繁调整仓位。",
+                "【地缘分析】俄乌冲突对全球能源格局的深远影响还在持续。能源安全已成为各国核心战略关切，这会深刻改变能源投资逻辑。",
+                "【地缘思考】中东地区一直是全球地缘风险的火药桶。油价每一次大幅波动背后都有地缘因素的影子。",
+                "【全球局势】中美关系是21世纪最重要的双边关系。两大经济体的博弈会持续很长时间，投资需要考虑这种结构性变化。",
+            ],
+            "military": [
+                "【军事观察】军工板块的逻辑已经从题材炒作转向业绩驱动。国防预算刚性增长，军工企业的订单可见度高，是值得关注的方向。",
+                "【军事分析】现代战争形态正在发生根本性变化，无人机、网络战、太空资产成为新战场。投资需要关注这些新兴领域。",
+                "【军工】军民融合是大趋势，很多民用技术最初都源于军工研发。选择有核心技术的军工企业，长期回报更可靠。",
+                "【军事思考】地缘冲突升级会刺激军费开支增加，但军工股的波动性也很大。短期事件驱动难把握，不如长期配置。",
+            ],
+            "social_hot": [
+                "【社会热点】人口老龄化是未来30年最大的结构性变化。医疗、养老、保险这些行业会迎来长周期的发展机遇。",
+                "【热点追踪】AI技术的突破正在深刻改变各行各业。作为投资者，我更关注AI在各细分领域落地带来的真实商业价值。",
+                "【社会观察】消费升级和消费降级同时存在，这是分化市场的特征。把握结构性机会比判断整体趋势更重要。",
+                "【热点】碳中和是长周期投资主题，但短期估值已经透支了太多预期。需要等待更好的入场时机。",
+                "【社会思考】房地产市场的长期拐点已经出现。居民的财富配置正在从房产向金融资产迁移，这是资本市场长期牛市的基础。",
+            ],
+            "chill": [
+                "【吹水】今天看到一句话很有道理：市场短期是投票机，长期是称重机。保持耐心，让时间去验证逻辑。",
+                "【闲聊】做投资最大的敌人是自己。克服贪婪和恐惧说起来容易，做起来极难。需要不断修炼心性。",
+                "【随想】研究做得越深，越觉得市场不可预测。与其追求精确的错误，不如接受模糊的准确。",
+                "【闲聊】周末读了一本好书，关于反脆弱性的。市场的波动不是风险，而是机会——前提是你有足够的冗余和韧性。",
+                "【吹水】今天市场波动较大，群里气氛有点紧张。其实大可不必，波动是市场的本质特征，平常心对待就好。",
+            ],
+        }
+
+        candidates = templates.get(topic, templates["chill"])
+        base = random.choice(candidates)
+        # 根据话题调整语气
+        tone_map = {
+            "macro": "neutral", "gold": "neutral",
+            "geo": "neutral", "military": "neutral",
+            "social_hot": "neutral", "chill": "bullish"
+        }
+        tone = tone_map.get(topic, "neutral")
+        speech = self.injector.get_speech_bubble(self.config.ai_id, tone)
+        content = base + f"\n\n{speech}"
+        return self.injector.inject(self.config.ai_id, content, intensity=0.4)
+
     def _generate_loss_post(self, decision, holdings: List[Dict],
                              market_data: Dict) -> str:
         """亏损安慰帖 - 持仓跌幅>3%时触发"""
@@ -725,9 +792,11 @@ class ContentGenerator:
         # 优先使用 LLM 的类型
         if post_type in (PostType.CLOSING, PostType.OPENING):
             return True
-        # 强制 LLM：RANDOM/HOLD/STRATEGY/NEW 类型（消除模板废话）
+        # 强制 LLM：RANDOM/HOLD/STRATEGY/AI区话题类型（消除模板废话）
         if post_type in (PostType.RANDOM, PostType.HOLD_REASON, PostType.STRATEGY_SHARE,
-                         PostType.SOCIAL, PostType.MOCK):
+                         PostType.SOCIAL, PostType.MOCK,
+                         PostType.MACRO, PostType.GOLD, PostType.GEO,
+                         PostType.MILITARY, PostType.SOCIAL_HOT, PostType.CHILL):
             return True
         # 50% 概率使用 LLM
         if post_type in (PostType.NIGHT_ANALYSIS,):

@@ -1220,6 +1220,10 @@ class BaseBrain(ABC):
         if self.CONFIG.personality.social_enabled:
             await self._maybe_social()
 
+        # Step 7: AI专区脑暴帖（每天最多5条，宏观/贵金属/地缘/军事/热点/闲聊）
+        if self.CONFIG.personality.social_enabled:
+            await self._maybe_brainstorm()
+
     async def _maybe_post(
         self,
         session: Session,
@@ -1363,6 +1367,58 @@ class BaseBrain(ABC):
 
         except Exception as e:
             logger.error(f"[{self.CONFIG.name}] 社交互动出错: {e}")
+
+    async def _maybe_brainstorm(self):
+        """AI专区脑暴帖 - 宏观/贵金属/地缘/军事/热点/闲聊
+        每AI每天最多5条，不同话题类型轮流生成"""
+        try:
+            today = time.strftime("%Y-%m-%d")
+            if not hasattr(self, "_brainstorm_daily_reset") or self._brainstorm_daily_reset != today:
+                self._brainstorm_daily_count = 0
+                self._brainstorm_daily_reset = today
+            if self._brainstorm_daily_count >= 5:
+                return
+
+            # 冷却：同一话题至少间隔3小时
+            topics = ["macro", "gold", "geo", "military", "social_hot", "chill"]
+            last_topic = getattr(self, "_last_brainstorm_topic", None)
+            last_time = getattr(self, "_last_brainstorm_time", 0)
+
+            if last_topic and (time.time() - last_time) < 10800:  # 3小时
+                # 强制轮换话题
+                remaining = [t for t in topics if t != last_topic]
+                topic = random.choice(remaining) if remaining else random.choice(topics)
+            else:
+                topic = random.choice(topics)
+
+            post_type_map = {
+                "macro": PostType.MACRO,
+                "gold": PostType.GOLD,
+                "geo": PostType.GEO,
+                "military": PostType.MILITARY,
+                "social_hot": PostType.SOCIAL_HOT,
+                "chill": PostType.CHILL,
+            }
+            post_type = post_type_map[topic]
+
+            # 生成内容（使用ContentGenerator的generate方法）
+            market_data = self._market_state or {}
+            content = self.content_gen.generate(
+                post_type=post_type,
+                market_data=market_data,
+                holdings=[],
+                decision=None,
+            )
+
+            if content:
+                self.post_to_bbs(content, topic)
+                self._brainstorm_daily_count += 1
+                self._last_brainstorm_topic = topic
+                self._last_brainstorm_time = time.time()
+                logger.info(f"[{self.CONFIG.name}] 脑暴帖 [{topic}]: {content[:50]}...")
+
+        except Exception as e:
+            logger.error(f"[{self.CONFIG.name}] 脑暴帖出错: {e}")
 
     def post_to_internal(self, content: str, post_type: str = "feedback") -> Optional[str]:
         """发内部帖子（只有开发者能看到）"""
@@ -1573,9 +1629,11 @@ class BaseBrain(ABC):
                 if is_trading_day():
                     await self.execute_session_cycle()
                 else:
-                    # 周末：每天3次轻量检查（市场情绪/社交）
+                    # 周末：每天3次轻量检查（市场情绪/社交/脑暴）
                     if self.CONFIG.personality.social_enabled:
                         await self._maybe_social()
+                    if self.CONFIG.personality.social_enabled:
+                        await self._maybe_brainstorm()
                 
                 await asyncio.sleep(check_interval)
                 
