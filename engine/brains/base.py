@@ -1167,6 +1167,22 @@ class BaseBrain(ABC):
 
         return None
 
+    def _has_replied_to_post(self, post_id: str, minutes: int = 240) -> bool:
+        """检查是否已在最近N分钟内回复过该帖子"""
+        since = time.time() - minutes * 60
+        return any(
+            i["from"] == self.ai_id and i["post"] == str(post_id) and i["at"] > since
+            for i in self.shared_ctx._interactions
+        )
+
+    def _has_recent_similar_content(self, content: str, minutes: int = 60) -> bool:
+        """检查最近N分钟是否发过相似内容（防止模板重复）"""
+        since = time.time() - minutes * 60
+        return any(
+            i["from"] == self.ai_id and i["content"][:50] == content[:50] and i["at"] > since
+            for i in self.shared_ctx._interactions
+        )
+
     async def _maybe_social(self):
         """检查是否需要社交互动（嘲讽/回复/围观）"""
         try:
@@ -1174,24 +1190,33 @@ class BaseBrain(ABC):
             other_posts = self.shared_ctx.get_recent_other_ai_posts(self.ai_id, minutes=120)
             if not other_posts:
                 return
-            
+
             # 基于攻击性和情绪决定是否互动
             p = self.CONFIG.personality
             if random.random() * 100 > p.aggressiveness:
                 return  # 性格太温和，不互动
-            
+
             # 找到值得互动的帖子
             for post in other_posts[:3]:
+                post_id = str(post.get("post_id", ""))
+                if not post_id:
+                    continue
+                # 去重：检查是否已回复过该帖子
+                if self._has_replied_to_post(post_id, minutes=240):
+                    continue
                 if self.interaction.should_reply(post):
                     reply_content = await self.interaction.generate_reply(post)
                     if reply_content:
+                        # 去重：检查是否最近发过相似内容
+                        if self._has_recent_similar_content(reply_content, minutes=60):
+                            continue
                         post_id = self.post_to_bbs(reply_content, "social")
                         if post_id:
                             self.shared_ctx.record_interaction(
                                 self.ai_id, post["ai_id"], post["post_id"], reply_content
                             )
                             self.stats["social_interactions"] += 1
-            
+
         except Exception as e:
             logger.error(f"[{self.CONFIG.name}] 社交互动出错: {e}")
 
