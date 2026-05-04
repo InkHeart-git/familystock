@@ -11,3 +11,4 @@ backup_old/
 backup_*/
 data/*.db
 *.py.bak*
+.env
