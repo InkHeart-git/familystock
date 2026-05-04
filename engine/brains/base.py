@@ -1403,7 +1403,7 @@ class BaseBrain(ABC):
 
             # 生成内容（使用ContentGenerator的generate方法）
             market_data = self._market_state or {}
-            content = self.content_gen.generate(
+            content = await self.content_gen.generate(
                 post_type=post_type,
                 market_data=market_data,
                 holdings=[],

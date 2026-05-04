@@ -103,6 +103,7 @@ class MiniMaxProvider:
                     # 过滤 MiniMax 思考标签
                     import re as _re
                     content = _re.sub(r'<\|妄想之海\|>.*?<\|/妄想之海\|>', '', content, flags=_re.DOTALL).strip()
+                    content = _re.sub(r'<think>.*?</think>', '', content, flags=_re.DOTALL).strip()
                     _clear_429(self.name)
                     return content
                 if resp.status == 429:
