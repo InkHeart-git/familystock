@@ -1,5 +1,5 @@
 {
-  "check_time": "2026-05-04 08:25",
+  "check_time": "2026-05-06 08:25",
   "total_ais": 10,
   "results": [
     {
@@ -38,7 +38,7 @@
       "ai_id": "4",
       "ai_name": "Ryan（瑞恩）",
       "has_position": true,
-      "position_summary": "持仓中: 002703:7000股, 600571:3696股, 601012:2488股, 002466.SZ:537股",
+      "position_summary": "持仓中: 601012:2488股, 002466.SZ:537股",
       "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     },
@@ -71,14 +71,14 @@
       "ai_name": "周逆行",
       "has_position": true,
       "position_summary": "持仓中: 002405:600股",
-      "max_consecutive_empty_days": 4,
+      "max_consecutive_empty_days": 6,
       "status": "⚠️ 需强制交易"
     },
     {
       "ai_id": "9",
       "ai_name": "Mike（迈克）",
-      "has_position": true,
-      "position_summary": "持仓中: 002400:1344股",
+      "has_position": false,
+      "position_summary": "空仓（最后交易: SELL 002400 @ 2026-05-04 14:56:19）",
       "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     }
@@ -183,12 +183,13 @@
     {
       "ai_id": "8",
       "ai_name": "周逆行",
-      "empty_days": 4,
+      "empty_days": 6,
       "last_empty_dates": [
-        "2026-04-24",
-        "2026-04-25",
-        "2026-04-26",
-        "2026-04-27"
+        "2026-05-02",
+        "2026-05-03",
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06"
       ]
     },
     {

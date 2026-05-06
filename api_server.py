@@ -224,6 +224,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self.get_rankings, {}
                 if rest[0] == "stats":
                     return self.get_stats, {}
+                if rest[0] == "yan_zhi" and len(rest) >= 2:
+                    return self.get_yan_zhi, {"user_id": rest[1]}
+                if rest[0] == "comments" and len(rest) >= 2:
+                    return self.get_post_comments, {"post_id": rest[1]}
                 if rest[0] == "competition":
                     rest2 = rest[1:]
                     if not rest2 or rest2[0] == "leaderboard":
@@ -458,7 +462,7 @@ class Handler(BaseHTTPRequestHandler):
         conn = get_db()
         rows = conn.execute("""
             SELECT p.id, p.ai_id, p.title, p.content, p.action, p.signal, p.created_at,
-                   COALESCE(c.name, '?'), COALESCE(c.emoji, '🤖'), p.post_type
+                   COALESCE(c.name, '?'), COALESCE(c.emoji, '🤖'), p.post_type, p.author_type
             FROM ai_posts p
             LEFT JOIN ai_characters c ON CAST(p.ai_id AS INTEGER)=c.id
             ORDER BY p.created_at DESC LIMIT 100
@@ -466,7 +470,8 @@ class Handler(BaseHTTPRequestHandler):
         conn.close()
         posts = [{"id": r[0], "ai_id": r[1], "title": r[2], "content": r[3],
                   "action": r[4], "signal": r[5], "created_at": r[6],
-                  "ai_name": r[7], "ai_emoji": r[8], "post_type": r[9] or "general"} for r in rows]
+                  "ai_name": r[7], "ai_emoji": r[8], "post_type": r[9] or "general",
+                  "author_type": r[10] or "ai"} for r in rows]
         return {"data": {"posts": posts, "total": len(posts)}}
 
     def get_latest_posts(self):
@@ -474,7 +479,7 @@ class Handler(BaseHTTPRequestHandler):
         limit = 5
         rows = conn.execute(f"""
             SELECT p.id, p.ai_id, p.title, p.content, p.action, p.signal, p.created_at,
-                   COALESCE(c.name, '?'), COALESCE(c.emoji, '🤖'), p.post_type
+                   COALESCE(c.name, '?'), COALESCE(c.emoji, '🤖'), p.post_type, p.author_type
             FROM ai_posts p
             LEFT JOIN ai_characters c ON CAST(p.ai_id AS INTEGER)=c.id
             ORDER BY p.created_at DESC LIMIT {limit}
@@ -482,7 +487,8 @@ class Handler(BaseHTTPRequestHandler):
         conn.close()
         posts = [{"id": r[0], "ai_id": r[1], "title": r[2], "content": r[3],
                   "action": r[4], "signal": r[5], "created_at": r[6],
-                  "ai_name": r[7], "ai_emoji": r[8], "post_type": r[9] or "general"} for r in rows]
+                  "ai_name": r[7], "ai_emoji": r[8], "post_type": r[9] or "general",
+                  "author_type": r[10] or "ai"} for r in rows]
         return {"data": {"posts": posts, "total": len(posts)}}
 
     def get_post(self, id):
@@ -522,29 +528,42 @@ class Handler(BaseHTTPRequestHandler):
                 "today_posts": today_posts,
                 **rec
             })
-        computed.sort(key=lambda x: x["total_return_pct"], reverse=True)
-        rankings = []
-        for i, c in enumerate(computed):
-            rankings.append({
-                "rank": i + 1,
-                "id": c["id"], "name": c["name"],
-                "avatar_emoji": c["emoji"], "style": c["style"],
-                "total_value": c["total_value"],
-                "total_return_pct": c["total_return_pct"],
-                "total_pnl": c["total_pnl"],
-                "total_unrealized_pnl": c["total_unrealized_pnl"],
-                "total_realized_pnl": c["total_realized_pnl"],
-                "unrealized_pnl": c["unrealized_pnl"],
-                "realized_pnl": c["realized_pnl"],
-                "cash": c["cash"],
-                "stock_value": c["stock_value"],
-                "initial_capital": c["initial_capital"],
-                "daily_return_pct": c["daily_return_pct"],
-                "today_posts": c["today_posts"],
-                "holdings_count": c["holdings_count"],
-                "is_winning": c["is_winning"],
-            })
-        return {"data": {"rankings": rankings}}
+        # 分组：大规模组(ai_id<=5, 100万) vs 小规模组(ai_id>5, 10万)
+        large = sorted([c for c in computed if c["id"] <= 5],
+                       key=lambda x: x["total_return_pct"], reverse=True)
+        small = sorted([c for c in computed if c["id"] > 5],
+                       key=lambda x: x["total_return_pct"], reverse=True)
+
+        def build_ranking_list(group):
+            result = []
+            for i, c in enumerate(group):
+                result.append({
+                    "rank": i + 1,
+                    "id": c["id"], "name": c["name"],
+                    "avatar_emoji": c["emoji"], "style": c["style"],
+                    "total_value": c["total_value"],
+                    "total_return_pct": c["total_return_pct"],
+                    "total_pnl": c["total_pnl"],
+                    "total_unrealized_pnl": c["total_unrealized_pnl"],
+                    "total_realized_pnl": c["total_realized_pnl"],
+                    "unrealized_pnl": c["unrealized_pnl"],
+                    "realized_pnl": c["realized_pnl"],
+                    "cash": c["cash"],
+                    "stock_value": c["stock_value"],
+                    "initial_capital": c["initial_capital"],
+                    "daily_return_pct": c["daily_return_pct"],
+                    "today_posts": c["today_posts"],
+                    "holdings_count": c["holdings_count"],
+                    "is_winning": c["is_winning"],
+                })
+            return result
+
+        return {
+            "data": {
+                "large_cap": {"label": "大资金组（百万级）", "rankings": build_ranking_list(large)},
+                "small_cap": {"label": "小资金组（十万级）", "rankings": build_ranking_list(small)},
+            }
+        }
 
     def get_stats(self):
         conn = get_db()
@@ -557,6 +576,61 @@ class Handler(BaseHTTPRequestHandler):
             "today_posts": today_posts, "total_posts": total_posts,
             "total_characters": total_chars, "total_trades": total_trades
         }}
+
+    def get_yan_zhi(self, user_id=None):
+        """获取用户研值"""
+        conn = get_db()
+        try:
+            if user_id:
+                row = conn.execute("""
+                    SELECT user_id, yan_zhi, total_earned, total_spent, updated_at
+                    FROM user_yan_zhi WHERE user_id=?
+                """, (user_id,)).fetchone()
+                if row:
+                    return {"data": {
+                        "user_id": row[0], "yan_zhi": row[1],
+                        "total_earned": row[2], "total_spent": row[3],
+                        "updated_at": row[4]
+                    }}
+                else:
+                    return {"data": {"user_id": user_id, "yan_zhi": 0, "total_earned": 0, "total_spent": 0}}
+            else:
+                # 返回研值排行榜
+                rows = conn.execute("""
+                    SELECT u.user_id, u.yan_zhi, u.total_earned,
+                           COALESCE(f.user_name, '匿名') as user_name
+                    FROM user_yan_zhi u
+                    LEFT JOIN forum_posts f ON u.user_id = f.user_id
+                    GROUP BY u.user_id
+                    ORDER BY u.yan_zhi DESC LIMIT 20
+                """).fetchall()
+                return {"data": [{"user_id": r[0], "yan_zhi": r[1], "total_earned": r[2], "user_name": r[3]} for r in rows]}
+        finally:
+            conn.close()
+
+    def get_post_comments(self, post_id=None):
+        """获取帖子的所有AI回复（评论树）"""
+        conn = get_db()
+        try:
+            # 获取该帖子下所有AI的回复
+            rows = conn.execute("""
+                SELECT p.id, p.post_id, p.ai_id, p.title, p.content, p.action,
+                       p.signal, p.created_at, p.likes, p.replies,
+                       COALESCE(c.name, 'AI') as ai_name, COALESCE(c.emoji, '🤖') as ai_emoji
+                FROM ai_posts p
+                LEFT JOIN ai_characters c ON CAST(p.ai_id AS INTEGER)=c.id
+                WHERE p.parent_id=? AND p.author_type='ai'
+                ORDER BY p.created_at ASC
+            """, (post_id,)).fetchall()
+            comments = [{
+                "id": r[0], "post_id": r[1], "ai_id": r[2], "title": r[3],
+                "content": r[4], "action": r[5], "signal": r[6],
+                "created_at": r[7], "likes": r[8], "replies": r[9],
+                "ai_name": r[10], "ai_emoji": r[11]
+            } for r in rows]
+            return {"data": {"comments": comments, "total": len(comments)}}
+        finally:
+            conn.close()
 
     def get_ai_info(self, conn, ai_id):
         """获取AI角色信息"""
@@ -1734,6 +1808,93 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
             import traceback; traceback.print_exc()
             return {"error": str(e)}, 500
+
+    def create_human_post_with_mention(self, ai_id):
+        """人类@AI发帖 - ai_id是被@的AI角色ID"""
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(body)
+        except:
+            return {"error": "invalid JSON"}, 400
+
+        content = data.get("content", "").strip()
+        user_id = str(data.get("user_id", "anonymous"))
+        user_name = data.get("user_name", "匿名用户")
+        mentions = data.get("mentions", [])  # 被@的AI ID列表
+        symbol = data.get("symbol", "")  # 股票代码
+        stock_name = data.get("stock_name", "")  # 股票名称
+        price = data.get("price", 0)  # 买入价
+        post_type = data.get("post_type", "mention")  # 默认为@AI类型
+
+        if len(content) < 5:
+            return {"error": "内容至少5个字符"}, 400
+
+        conn = get_db()
+        try:
+            import uuid
+            post_id = str(uuid.uuid4())[:8]
+            mentions_json = json.dumps(mentions)
+
+            # 插入帖子，author_type='human'区分人类帖子
+            cur = conn.execute("""
+                INSERT INTO ai_posts 
+                (post_id, ai_id, title, content, post_type, author_type, mentions, 
+                 symbol, stock_name, price, action, signal, created_at)
+                VALUES (?, 'HUMAN', '', ?, ?, 'human', ?, ?, ?, ?, 'MENTION', '💬', CURRENT_TIMESTAMP)
+            """, (post_id, content, post_type, mentions_json, symbol, stock_name, price))
+            row_id = cur.lastrowid
+
+            # 更新原帖的回复数
+            for mid in mentions:
+                conn.execute("UPDATE ai_posts SET replies=replies+1 WHERE post_id=? OR id=?", 
+                           (str(mid), int(mid) if mid.isdigit() else 0))
+
+            conn.commit()
+
+            # 增加用户研值（发帖 +3）
+            self._add_yan_zhi(conn, user_id, 3, "发帖奖励", "post_mention")
+            conn.commit()
+
+            # 异步触发AI回复（后台进程）
+            import subprocess
+            subprocess.Popen([
+                "/var/www/ai-god-of-stocks/venv/bin/python3",
+                "/var/www/ai-god-of-stocks/trigger_ai_reply.py",
+                str(row_id), json.dumps(mentions), content
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            conn.close()
+            return {"data": {"success": True, "post_id": post_id, "row_id": row_id, 
+                           "message": "发帖成功，AI正在赶来的路上..."}}
+        except Exception as e:
+            conn.close()
+            import traceback; traceback.print_exc()
+            return {"error": str(e)}, 500
+
+    def _add_yan_zhi(self, conn, user_id, amount, reason, source):
+        """内部方法：给用户增加/扣除研值"""
+        try:
+            conn.execute("""
+                INSERT INTO user_yan_zhi (user_id, yan_zhi, total_earned, updated_at)
+                VALUES (?, ?, ?, datetime('now', '+8 hours'))
+                ON CONFLICT(user_id) DO UPDATE SET
+                    yan_zhi = yan_zhi + ?,
+                    total_earned = total_earned + MAX(0, ?),
+                    updated_at = datetime('now', '+8 hours')
+            """, (user_id, amount, amount, amount, amount))
+            # 记录流水
+            conn.execute("""
+                INSERT INTO yan_zhi_log (user_id, amount, reason, source)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, amount, reason, source))
+        except Exception as e:
+            print(f"_add_yan_zhi error: {e}")
+
+    def trigger_ai_reply(self, post_id, mentions, content):
+        """触发AI回复（被异步调用）"""
+        # 这个方法在trigger_ai_reply.py脚本里实现
+        pass
 
     def create_reply(self, post_id):
         """创建回复"""
@@ -3147,9 +3308,17 @@ class Handler(BaseHTTPRequestHandler):
                     data, status = result, 200
                 self.send_json(data, status)
                 return
-            elif len(parts) == 4:
-                # POST /api/ai/posts/{id}/reply 或 like
-                pass  # 继续走route
+
+        # 特殊处理POST /api/ai/characters/{id}/posts - 人类@AI发帖
+        if len(parts) >= 4 and parts[0] == "api" and parts[1] == "ai" and parts[2] == "characters" and parts[4] == "posts":
+            ai_id = parts[3]
+            result = self.create_human_post_with_mention(ai_id)
+            if isinstance(result, tuple):
+                data, status = result[0], result[1]
+            else:
+                data, status = result, 200
+            self.send_json(data, status)
+            return
 
         # 特殊处理POST /api/competition/vote
         if len(parts) >= 3 and parts[0] == "api" and parts[1] == "competition" and parts[2] == "vote":
