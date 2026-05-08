@@ -1,0 +1,464 @@
+{
+  "date": "2026-05-08",
+  "summary": {
+    "date": "2026-05-08",
+    "ai_count": 10,
+    "total_value_all": 5082884.0600000005,
+    "avg_return_pct": -0.149229365,
+    "rankings": [
+      {
+        "rank": 1,
+        "ai_id": 5,
+        "ai_name": "David Chen（陈大卫）",
+        "return_pct": 0.512342,
+        "signal": "WATCH"
+      },
+      {
+        "rank": 2,
+        "ai_id": 1,
+        "ai_name": "Tyler（泰勒）",
+        "return_pct": 0.11843897999999999,
+        "signal": "WATCH"
+      },
+      {
+        "rank": 3,
+        "ai_id": 7,
+        "ai_name": "James Wong（黄詹姆斯）",
+        "return_pct": 0.06788,
+        "signal": "WATCH"
+      },
+      {
+        "rank": 4,
+        "ai_id": 2,
+        "ai_name": "林数理",
+        "return_pct": -0.17426956000000005,
+        "signal": "WATCH"
+      },
+      {
+        "rank": 5,
+        "ai_id": 3,
+        "ai_name": "方守成",
+        "return_pct": -0.18231491999999994,
+        "signal": "WATCH"
+      },
+      {
+        "rank": 6,
+        "ai_id": 10,
+        "ai_name": "沈闻",
+        "return_pct": -0.19646,
+        "signal": "WATCH"
+      },
+      {
+        "rank": 7,
+        "ai_id": 9,
+        "ai_name": "Mike（迈克）",
+        "return_pct": -0.23685759999999995,
+        "signal": "WATCH"
+      },
+      {
+        "rank": 8,
+        "ai_id": 6,
+        "ai_name": "韩科捷",
+        "return_pct": -0.3049042999999999,
+        "signal": "OK"
+      },
+      {
+        "rank": 9,
+        "ai_id": 8,
+        "ai_name": "周逆行",
+        "return_pct": -0.5243,
+        "signal": "OK"
+      },
+      {
+        "rank": 10,
+        "ai_id": 4,
+        "ai_name": "Ryan（瑞恩）",
+        "return_pct": -0.57184825,
+        "signal": "WATCH"
+      }
+    ],
+    "adjust_needed": [
+      {
+        "ai_id": 1,
+        "ai_name": "Tyler（泰勒）",
+        "reason": "WATCH"
+      },
+      {
+        "ai_id": 10,
+        "ai_name": "沈闻",
+        "reason": "WATCH"
+      },
+      {
+        "ai_id": 2,
+        "ai_name": "林数理",
+        "reason": "WATCH"
+      },
+      {
+        "ai_id": 3,
+        "ai_name": "方守成",
+        "reason": "WATCH"
+      },
+      {
+        "ai_id": 4,
+        "ai_name": "Ryan（瑞恩）",
+        "reason": "WATCH"
+      },
+      {
+        "ai_id": 5,
+        "ai_name": "David Chen（陈大卫）",
+        "reason": "WATCH"
+      },
+      {
+        "ai_id": 7,
+        "ai_name": "James Wong（黄詹姆斯）",
+        "reason": "WATCH"
+      },
+      {
+        "ai_id": 9,
+        "ai_name": "Mike（迈克）",
+        "reason": "WATCH"
+      }
+    ]
+  },
+  "ai_results": {
+    "1": {
+      "ai_id": 1,
+      "ai_name": "Tyler（泰勒）",
+      "seed_capital": 1000000.0,
+      "current_total": 1118438.98,
+      "total_return_pct": 0.11843897999999999,
+      "today_return_pct": 0.0,
+      "position_value": 377968.98,
+      "cash": 740470.0,
+      "position_ratio": 0.37796897999999995,
+      "holdings": [
+        {
+          "symbol": "300750",
+          "name": "300750",
+          "quantity": 570,
+          "avg_cost": 230.0,
+          "current_price": 436.79,
+          "unrealized_pnl": 117870.30000000002,
+          "unrealized_pnl_pct": 0.8990869565217392,
+          "weight_pct": 0.2489703
+        },
+        {
+          "symbol": "002230",
+          "name": "002230",
+          "quantity": 2564,
+          "avg_cost": 50.0,
+          "current_price": 49.87,
+          "unrealized_pnl": -333.32000000000653,
+          "unrealized_pnl_pct": -0.002600000000000051,
+          "weight_pct": 0.12786667999999998
+        },
+        {
+          "symbol": "000001",
+          "name": "000001",
+          "quantity": 100,
+          "avg_cost": 10.5,
+          "current_price": 11.32,
+          "unrealized_pnl": 82.00000000000003,
+          "unrealized_pnl_pct": 0.07809523809523812,
+          "weight_pct": 0.001132
+        }
+      ],
+      "trade_count": 14,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 32.857142857142854,
+      "score_hit_rate": 0.2857142857142857,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "WATCH"
+    },
+    "10": {
+      "ai_id": 10,
+      "ai_name": "沈闻",
+      "seed_capital": 100000.0,
+      "current_total": 80354.0,
+      "total_return_pct": -0.19646,
+      "today_return_pct": 0.0,
+      "position_value": 14961.0,
+      "cash": 65393.0,
+      "position_ratio": 0.14961,
+      "holdings": [
+        {
+          "symbol": "002230",
+          "name": "002230",
+          "quantity": 300,
+          "avg_cost": 49.723333333333336,
+          "current_price": 49.87,
+          "unrealized_pnl": 43.99999999999835,
+          "unrealized_pnl_pct": 0.0029496547563181838,
+          "weight_pct": 0.14961
+        }
+      ],
+      "trade_count": 7,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 26.857142857142858,
+      "score_hit_rate": 0.25,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "WATCH"
+    },
+    "2": {
+      "ai_id": 2,
+      "ai_name": "林数理",
+      "seed_capital": 1000000.0,
+      "current_total": 825730.44,
+      "total_return_pct": -0.17426956000000005,
+      "today_return_pct": 0.0,
+      "position_value": 109929.18,
+      "cash": 715801.26,
+      "position_ratio": 0.10992917999999999,
+      "holdings": [
+        {
+          "symbol": "002264",
+          "name": "新华都",
+          "quantity": 2700,
+          "avg_cost": 8.08,
+          "current_price": 8.69,
+          "unrealized_pnl": 1646.9999999999984,
+          "unrealized_pnl_pct": 0.07549504950495042,
+          "weight_pct": 0.023463
+        },
+        {
+          "symbol": "002405",
+          "name": "002405",
+          "quantity": 9179,
+          "avg_cost": 15.0,
+          "current_price": 9.42,
+          "unrealized_pnl": -51218.82,
+          "unrealized_pnl_pct": -0.372,
+          "weight_pct": 0.08646617999999999
+        }
+      ],
+      "trade_count": 12,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 5.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "WATCH"
+    },
+    "3": {
+      "ai_id": 3,
+      "ai_name": "方守成",
+      "seed_capital": 1000000.0,
+      "current_total": 817685.0800000001,
+      "total_return_pct": -0.18231491999999994,
+      "today_return_pct": 0.0,
+      "position_value": 305935.0,
+      "cash": 511750.0800000001,
+      "position_ratio": 0.305935,
+      "holdings": [
+        {
+          "symbol": "002077",
+          "name": "002077",
+          "quantity": 10600,
+          "avg_cost": 15.0,
+          "current_price": 17.1,
+          "unrealized_pnl": 22260.000000000015,
+          "unrealized_pnl_pct": 0.1400000000000001,
+          "weight_pct": 0.18126000000000003
+        },
+        {
+          "symbol": "002230",
+          "name": "002230",
+          "quantity": 2500,
+          "avg_cost": 50.0,
+          "current_price": 49.87,
+          "unrealized_pnl": -325.00000000000637,
+          "unrealized_pnl_pct": -0.002600000000000051,
+          "weight_pct": 0.124675
+        }
+      ],
+      "trade_count": 7,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 18.285714285714285,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "WATCH"
+    },
+    "4": {
+      "ai_id": 4,
+      "ai_name": "Ryan（瑞恩）",
+      "seed_capital": 1000000.0,
+      "current_total": 428151.75,
+      "total_return_pct": -0.57184825,
+      "today_return_pct": 0.0,
+      "position_value": 83605.15,
+      "cash": 344546.6,
+      "position_ratio": 0.08360514999999999,
+      "holdings": [
+        {
+          "symbol": "601012",
+          "name": "601012",
+          "quantity": 2488,
+          "avg_cost": 22.5,
+          "current_price": 16.33,
+          "unrealized_pnl": -15350.960000000005,
+          "unrealized_pnl_pct": -0.2742222222222223,
+          "weight_pct": 0.04062903999999999
+        },
+        {
+          "symbol": "002466.SZ",
+          "name": "天齐锂业",
+          "quantity": 537,
+          "avg_cost": 75.52012388000726,
+          "current_price": 80.03,
+          "unrealized_pnl": 2421.803476436101,
+          "unrealized_pnl_pct": 0.05971754134246934,
+          "weight_pct": 0.04297611
+        }
+      ],
+      "trade_count": 31,
+      "win_count": 3,
+      "win_rate": 0.0967741935483871,
+      "avg_score": 12.64516129032258,
+      "score_hit_rate": 0.17647058823529413,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "WATCH"
+    },
+    "5": {
+      "ai_id": 5,
+      "ai_name": "David Chen（陈大卫）",
+      "seed_capital": 1000000.0,
+      "current_total": 1512342.0,
+      "total_return_pct": 0.512342,
+      "today_return_pct": 0.0,
+      "position_value": 259193.99999999997,
+      "cash": 1253148.0,
+      "position_ratio": 0.259194,
+      "holdings": [
+        {
+          "symbol": "300474",
+          "name": "300474",
+          "quantity": 3900,
+          "avg_cost": 80.0,
+          "current_price": 66.46,
+          "unrealized_pnl": -52806.00000000002,
+          "unrealized_pnl_pct": -0.16925000000000007,
+          "weight_pct": 0.259194
+        }
+      ],
+      "trade_count": 10,
+      "win_count": 4,
+      "win_rate": 0.4,
+      "avg_score": 40.0,
+      "score_hit_rate": 0.25,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "WATCH"
+    },
+    "6": {
+      "ai_id": 6,
+      "ai_name": "韩科捷",
+      "seed_capital": 100000.0,
+      "current_total": 69509.57,
+      "total_return_pct": -0.3049042999999999,
+      "today_return_pct": 0.0,
+      "position_value": 14586.0,
+      "cash": 54923.57000000001,
+      "position_ratio": 0.14586,
+      "holdings": [
+        {
+          "symbol": "300300",
+          "name": "300300",
+          "quantity": 1100,
+          "avg_cost": 10.15,
+          "current_price": 13.26,
+          "unrealized_pnl": 3420.9999999999995,
+          "unrealized_pnl_pct": 0.3064039408866994,
+          "weight_pct": 0.14586
+        }
+      ],
+      "trade_count": 14,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 52.285714285714285,
+      "score_hit_rate": 0.5714285714285714,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "7": {
+      "ai_id": 7,
+      "ai_name": "James Wong（黄詹姆斯）",
+      "seed_capital": 100000.0,
+      "current_total": 106788.0,
+      "total_return_pct": 0.06788,
+      "today_return_pct": 0.0,
+      "position_value": 13741.0,
+      "cash": 93047.0,
+      "position_ratio": 0.13741,
+      "holdings": [
+        {
+          "symbol": "300274.SZ",
+          "name": "阳光电源",
+          "quantity": 100,
+          "avg_cost": 129.89,
+          "current_price": 137.41,
+          "unrealized_pnl": 752.000000000001,
+          "unrealized_pnl_pct": 0.05789514204326746,
+          "weight_pct": 0.13741
+        }
+      ],
+      "trade_count": 4,
+      "win_count": 1,
+      "win_rate": 0.25,
+      "avg_score": 34.0,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "WATCH"
+    },
+    "8": {
+      "ai_id": 8,
+      "ai_name": "周逆行",
+      "seed_capital": 100000.0,
+      "current_total": 47570.0,
+      "total_return_pct": -0.5243,
+      "today_return_pct": 0.0,
+      "position_value": 5652.0,
+      "cash": 41918.0,
+      "position_ratio": 0.05652,
+      "holdings": [
+        {
+          "symbol": "002405",
+          "name": "002405",
+          "quantity": 600,
+          "avg_cost": 17.32,
+          "current_price": 9.42,
+          "unrealized_pnl": -4740.0,
+          "unrealized_pnl_pct": -0.4561200923787529,
+          "weight_pct": 0.05652
+        }
+      ],
+      "trade_count": 53,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 36.867924528301884,
+      "score_hit_rate": 0.8148148148148148,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "OK"
+    },
+    "9": {
+      "ai_id": 9,
+      "ai_name": "Mike（迈克）",
+      "seed_capital": 100000.0,
+      "current_total": 76314.24,
+      "total_return_pct": -0.23685759999999995,
+      "today_return_pct": 0.0,
+      "position_value": 0,
+      "cash": 76314.24,
+      "position_ratio": 0.0,
+      "holdings": [],
+      "trade_count": 7,
+      "win_count": 0,
+      "win_rate": 0.0,
+      "avg_score": 9.714285714285714,
+      "score_hit_rate": 0.0,
+      "consecutive_loss_days": 0,
+      "strategy_signal": "WATCH"
+    }
+  }
+}

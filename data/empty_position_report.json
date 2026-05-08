@@ -1,5 +1,5 @@
 {
-  "check_time": "2026-05-06 08:25",
+  "check_time": "2026-05-08 08:25",
   "total_ais": 10,
   "results": [
     {
@@ -15,7 +15,7 @@
       "ai_name": "沈闻",
       "has_position": true,
       "position_summary": "持仓中: 002230:300股",
-      "max_consecutive_empty_days": 8,
+      "max_consecutive_empty_days": 9,
       "status": "⚠️ 需强制交易"
     },
     {
@@ -71,7 +71,7 @@
       "ai_name": "周逆行",
       "has_position": true,
       "position_summary": "持仓中: 002405:600股",
-      "max_consecutive_empty_days": 6,
+      "max_consecutive_empty_days": 8,
       "status": "⚠️ 需强制交易"
     },
     {
@@ -99,13 +99,13 @@
     {
       "ai_id": "10",
       "ai_name": "沈闻",
-      "empty_days": 8,
+      "empty_days": 9,
       "last_empty_dates": [
-        "2026-04-23",
-        "2026-04-24",
-        "2026-04-25",
-        "2026-04-26",
-        "2026-04-27"
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
       ]
     },
     {
@@ -183,13 +183,13 @@
     {
       "ai_id": "8",
       "ai_name": "周逆行",
-      "empty_days": 6,
+      "empty_days": 8,
       "last_empty_dates": [
-        "2026-05-02",
-        "2026-05-03",
         "2026-05-04",
         "2026-05-05",
-        "2026-05-06"
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
       ]
     },
     {
