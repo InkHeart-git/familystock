@@ -17,12 +17,12 @@ router = APIRouter(prefix="/ai", tags=["AI分析"])
 
 # Kimi Code Plan API配置（主要接口）
 KIMI_API_URL = "https://api.kimi.com/coding/v1/messages"
-KIMI_API_KEY = "sk-kimi-4i8L6z8eA89Oj8430WbkbwaldakqTBVUhbAEfbDdf02aQPpPDzVuAjHAAoTS2IYW"
+KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "")
 KIMI_MODEL = "k2p5"
 
 # DeepSeek API配置（备用接口）
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
-DEEPSEEK_API_KEY = "sk-ba29925a6dc84f6da02ac006a2fc93f2"
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 
 # 新闻库配置
 SQLITE_DB_PATH = "/var/www/familystock/api/data/family_stock.db"

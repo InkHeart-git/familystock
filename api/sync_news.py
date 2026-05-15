@@ -13,7 +13,7 @@ ts.set_token('f4ba795df2475484a98087c15dc0fe5050c7197a9358d7edc044b735')
 pro = ts.pro_api()
 
 # QVeris配置
-QVERIS_API_KEY = "sk-3JgIUg70yvI2zvedHKUqWy4BRNRN_XCsPsMqhiWQjiw"
+QVERIS_API_KEY = os.environ.get("QVERIS_API_KEY", "")
 QVERIS_CLI_PATH = "/root/.openclaw/skills/qveris-official/scripts/qveris_tool.mjs"
 
 # 数据库配置

@@ -1,11 +1,12 @@
 """
 Kimi API 集成模块
 """
+import os
 import requests
 
 # Kimi API 配置
 KIMI_API_URL = "https://api.moonshot.cn/v1/chat/completions"
-KIMI_API_KEY = "sk-ba29925a6dc84f6da02ac006a2fc93f2"
+KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "")
 
 def call_kimi_api(prompt, model="moonshot-v1-8k"):
     try:

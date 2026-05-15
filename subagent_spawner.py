@@ -31,7 +31,7 @@ except ImportError:
     print("[WARNING] 交易规则引擎未加载，交易不受限制")
 
 # DeepSeek API配置
-DEEPSEEK_API_KEY = "sk-7d9d3bc3ca754c368d52d57c20d3ad98"
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
 # 全部10个AI角色配置

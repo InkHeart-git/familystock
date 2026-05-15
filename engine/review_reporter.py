@@ -14,7 +14,11 @@ from engine.auto_review import run_review, AutoReviewEngine
 
 logger = logging.getLogger("ReviewReporter")
 
-# 飞书群组 Webhook（从环境变量读取）
+# 飞书推送配置（使用 IM API 直接发送，webhook token 已废弃）
+FEISHU_APP_ID = "cli_a9509c6222b8dcc0"
+FEISHU_APP_SECRET = "NkVQl3T04nLJOG74nBIT3ZFDMb6AOSla"
+FEISHU_CHAT_ID = "oc_4a9f5bf64492437054d80cebac4f5568"
+# 旧 webhook（token 已失效，保留作为记录）
 FEISHU_WEBHOOK = "https://open.feishu.cn/open-apis/bot/v2/hook/oc_4a9f5bf64492437054d80cebac4f5568"
 
 
@@ -102,19 +106,51 @@ class ReviewReporter:
 
         return "\n".join(lines)
 
+    def _get_feishu_token(self) -> Optional[str]:
+        """获取飞书 tenant_access_token"""
+        try:
+            resp = requests.post(
+                "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+                json={"app_id": FEISHU_APP_ID, "app_secret": FEISHU_APP_SECRET},
+                timeout=10
+            )
+            data = resp.json()
+            if data.get("code") == 0:
+                return data["tenant_access_token"]
+            logger.error(f"[ReviewReporter] 获取飞书token失败: {data}")
+            return None
+        except Exception as e:
+            logger.error(f"[ReviewReporter] 获取飞书token异常: {e}")
+            return None
+
     def push_to_feishu(self, text: str) -> bool:
-        """推送文字报告到飞书群组"""
+        """推送文字报告到飞书群组（使用 IM API 绕过失效的 webhook）"""
+        token = self._get_feishu_token()
+        if not token:
+            return False
+
+        content_json = json.dumps({"text": text})
         payload = {
+            "receive_id": FEISHU_CHAT_ID,
             "msg_type": "text",
-            "content": {"text": text}
+            "content": content_json
         }
         try:
-            resp = requests.post(self.webhook_url, json=payload, timeout=10)
-            if resp.status_code == 200:
+            resp = requests.post(
+                f"https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                },
+                json=payload,
+                timeout=10
+            )
+            data = resp.json()
+            if data.get("code") == 0:
                 logger.info("[ReviewReporter] 飞书推送成功")
                 return True
             else:
-                logger.error(f"[ReviewReporter] 飞书推送失败: {resp.status_code} {resp.text}")
+                logger.error(f"[ReviewReporter] 飞书推送失败: {data}")
                 return False
         except Exception as e:
             logger.error(f"[ReviewReporter] 飞书推送异常: {e}")
